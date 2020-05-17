@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/aws/aws-lambda-go v1.16.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.6.0
+	github.com/elastic/go-elasticsearch/v7 v7.5.1-0.20200515132447-db2bcf51489c
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -22,9 +24,46 @@ func (c *AdsController) GetAds(context *gin.Context) {
 	if err != nil{
 			context.String(404, "Votepack Not Found")
 	}*/
-	context.JSON(200, gin.H{
-		"message": "pong",
-	})
+	var (
+		r map[string]interface{}
+	)
+	FetchAds(c.EsClient, &r)
+	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
+		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
+	}
+	context.JSON(200, r)
+}
+
+func FetchAds(esClient *elasticsearch7.Client, r *map[string]interface{}) {
+	var buf bytes.Buffer
+	// Perform the search request.
+	res, err := esClient.Search(
+		esClient.Search.WithContext(context.Background()),
+		esClient.Search.WithIndex("classified_ads"),
+		esClient.Search.WithBody(&buf),
+		// esClient.Search.WithTrackTotalHits(true),
+		esClient.Search.WithPretty(),
+	)
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+	if res.IsError() {
+		var e map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			log.Fatalf("Error parsing the response body: %s", err)
+		} else {
+			// Print the response status and error information.
+			log.Fatalf("[%s] %s: %s",
+				res.Status(),
+				e["error"].(map[string]interface{})["type"],
+				e["error"].(map[string]interface{})["reason"],
+			)
+		}
+	}
+	defer res.Body.Close()
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		log.Fatalf("Error parsing the response body: %s", err)
+	}
 }
 
 func init() {

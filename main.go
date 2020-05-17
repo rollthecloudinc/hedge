@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -15,32 +16,48 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 
+type AdListitemsRequest struct {
+	AdType string `form:"adType" binding:"required"`
+}
+
 type AdsController struct {
 	EsClient *elasticsearch7.Client
 }
 
 func (c *AdsController) GetAdListItems(context *gin.Context) {
-	/*votePack, err := c.Database.GetVotePack("c5039ecd-e774-4c19-a2b9-600c2134784d")
-	if err != nil{
-			context.String(404, "Votepack Not Found")
-	}*/
-	var (
-		r map[string]interface{}
-	)
-	FetchAds(c.EsClient, &r)
+	var req AdListitemsRequest
+	if err := context.ShouldBind(&req); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var r map[string]interface{}
+	var q bytes.Buffer
+	buildSearchQuery(&q, &req)
+	executeSearch(&r, c.EsClient, &q, "classified_ads")
 	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
 		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
 	}
 	context.JSON(200, r)
 }
 
-func FetchAds(esClient *elasticsearch7.Client, r *map[string]interface{}) {
-	var buf bytes.Buffer
-	// Perform the search request.
+func buildSearchQuery(buf *bytes.Buffer, request *AdListitemsRequest) {
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": map[string]interface{}{
+				"title": "new",
+			},
+		},
+	}
+	if err := json.NewEncoder(buf).Encode(query); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+}
+
+func executeSearch(r *map[string]interface{}, esClient *elasticsearch7.Client, body *bytes.Buffer, index string) {
 	res, err := esClient.Search(
 		esClient.Search.WithContext(context.Background()),
-		esClient.Search.WithIndex("classified_ads"),
-		esClient.Search.WithBody(&buf),
+		esClient.Search.WithIndex(index),
+		esClient.Search.WithBody(body),
 		// esClient.Search.WithTrackTotalHits(true),
 		esClient.Search.WithPretty(),
 	)

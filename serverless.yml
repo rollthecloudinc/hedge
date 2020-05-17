@@ -12,5 +12,5 @@ functions:
     handler: bin/ads-api
     events:
       - http:
-          path: /
-          method: get
+          path: /ads/{any+}
+          method: any

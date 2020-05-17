@@ -19,7 +19,7 @@ type AdsController struct {
 	EsClient *elasticsearch7.Client
 }
 
-func (c *AdsController) GetAds(context *gin.Context) {
+func (c *AdsController) GetAdListItems(context *gin.Context) {
 	/*votePack, err := c.Database.GetVotePack("c5039ecd-e774-4c19-a2b9-600c2134784d")
 	if err != nil{
 			context.String(404, "Votepack Not Found")
@@ -84,7 +84,7 @@ func init() {
 	adsController := AdsController{EsClient: esClient}
 
 	r := gin.Default()
-	r.GET("/ads", adsController.GetAds)
+	r.GET("/ads/adlistitems", adsController.GetAdListItems)
 
 	ginLambda = ginadapter.New(r)
 }

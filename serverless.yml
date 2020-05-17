@@ -1,0 +1,16 @@
+service: goclassifieds-api
+provider:
+  name: aws
+  runtime: go1.x
+package:
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
+functions:
+  ads-api:
+    handler: bin/ads-api
+    events:
+      - http:
+          path: /
+          method: get

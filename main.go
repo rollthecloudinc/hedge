@@ -19,9 +19,11 @@ import (
 var ginLambda *ginadapter.GinLambda
 
 type AdListitemsRequest struct {
-	AdType       int    `form:"adType" binding:"required"`
-	SearchString string `form:"searchString"`
-	Location     string `form:"location"`
+	AdType       int      `form:"adType" binding:"required"`
+	SearchString string   `form:"searchString"`
+	Location     string   `form:"location"`
+	Features     []string `form:"features[]"`
+	Page         int      `form:"page"`
 }
 
 type AdsController struct {
@@ -34,30 +36,15 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	var r map[string]interface{}
-	var q bytes.Buffer
-	buildSearchQuery(&q, &req)
-	executeSearch(&r, c.EsClient, &q, "classified_ads")
-	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
+	query := buildAdsSearchQuery(&req)
+	ads := executeSearch(c.EsClient, &query, "classified_ads")
+	for _, ad := range ads {
+		log.Printf(" * ID=%s, %s", ad.(map[string]interface{})["_id"], ad.(map[string]interface{})["_source"])
 	}
-	context.JSON(200, r)
+	context.JSON(200, ads)
 }
 
-func buildSearchQuery(buf *bytes.Buffer, req *AdListitemsRequest) {
-	/*query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"filter": map[string]interface{}{
-					"term": map[string]interface{}{
-						"adType": map[string]interface{}{
-							"value": req.AdType,
-						},
-					},
-				},
-			},
-		},
-	}*/
+func buildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
 	filterMust := []interface{}{
 		map[string]interface{}{
 			"term": map[string]interface{}{
@@ -106,26 +93,63 @@ func buildSearchQuery(buf *bytes.Buffer, req *AdListitemsRequest) {
 		},
 	}
 
-	if req.SearchString != "" {
-		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"] = map[string]interface{}{
-			"match": map[string]interface{}{
-				"title": map[string]interface{}{
-					"query": req.SearchString,
+	if req.SearchString != "" || req.Features != nil {
+
+		var matchMust []interface{}
+
+		if req.SearchString != "" {
+			matchSearchString := map[string]interface{}{
+				"match": map[string]interface{}{
+					"title": map[string]interface{}{
+						"query": req.SearchString,
+					},
+				},
+			}
+			matchMust = append(matchMust, matchSearchString)
+		}
+
+		if req.Features != nil {
+			matchMust = buildAdFeaturesSearchQuery(matchMust, req.Features)
+		}
+
+		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"] = matchMust
+
+	}
+	return query
+}
+
+func buildAdFeaturesSearchQuery(query []interface{}, features []string) []interface{} {
+	for _, feature := range features {
+		featureFilter := map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "features",
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must": map[string]interface{}{
+							"match": map[string]interface{}{
+								"features.humanName": map[string]interface{}{
+									"query": feature,
+								},
+							},
+						},
+					},
 				},
 			},
 		}
+		query = append(query, featureFilter)
 	}
-
-	if err := json.NewEncoder(buf).Encode(query); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
-	}
+	return query
 }
 
-func executeSearch(r *map[string]interface{}, esClient *elasticsearch7.Client, body *bytes.Buffer, index string) {
+func executeSearch(esClient *elasticsearch7.Client, query *map[string]interface{}, index string) []interface{} {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(query); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
 	res, err := esClient.Search(
 		esClient.Search.WithContext(context.Background()),
 		esClient.Search.WithIndex(index),
-		esClient.Search.WithBody(body),
+		esClient.Search.WithBody(&buf),
 		// esClient.Search.WithTrackTotalHits(true),
 		esClient.Search.WithPretty(),
 	)
@@ -146,9 +170,15 @@ func executeSearch(r *map[string]interface{}, esClient *elasticsearch7.Client, b
 		}
 	}
 	defer res.Body.Close()
+	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
+	var docs []interface{}
+	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
+		docs = append(docs, hit)
+	}
+	return docs
 }
 
 func init() {

@@ -174,11 +174,12 @@ func executeSearch(esClient *elasticsearch7.Client, query *map[string]interface{
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
-	var docs []interface{}
+	return r["hits"].(map[string]interface{})["hits"].([]interface{})
+	/*var docs []interface{}
 	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
 		docs = append(docs, hit)
 	}
-	return docs
+	return docs*/
 }
 
 func init() {

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -17,7 +19,9 @@ import (
 var ginLambda *ginadapter.GinLambda
 
 type AdListitemsRequest struct {
-	AdType int `form:"adType" binding:"required"`
+	AdType       int    `form:"adType" binding:"required"`
+	SearchString string `form:"searchString"`
+	Location     string `form:"location"`
 }
 
 type AdsController struct {
@@ -41,17 +45,77 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 }
 
 func buildSearchQuery(buf *bytes.Buffer, req *AdListitemsRequest) {
-	query := map[string]interface{}{
+	/*query := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"filter": map[string]interface{}{
 					"term": map[string]interface{}{
-						"adType": req.AdType,
+						"adType": map[string]interface{}{
+							"value": req.AdType,
+						},
+					},
+				},
+			},
+		},
+	}*/
+	filterMust := []interface{}{
+		map[string]interface{}{
+			"term": map[string]interface{}{
+				"adType": map[string]interface{}{
+					"value": req.AdType,
+				},
+			},
+		},
+	}
+
+	if req.Location != "" {
+		cords := strings.Split(req.Location, ",")
+		lat, e := strconv.ParseFloat(cords[1], 64)
+		if e != nil {
+
+		}
+		lon, e := strconv.ParseFloat(cords[0], 64)
+		if e != nil {
+
+		}
+		geoFilter := map[string]interface{}{
+			"geo_distance": map[string]interface{}{
+				"validation_method": "ignore_malformed",
+				"distance":          "10m",
+				"distance_type":     "arc",
+				"location": map[string]interface{}{
+					"lat": lat,
+					"lon": lon,
+				},
+			},
+		}
+		filterMust = append(filterMust, geoFilter)
+	}
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"filter": []interface{}{
+					map[string]interface{}{
+						"bool": map[string]interface{}{
+							"must": filterMust,
+						},
 					},
 				},
 			},
 		},
 	}
+
+	if req.SearchString != "" {
+		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"] = map[string]interface{}{
+			"match": map[string]interface{}{
+				"title": map[string]interface{}{
+					"query": req.SearchString,
+				},
+			},
+		}
+	}
+
 	if err := json.NewEncoder(buf).Encode(query); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}

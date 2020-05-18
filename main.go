@@ -17,7 +17,7 @@ import (
 var ginLambda *ginadapter.GinLambda
 
 type AdListitemsRequest struct {
-	AdType string `form:"adType" binding:"required"`
+	AdType int `form:"adType" binding:"required"`
 }
 
 type AdsController struct {
@@ -40,11 +40,15 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 	context.JSON(200, r)
 }
 
-func buildSearchQuery(buf *bytes.Buffer, request *AdListitemsRequest) {
+func buildSearchQuery(buf *bytes.Buffer, req *AdListitemsRequest) {
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
-			"match": map[string]interface{}{
-				"title": "new",
+			"bool": map[string]interface{}{
+				"filter": map[string]interface{}{
+					"term": map[string]interface{}{
+						"adType": req.AdType,
+					},
+				},
 			},
 		},
 	}

@@ -1,2 +1,7 @@
 .serverless
 bin
+
+bazel-bin
+bazel-goclassifieds
+bazel-out
+bazel-testlogs

@@ -5,7 +5,7 @@ go_binary(
     embed = [":go_default_library"],
     goarch = "amd64",
     goos = "linux",
-    importpath = "goclassifieds/apps/ads",
+    importpath = "goclassifieds/api/ads",
     visibility = ["//visibility:public"]
 )
 #go_test(
@@ -16,13 +16,13 @@ go_binary(
 go_library(
     name = "go_default_library",
     srcs = ["main.go"],
-    importpath = "goclassifieds/apps/ads",
+    importpath = "goclassifieds/api/ads",
     visibility = ["//visibility:private"],
     deps = [
-        "//libs/es",
-        "//libs/attr",
-        "//libs/vocab",
-        "//libs/utils",
+        "//lib/es",
+        "//lib/attr",
+        "//lib/vocab",
+        "//lib/utils",
         "@com_github_aws_aws_lambda_go//events:go_default_library",
         "@com_github_aws_aws_lambda_go//lambda:go_default_library",
         "@com_github_awslabs_aws_lambda_go_api_proxy//gin:go_default_library",

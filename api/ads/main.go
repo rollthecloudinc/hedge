@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"goclassifieds/libs/attr"
-	es "goclassifieds/libs/es"
-	utils "goclassifieds/libs/utils"
-	"goclassifieds/libs/vocab"
+	"goclassifieds/lib/attr"
+	es "goclassifieds/lib/es"
+	utils "goclassifieds/lib/utils"
+	"goclassifieds/lib/vocab"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"

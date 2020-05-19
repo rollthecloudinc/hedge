@@ -7,7 +7,7 @@ package:
   exclude:
     - ./**
   include:
-    - bazel-bin/apps/ads/linux_amd64_pure_stripped/**
+    - bazel-bin/api/ads/linux_amd64_pure_stripped/**
 resources:
   Resources:
     adsApiRole:
@@ -53,13 +53,13 @@ resources:
                   Resource: "arn:aws:s3:::classifieds-ui-dev/ads/*"
 functions:
   ads-api:
-    handler: bazel-bin/apps/ads/linux_amd64_pure_stripped/ads
+    handler: bazel-bin/api/ads/linux_amd64_pure_stripped/ads
     role: adsApiRole
     package:
       include:
-        - bazel-bin/apps/ads/linux_amd64_pure_stripped/ads
+        - bazel-bin/api/ads/linux_amd64_pure_stripped/ads
       exclude:
-        - bazel-bin/apps/ads/linux_amd64_pure_stripped/**
+        - bazel-bin/api/ads/linux_amd64_pure_stripped/**
     events:
       - http:
           path: /ads/ad

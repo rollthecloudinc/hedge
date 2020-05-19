@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +16,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
+	session "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
@@ -72,6 +77,7 @@ type AdImage struct {
 
 type AdsController struct {
 	EsClient *elasticsearch7.Client
+	Session  *session.Session
 }
 
 func (c *AdsController) GetAdListItems(context *gin.Context) {
@@ -97,7 +103,25 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	ad.Id = utils.GenerateId()
 	ad.Status = Submitted // @todo: Enums not being validated :(
 	ad.UserId = utils.GetSubject(context)
+	storeAd(c.Session, &ad)
 	context.JSON(200, ad)
+}
+
+func storeAd(sess *session.Session, ad *Ad) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	uploader := s3manager.NewUploader(sess)
+	_, err := uploader.Upload(&s3manager.UploadInput{
+		Bucket:      aws.String("classifieds-ui-dev"),
+		Key:         aws.String("ads/" + ad.Id + ".json.gz"),
+		Body:        &buf,
+		ContentType: aws.String("application/json"),
+	})
+	if err != nil {
+		log.Printf("s3 upload error: %s", err)
+	}
 }
 
 func buildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
@@ -212,7 +236,9 @@ func init() {
 
 	}
 
-	adsController := AdsController{EsClient: esClient}
+	sess := session.Must(session.NewSession())
+
+	adsController := AdsController{EsClient: esClient, Session: sess}
 
 	r := gin.Default()
 	r.GET("/ads/adlistitems", adsController.GetAdListItems)

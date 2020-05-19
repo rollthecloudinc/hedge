@@ -62,8 +62,12 @@ functions:
         - bazel-bin/apps/ads/linux_amd64_pure_stripped/**
     events:
       - http:
-          path: /ads
-          method: any
+          path: /ads/ad
+          method: POST
+          authorizer:
+            arn: arn:aws:cognito-idp:us-east-1:989992233821:userpool/us-east-1_z8PhK3D8V
+            scopes:
+              - ads_api/ads_api
       - http:
           path: /ads/{any+}
           method: any

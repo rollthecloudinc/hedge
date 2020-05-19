@@ -55,24 +55,24 @@ type AdListitemsRequest struct {
 }
 
 type Ad struct {
-	Id          string
-	AdType      AdTypes               `form:"adType" binding:"required"`
-	Status      AdStatuses            `form:"status"`
-	Title       string                `form:"title" binding:"required"`
-	Description string                `form:"description" binding:"required"`
-	Location    [2]float64            `form:"location[]" binding:"required"`
-	UserId      string                `form:"userId"`
-	ProfileId   string                `form:"profileId"`
-	CityDisplay string                `form:"cityDisplay" binding:"required"`
-	Images      []AdImage             `form:"images[]"`
-	Attributes  []attr.AttributeValue `form:"attributes[]"`
-	FeatureSets []vocab.Vocabulary    `form:"featureSets[]"`
+	Id          string                `json:"id"`
+	AdType      AdTypes               `form:"adType" json:"adType" binding:"required"`
+	Status      AdStatuses            `form:"status" json:"status"`
+	Title       string                `form:"title" json:"title" binding:"required"`
+	Description string                `form:"description" json:"description" binding:"required"`
+	Location    [2]float64            `form:"location[]" json:"location" binding:"required"`
+	UserId      string                `form:"userId" json:"userId"`
+	ProfileId   string                `form:"profileId" json:"profileId"`
+	CityDisplay string                `form:"cityDisplay" json:"cityDisplay" binding:"required"`
+	Images      []AdImage             `form:"images[]" json:"images"`
+	Attributes  []attr.AttributeValue `form:"attributes[]" json:"attributes"`
+	FeatureSets []vocab.Vocabulary    `form:"featureSets[]" json:"featureSets"`
 }
 
 type AdImage struct {
-	Id     string `form:"id" binding:"required"`
-	Path   string `form:"path" binding:"required"`
-	Weight int    `form:"weight" binding:"required"`
+	Id     string `form:"id" json:"id" binding:"required"`
+	Path   string `form:"path" json:"path" binding:"required"`
+	Weight int    `form:"weight" json:"weight" binding:"required"`
 }
 
 type AdsController struct {
@@ -103,20 +103,20 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	ad.Id = utils.GenerateId()
 	ad.Status = Submitted // @todo: Enums not being validated :(
 	ad.UserId = utils.GetSubject(context)
-	storeAd(c.Session, &ad)
-	context.JSON(200, ad)
-}
-
-func storeAd(sess *session.Session, ad *Ad) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}
+	StoreDocument(c.Session, &buf, "classifieds-ui-dev", "ads/"+ad.Id+".json.gz")
+	context.JSON(200, ad)
+}
+
+func StoreDocument(sess *session.Session, buf *bytes.Buffer, bucket string, key string) {
 	uploader := s3manager.NewUploader(sess)
 	_, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket:      aws.String("classifieds-ui-dev"),
-		Key:         aws.String("ads/" + ad.Id + ".json.gz"),
-		Body:        &buf,
+		Bucket:      aws.String(bucket),
+		Key:         aws.String(key),
+		Body:        buf,
 		ContentType: aws.String("application/json"),
 	})
 	if err != nil {

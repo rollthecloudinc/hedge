@@ -20,6 +20,9 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//libs/es",
+        "//libs/attr",
+        "//libs/vocab",
+        "//libs/utils",
         "@com_github_aws_aws_lambda_go//events:go_default_library",
         "@com_github_aws_aws_lambda_go//lambda:go_default_library",
         "@com_github_awslabs_aws_lambda_go_api_proxy//gin:go_default_library",

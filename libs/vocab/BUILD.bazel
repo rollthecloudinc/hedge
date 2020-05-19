@@ -1,0 +1,8 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "vocab",
+    srcs = ["vocab.go"],
+    importpath = "goclassifieds/libs/vocab",
+    visibility = ["//visibility:public"],
+)

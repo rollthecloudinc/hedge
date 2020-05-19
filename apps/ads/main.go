@@ -7,7 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"goclassifieds/libs/attr"
 	es "goclassifieds/libs/es"
+	utils "goclassifieds/libs/utils"
+	"goclassifieds/libs/vocab"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -18,12 +21,53 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 
+type AdTypes int32
+
+const (
+	General AdTypes = iota
+	RealEstate
+	Rental
+	Auto
+	Job
+)
+
+type AdStatuses int32
+
+const (
+	Submitted AdStatuses = iota
+	Approved
+	Rejected
+	Expired
+	Deleted
+)
+
 type AdListitemsRequest struct {
 	AdType       int      `form:"adType" binding:"required"`
 	SearchString string   `form:"searchString"`
 	Location     string   `form:"location"`
 	Features     []string `form:"features[]"`
 	Page         int      `form:"page"`
+}
+
+type Ad struct {
+	Id          string
+	AdType      AdTypes               `form:"adType" binding:"required"`
+	Status      AdStatuses            `form:"status"`
+	Title       string                `form:"title" binding:"required"`
+	Description string                `form:"description" binding:"required"`
+	Location    [2]float64            `form:"location[]" binding:"required"`
+	UserId      string                `form:"userId"`
+	ProfileId   string                `form:"profileId"`
+	CityDisplay string                `form:"cityDisplay" binding:"required"`
+	Images      []AdImage             `form:"images[]"`
+	Attributes  []attr.AttributeValue `form:"attributes[]"`
+	FeatureSets []vocab.Vocabulary    `form:"featureSets[]"`
+}
+
+type AdImage struct {
+	Id     string `form:"id" binding:"required"`
+	Path   string `form:"path" binding:"required"`
+	Weight int    `form:"weight" binding:"required"`
 }
 
 type AdsController struct {
@@ -42,6 +86,18 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 		log.Printf(" * ID=%s, %s", ad.(map[string]interface{})["_id"], ad.(map[string]interface{})["_source"])
 	}
 	context.JSON(200, ads)
+}
+
+func (c *AdsController) CreateAd(context *gin.Context) {
+	var ad Ad
+	if err := context.ShouldBind(&ad); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ad.Id = utils.GenerateId()
+	ad.Status = Submitted // @todo: Enums not being validated :(
+	ad.UserId = utils.GetSubject(context)
+	context.JSON(200, ad)
 }
 
 func buildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
@@ -160,6 +216,7 @@ func init() {
 
 	r := gin.Default()
 	r.GET("/ads/adlistitems", adsController.GetAdListItems)
+	r.POST("/ads/ad", adsController.CreateAd)
 
 	ginLambda = ginadapter.New(r)
 }

@@ -3,13 +3,13 @@ provider:
   name: aws
   runtime: go1.x
 package:
-  exclude:
+  exclude: # By default exclude all files
     - ./**
-  include:
-    - ./bin/**
+  include: # Then start adding the relevant files/folder to package
+    - bazel-bin/apps/**
 functions:
   ads-api:
-    handler: bin/ads-api
+    handler: "bazel-bin/apps/ads/linux_amd64_pure_stripped/ads"
     events:
       - http:
           path: /ads

@@ -6,7 +6,7 @@ go_binary(
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/apps/ads",
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:public"]
 )
 #go_test(
 #    name = "mainTest",

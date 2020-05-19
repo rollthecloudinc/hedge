@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	es "goclassifieds/libs/es"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -35,7 +37,7 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 		return
 	}
 	query := buildAdsSearchQuery(&req)
-	ads := executeSearch(c.EsClient, &query, "classified_ads")
+	ads := es.ExecuteSearch(c.EsClient, &query, "classified_ads")
 	for _, ad := range ads {
 		log.Printf(" * ID=%s, %s", ad.(map[string]interface{})["_id"], ad.(map[string]interface{})["_source"])
 	}

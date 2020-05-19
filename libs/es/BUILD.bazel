@@ -2,7 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "es",
-    srcs = ["main.go"],
+    srcs = ["es.go"],
     importpath = "goclassifieds/libs/es",
     visibility = ["//visibility:public"],
     deps = [

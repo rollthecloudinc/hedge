@@ -9,7 +9,7 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
-func executeSearch(esClient *elasticsearch7.Client, query *map[string]interface{}, index string) []interface{} {
+func ExecuteSearch(esClient *elasticsearch7.Client, query *map[string]interface{}, index string) []interface{} {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
 		log.Fatalf("Error encoding query: %s", err)

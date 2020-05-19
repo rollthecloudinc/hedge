@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ads",
+    srcs = ["ads.go"],
+    importpath = "goclassifieds/lib/ads",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/attr",
+        "//lib/vocab",
+    ],
+)

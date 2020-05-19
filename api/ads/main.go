@@ -10,10 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"goclassifieds/lib/attr"
+	ads "goclassifieds/lib/ads"
 	es "goclassifieds/lib/es"
 	utils "goclassifieds/lib/utils"
-	"goclassifieds/lib/vocab"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -27,62 +26,13 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 
-type AdTypes int32
-
-const (
-	General AdTypes = iota
-	RealEstate
-	Rental
-	Auto
-	Job
-)
-
-type AdStatuses int32
-
-const (
-	Submitted AdStatuses = iota
-	Approved
-	Rejected
-	Expired
-	Deleted
-)
-
-type AdListitemsRequest struct {
-	AdType       int      `form:"adType" binding:"required"`
-	SearchString string   `form:"searchString"`
-	Location     string   `form:"location"`
-	Features     []string `form:"features[]"`
-	Page         int      `form:"page"`
-}
-
-type Ad struct {
-	Id          string                `json:"id"`
-	AdType      AdTypes               `form:"adType" json:"adType" binding:"required"`
-	Status      AdStatuses            `form:"status" json:"status"`
-	Title       string                `form:"title" json:"title" binding:"required"`
-	Description string                `form:"description" json:"description" binding:"required"`
-	Location    [2]float64            `form:"location[]" json:"location" binding:"required"`
-	UserId      string                `form:"userId" json:"userId"`
-	ProfileId   string                `form:"profileId" json:"profileId"`
-	CityDisplay string                `form:"cityDisplay" json:"cityDisplay" binding:"required"`
-	Images      []AdImage             `form:"images[]" json:"images"`
-	Attributes  []attr.AttributeValue `form:"attributes[]" json:"attributes"`
-	FeatureSets []vocab.Vocabulary    `form:"featureSets[]" json:"featureSets"`
-}
-
-type AdImage struct {
-	Id     string `form:"id" json:"id" binding:"required"`
-	Path   string `form:"path" json:"path" binding:"required"`
-	Weight int    `form:"weight" json:"weight" binding:"required"`
-}
-
 type AdsController struct {
 	EsClient *elasticsearch7.Client
 	Session  *session.Session
 }
 
 func (c *AdsController) GetAdListItems(context *gin.Context) {
-	var req AdListitemsRequest
+	var req ads.AdListitemsRequest
 	if err := context.ShouldBind(&req); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -96,13 +46,13 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 }
 
 func (c *AdsController) CreateAd(context *gin.Context) {
-	var ad Ad
+	var ad ads.Ad
 	if err := context.ShouldBind(&ad); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	ad.Id = utils.GenerateId()
-	ad.Status = Submitted // @todo: Enums not being validated :(
+	ad.Status = ads.Submitted // @todo: Enums not being validated :(
 	ad.UserId = utils.GetSubject(context)
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
@@ -134,7 +84,7 @@ func StoreDocument(sess *session.Session, body *bytes.Buffer, bucket string, key
 	}
 }
 
-func buildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
+func buildAdsSearchQuery(req *ads.AdListitemsRequest) map[string]interface{} {
 	filterMust := []interface{}{
 		map[string]interface{}{
 			"term": map[string]interface{}{

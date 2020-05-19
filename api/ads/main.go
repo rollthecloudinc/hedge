@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"log"
@@ -111,16 +112,25 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	context.JSON(200, ad)
 }
 
-func StoreDocument(sess *session.Session, buf *bytes.Buffer, bucket string, key string) {
+func StoreDocument(sess *session.Session, body *bytes.Buffer, bucket string, key string) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(body.Bytes()); err != nil {
+		log.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		log.Fatal(err)
+	}
 	uploader := s3manager.NewUploader(sess)
 	_, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket:      aws.String(bucket),
-		Key:         aws.String(key),
-		Body:        buf,
-		ContentType: aws.String("application/json"),
+		Bucket:          aws.String(bucket),
+		Key:             aws.String(key),
+		Body:            &buf,
+		ContentType:     aws.String("application/json"),
+		ContentEncoding: aws.String("gzip"),
 	})
 	if err != nil {
-		log.Printf("s3 upload error: %s", err)
+		log.Fatal(err)
 	}
 }
 

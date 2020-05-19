@@ -1,17 +1,29 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_binary")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
 go_binary(
     name = "ads",
-    srcs = ["main.go"],
+    embed = [":go_default_library"],
+    goarch = "amd64",
+    goos = "linux",
     importpath = "goclassifieds/apps/ads",
-    deps = [
-        "//libs/es",
-        "@com_github_gin_gonic_gin//:go_default_library",
-        "@com_github_aws_aws_lambda_go//:go_default_library",
-        "@com_github_awslabs_aws_lambda_go_api_proxy//:go_default_library",
-        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
-    ],
+    visibility = ["//visibility:public"],
 )
 #go_test(
 #    name = "mainTest",
 #    srcs = ["main_test.go"],
 #)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/apps/ads",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//libs/es",
+        "@com_github_aws_aws_lambda_go//events:go_default_library",
+        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
+        "@com_github_awslabs_aws_lambda_go_api_proxy//gin:go_default_library",
+        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
+        "@com_github_gin_gonic_gin//:go_default_library",
+    ],
+)

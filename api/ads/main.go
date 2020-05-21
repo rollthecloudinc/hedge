@@ -22,6 +22,7 @@ import (
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
+	"github.com/mitchellh/mapstructure"
 )
 
 var ginLambda *ginadapter.GinLambda
@@ -38,9 +39,10 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 		return
 	}
 	query := buildAdsSearchQuery(&req)
-	ads := es.ExecuteSearch(c.EsClient, &query, "classified_ads")
-	for _, ad := range ads {
-		log.Printf(" * ID=%s, %s", ad.(map[string]interface{})["_id"], ad.(map[string]interface{})["_source"])
+	hits := es.ExecuteSearch(c.EsClient, &query, "classified_ads")
+	ads := make([]ads.Ad, len(hits))
+	for index, hit := range hits {
+		mapstructure.Decode(hit.(map[string]interface{})["_source"], &ads[index])
 	}
 	context.JSON(200, ads)
 }
@@ -209,7 +211,9 @@ func init() {
 
 func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// If no name is provided in the HTTP request body, throw an error
-	return ginLambda.ProxyWithContext(ctx, req)
+	res, err := ginLambda.ProxyWithContext(ctx, req)
+	res.Headers["Access-Control-Allow-Origin"] = "*"
+	return res, err
 }
 
 func main() {

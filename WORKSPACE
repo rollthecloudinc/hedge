@@ -638,3 +638,10 @@ go_repository(
     sum = "h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=",
     version = "v3.2.0+incompatible",
 )
+
+go_repository(
+    name = "com_github_mitchellh_mapstructure",
+    importpath = "github.com/mitchellh/mapstructure",
+    sum = "h1:iDwIio/3gk2QtLLEsqU5lInaMzos0hDTz8a6lazSFVw=",
+    version = "v1.3.0",
+)

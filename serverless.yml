@@ -2,6 +2,8 @@ service: goclassifieds-api
 provider:
   name: aws
   runtime: go1.x
+  memorySize: 128
+  timeout: 10
 package:
   individually: true
   exclude:
@@ -11,6 +13,15 @@ package:
     - bazel-bin/func/index_ad/linux_amd64_pure_stripped/**
 resources:
   Resources:
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
     adsApiRole:
       Type: AWS::IAM::Role
       Properties:
@@ -106,6 +117,7 @@ functions:
       - http:
           path: /ads/ad
           method: POST
+          cors: true
           authorizer:
             arn: arn:aws:cognito-idp:us-east-1:989992233821:userpool/us-east-1_z8PhK3D8V
             scopes:
@@ -113,6 +125,7 @@ functions:
       - http:
           path: /ads/{any+}
           method: any
+          cors: true
   index-ad:
     handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
     role: indexAdFuncRole

@@ -13,6 +13,7 @@ type AttributeValue struct {
 	DisplayName   string           `form:"displayName" json:"displayName" binding:"required"`
 	Type          AttributeTypes   `form:"type" json:"type" binding:"required"`
 	Value         string           `form:"value" json:"value" binding:"required"`
+	IntValue      int32            `json:"intValue"`
 	ComputedValue string           `form:"computedValue" json:"computedValue" binding:"required"`
 	Attributes    []AttributeValue `form:"attributes[]" json:"attributes"`
 }

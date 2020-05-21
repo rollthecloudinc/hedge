@@ -1,8 +1,15 @@
 package ads
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	attr "goclassifieds/lib/attr"
 	vocab "goclassifieds/lib/vocab"
+	"log"
+
+	esapi "github.com/elastic/go-elasticsearch/esapi"
+	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
 type AdTypes int32
@@ -52,4 +59,22 @@ type AdImage struct {
 	Id     string `form:"id" json:"id" binding:"required"`
 	Path   string `form:"path" json:"path" binding:"required"`
 	Weight int    `form:"weight" json:"weight" binding:"required"`
+}
+
+func IndexAd(esClient *elasticsearch7.Client, ad *Ad) *esapi.Response {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
+		log.Fatalf("Error encoding body: %s", err)
+	}
+	req := esapi.IndexRequest{
+		Index:      "classified_ads",
+		DocumentID: ad.Id,
+		Body:       &buf,
+		Refresh:    "true",
+	}
+	res, err := req.Do(context.Background(), esClient)
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+	return res
 }

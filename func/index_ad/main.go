@@ -15,9 +15,21 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	s3 "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
 func handler(ctx context.Context, s3Event events.S3Event) {
+
+	elasticCfg := elasticsearch7.Config{
+		Addresses: []string{
+			"https://i12sa6lx3y:v75zs8pgyd@classifieds-4537380016.us-east-1.bonsaisearch.net:443",
+		},
+	}
+
+	esClient, err := elasticsearch7.NewClient(elasticCfg)
+	if err != nil {
+
+	}
 
 	sess := session.Must(session.NewSession())
 	downloader := s3manager.NewDownloader(sess)
@@ -50,6 +62,10 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 		json.Unmarshal(text, &ad)
 
 		log.Printf("ad: %v", ad)
+
+		res := ads.IndexAd(esClient, &ad)
+
+		log.Printf("ad index response: %v", res)
 
 	}
 }

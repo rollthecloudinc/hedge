@@ -8,5 +8,7 @@ go_library(
     deps = [
         "//lib/attr",
         "//lib/vocab",
+        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
+        "@com_github_elastic_go_elasticsearch_v7//esapi:go_default_library",
     ],
 )

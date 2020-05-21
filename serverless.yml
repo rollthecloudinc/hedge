@@ -4,6 +4,15 @@ provider:
   runtime: go1.x
   memorySize: 128
   timeout: 10
+  httpApi:
+    payload: '1.0'
+    cors: true
+    authorizers:
+      cognito:
+        identitySource: $request.header.Authorization
+        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_z8PhK3D8V
+        audience:
+          - 3lkidn79q4jq8nahkecsguleij
 package:
   individually: true
   exclude:
@@ -13,15 +22,6 @@ package:
     - bazel-bin/func/index_ad/linux_amd64_pure_stripped/**
 resources:
   Resources:
-    GatewayResponseDefault4XX:
-      Type: 'AWS::ApiGateway::GatewayResponse'
-      Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
-        ResponseType: DEFAULT_4XX
-        RestApiId:
-          Ref: 'ApiGatewayRestApi'
     adsApiRole:
       Type: AWS::IAM::Role
       Properties:
@@ -114,18 +114,16 @@ functions:
       exclude:
         - bazel-bin/api/ads/linux_amd64_pure_stripped/**
     events:
-      - http:
+      - httpApi:
           path: /ads/ad
           method: POST
-          cors: true
           authorizer:
-            arn: arn:aws:cognito-idp:us-east-1:989992233821:userpool/us-east-1_z8PhK3D8V
+            name: cognito
             scopes:
               - ads_api/ads_api
-      - http:
-          path: /ads/{any+}
-          method: any
-          cors: true
+      - httpApi:
+          path: /ads/adlistitems
+          method: GET
   index-ad:
     handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
     role: indexAdFuncRole

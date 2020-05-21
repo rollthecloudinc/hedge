@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	attr "goclassifieds/lib/attr"
+	"goclassifieds/lib/entity"
 	vocab "goclassifieds/lib/vocab"
 	"log"
 
+	session "github.com/aws/aws-sdk-go/aws/session"
 	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
@@ -59,6 +61,31 @@ type AdImage struct {
 	Id     string `form:"id" json:"id" binding:"required"`
 	Path   string `form:"path" json:"path" binding:"required"`
 	Weight int    `form:"weight" json:"weight" binding:"required"`
+}
+
+func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) entity.EntityManager {
+	return entity.EntityManager{
+		Config: entity.EntityConfig{
+			SingularName: "ad",
+			PluralName:   "ads",
+			IdKey:        "id",
+		},
+		Storages: map[string]entity.Storage{
+			"s3": entity.S3StorageAdaptor{
+				Config: entity.S3AdaptorConfig{
+					Session: session,
+					Bucket:  "classifieds-ui-dev",
+					Prefix:  "ads/",
+				},
+			},
+			"elastic": entity.ElasticStorageAdaptor{
+				Config: entity.ElasticAdaptorConfig{
+					Index:  "classified_ads",
+					Client: esClient,
+				},
+			},
+		},
+	}
 }
 
 func IndexAd(esClient *elasticsearch7.Client, ad *Ad) *esapi.Response {

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	ads "goclassifieds/lib/ads"
+	entity "goclassifieds/lib/entity"
 	es "goclassifieds/lib/es"
 	utils "goclassifieds/lib/utils"
 
@@ -28,8 +29,9 @@ import (
 var ginLambda *ginadapter.GinLambda
 
 type AdsController struct {
-	EsClient *elasticsearch7.Client
-	Session  *session.Session
+	EsClient   *elasticsearch7.Client
+	Session    *session.Session
+	AdsManager entity.Manager
 }
 
 func (c *AdsController) GetAdListItems(context *gin.Context) {
@@ -60,7 +62,14 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}
-	StoreDocument(c.Session, &buf, "classifieds-ui-dev", "ads/"+ad.Id+".json.gz")
+	// StoreDocument(c.Session, &buf, "classifieds-ui-dev", "ads/"+ad.Id+".json.gz")
+	adJson, err := json.Marshal(ad)
+	if err != nil {
+        return
+	}
+	var adMap map[string]interface{}
+	err = json.Unmarshal(adJson, &adMap)
+	c.AdsManager.Save(adMap, "s3")
 	context.JSON(200, ad)
 }
 
@@ -200,7 +209,9 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 
-	adsController := AdsController{EsClient: esClient, Session: sess}
+	adsManager := ads.CreateAdManager(esClient, sess)
+
+	adsController := AdsController{AdsManager: &adsManager, EsClient: esClient, Session: sess}
 
 	r := gin.Default()
 	r.GET("/ads/adlistitems", adsController.GetAdListItems)

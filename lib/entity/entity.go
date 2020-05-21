@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
+	s3 "github.com/aws/aws-sdk-go/service/s3"
 	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
@@ -30,6 +32,7 @@ type EntityManager struct {
 
 type Manager interface {
 	Save(entity map[string]interface{}, storage string)
+	Load(id string, loader string) map[string]interface{}
 }
 
 type Storage interface {
@@ -37,7 +40,7 @@ type Storage interface {
 }
 
 type Loader interface {
-	Load(id string, loader string)
+	Load(id string) map[string]interface{}
 }
 
 type S3AdaptorConfig struct {
@@ -66,6 +69,39 @@ type ElasticStorageAdaptor struct {
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
 	m.Storages[storage].Store(id, entity)
+}
+
+func (m EntityManager) Load(id string, loader string) map[string]interface{} {
+	return m.Loaders[loader].Load(id)
+}
+
+func (l S3LoaderAdaptor) Load(id string) map[string]interface{} {
+
+	buf := aws.NewWriteAtBuffer([]byte{})
+
+	downloader := s3manager.NewDownloader(l.Config.Session)
+
+	_, err := downloader.Download(buf, &s3.GetObjectInput{
+		Bucket: aws.String(l.Config.Bucket),
+		Key:    aws.String(l.Config.Prefix + "" + id + ".json.gz"),
+	})
+
+	if err != nil {
+		log.Fatalf("failed to download file, %v", err)
+	}
+
+	gz, err := gzip.NewReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer gz.Close()
+
+	text, _ := ioutil.ReadAll(gz)
+
+	var entity map[string]interface{}
+	json.Unmarshal(text, &entity)
+	return entity
 }
 
 func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {

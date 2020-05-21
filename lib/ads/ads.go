@@ -1,16 +1,11 @@
 package ads
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	attr "goclassifieds/lib/attr"
 	"goclassifieds/lib/entity"
 	vocab "goclassifieds/lib/vocab"
-	"log"
 
 	session "github.com/aws/aws-sdk-go/aws/session"
-	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
@@ -70,6 +65,15 @@ func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) 
 			PluralName:   "ads",
 			IdKey:        "id",
 		},
+		Loaders: map[string]entity.Loader{
+			"s3": entity.S3LoaderAdaptor{
+				Config: entity.S3AdaptorConfig{
+					Session: session,
+					Bucket:  "classifieds-ui-dev",
+					Prefix:  "ads/",
+				},
+			},
+		},
 		Storages: map[string]entity.Storage{
 			"s3": entity.S3StorageAdaptor{
 				Config: entity.S3AdaptorConfig{
@@ -86,22 +90,4 @@ func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) 
 			},
 		},
 	}
-}
-
-func IndexAd(esClient *elasticsearch7.Client, ad *Ad) *esapi.Response {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
-		log.Fatalf("Error encoding body: %s", err)
-	}
-	req := esapi.IndexRequest{
-		Index:      "classified_ads",
-		DocumentID: ad.Id,
-		Body:       &buf,
-		Refresh:    "true",
-	}
-	res, err := req.Do(context.Background(), esClient)
-	if err != nil {
-		log.Fatalf("Error getting response: %s", err)
-	}
-	return res
 }

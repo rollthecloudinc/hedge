@@ -62,7 +62,6 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}
-	// StoreDocument(c.Session, &buf, "classifieds-ui-dev", "ads/"+ad.Id+".json.gz")
 	adJson, err := json.Marshal(ad)
 	if err != nil {
         return
@@ -71,28 +70,6 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	err = json.Unmarshal(adJson, &adMap)
 	c.AdsManager.Save(adMap, "s3")
 	context.JSON(200, ad)
-}
-
-func StoreDocument(sess *session.Session, body *bytes.Buffer, bucket string, key string) {
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	if _, err := gz.Write(body.Bytes()); err != nil {
-		log.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		log.Fatal(err)
-	}
-	uploader := s3manager.NewUploader(sess)
-	_, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket:          aws.String(bucket),
-		Key:             aws.String(key),
-		Body:            &buf,
-		ContentType:     aws.String("application/json"),
-		ContentEncoding: aws.String("gzip"),
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 func buildAdsSearchQuery(req *ads.AdListitemsRequest) map[string]interface{} {

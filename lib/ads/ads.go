@@ -1,9 +1,12 @@
 package ads
 
 import (
+	"bytes"
+	"encoding/json"
 	attr "goclassifieds/lib/attr"
 	"goclassifieds/lib/entity"
 	vocab "goclassifieds/lib/vocab"
+	"log"
 	"strconv"
 	"strings"
 
@@ -92,6 +95,20 @@ func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) 
 			},
 		},
 	}
+}
+
+func ToEntity(ad *Ad) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	jsonData, err := json.Marshal(ad)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
 }
 
 func BuildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {

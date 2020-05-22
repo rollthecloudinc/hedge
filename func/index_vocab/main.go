@@ -24,7 +24,7 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 	}
 
 	sess := session.Must(session.NewSession())
-	vocabManager := vocab.CreateVocabManager(esClient, sess)
+	vocabManager := vocab.CreateVocabManager(esClient, sess, "")
 
 	for _, record := range s3Event.Records {
 		id := record.S3.Object.Key[13 : len(record.S3.Object.Key)-8]

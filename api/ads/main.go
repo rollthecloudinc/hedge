@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -23,20 +21,22 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 
-type AdsController struct {
+type ActionFunc func(context *gin.Context, ac *ActionContext)
+
+type ActionContext struct {
 	EsClient   *elasticsearch7.Client
 	Session    *session.Session
 	AdsManager entity.Manager
 }
 
-func (c *AdsController) GetAdListItems(context *gin.Context) {
+func GetAdListItems(context *gin.Context, ac *ActionContext) {
 	var req ads.AdListitemsRequest
 	if err := context.ShouldBind(&req); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	query := ads.BuildAdsSearchQuery(&req)
-	hits := es.ExecuteSearch(c.EsClient, &query, "classified_ads")
+	hits := es.ExecuteSearch(ac.EsClient, &query, "classified_ads")
 	ads := make([]ads.Ad, len(hits))
 	for index, hit := range hits {
 		mapstructure.Decode(hit.(map[string]interface{})["_source"], &ads[index])
@@ -44,27 +44,25 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 	context.JSON(200, ads)
 }
 
-func (c *AdsController) CreateAd(context *gin.Context) {
-	var ad ads.Ad
-	if err := context.ShouldBind(&ad); err != nil {
+func CreateAd(context *gin.Context, ac *ActionContext) {
+	var obj ads.Ad
+	if err := context.ShouldBind(&obj); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ad.Id = utils.GenerateId()
-	ad.Status = ads.Submitted // @todo: Enums not being validated :(
-	ad.UserId = utils.GetSubject(context)
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
+	obj.Id = utils.GenerateId()
+	obj.Status = ads.Submitted // @todo: Enums not being validated :(
+	obj.UserId = utils.GetSubject(context)
+	newEntity, _ := ads.ToEntity(&obj)
+	ac.AdsManager.Save(newEntity, "s3")
+	context.JSON(200, newEntity)
+}
+
+func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
+	return func(context *gin.Context) {
+		ac.AdsManager = ads.CreateAdManager(ac.EsClient, ac.Session)
+		action(context, &ac)
 	}
-	adJson, err := json.Marshal(ad)
-	if err != nil {
-		return
-	}
-	var adMap map[string]interface{}
-	err = json.Unmarshal(adJson, &adMap)
-	c.AdsManager.Save(adMap, "s3")
-	context.JSON(200, ad)
 }
 
 func init() {
@@ -84,13 +82,14 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 
-	adsManager := ads.CreateAdManager(esClient, sess)
-
-	adsController := AdsController{AdsManager: &adsManager, EsClient: esClient, Session: sess}
+	actionContext := ActionContext{
+		EsClient: esClient,
+		Session:  sess,
+	}
 
 	r := gin.Default()
-	r.GET("/ads/adlistitems", adsController.GetAdListItems)
-	r.POST("/ads/ad", adsController.CreateAd)
+	r.GET("/ads/adlistitems", DeclareAction(GetAdListItems, actionContext))
+	r.POST("/ads/ad", DeclareAction(CreateAd, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

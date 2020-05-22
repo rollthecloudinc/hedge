@@ -25,14 +25,16 @@ type EntityConfig struct {
 }
 
 type EntityManager struct {
-	Config   EntityConfig
-	Loaders  map[string]Loader
-	Storages map[string]Storage
+	Config      EntityConfig
+	Loaders     map[string]Loader
+	Storages    map[string]Storage
+	Authorizers map[string]Authorization
 }
 
 type Manager interface {
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
+	Allow(id string, op string, loader string) (bool, map[string]interface{})
 }
 
 type Storage interface {
@@ -41,6 +43,10 @@ type Storage interface {
 
 type Loader interface {
 	Load(id string) map[string]interface{}
+}
+
+type Authorization interface {
+	CanWrite(id string, loader Loader) (bool, map[string]interface{})
 }
 
 type S3AdaptorConfig struct {
@@ -52,6 +58,10 @@ type S3AdaptorConfig struct {
 type ElasticAdaptorConfig struct {
 	Client *elasticsearch7.Client
 	Index  string
+}
+
+type OwnerAuthorizationConfig struct {
+	UserId string
 }
 
 type S3LoaderAdaptor struct {
@@ -66,6 +76,10 @@ type ElasticStorageAdaptor struct {
 	Config ElasticAdaptorConfig
 }
 
+type OwnerAuthorizationAdaptor struct {
+	Config OwnerAuthorizationConfig
+}
+
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
 	m.Storages[storage].Store(id, entity)
@@ -73,6 +87,14 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
 	return m.Loaders[loader].Load(id)
+}
+
+func (m EntityManager) Allow(id string, op string, loader string) (bool, map[string]interface{}) {
+	if op == "write" {
+		return m.Authorizers["default"].CanWrite(id, m.Loaders[loader])
+	} else {
+		return false, nil
+	}
 }
 
 func (l S3LoaderAdaptor) Load(id string) map[string]interface{} {
@@ -145,4 +167,12 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)
 	}
+}
+
+func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map[string]interface{}) {
+	entity := loader.Load(id)
+	if entity == nil {
+		return false, nil
+	}
+	return true, entity
 }

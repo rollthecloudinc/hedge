@@ -59,6 +59,13 @@ func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Sessio
 				},
 			},
 		},
+		Authorizers: map[string]entity.Authorization{
+			"default": entity.OwnerAuthorizationAdaptor{
+				Config: entity.OwnerAuthorizationConfig{
+					UserId: "e36b42fe-b09c-4514-a519-e178bb52957e",
+				},
+			},
+		},
 	}
 }
 

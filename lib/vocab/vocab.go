@@ -1,7 +1,10 @@
 package vocab
 
 import (
+	"bytes"
+	"encoding/json"
 	"goclassifieds/lib/entity"
+	"log"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
@@ -28,7 +31,7 @@ type Term struct {
 	Children     []Term `form:"children" json:"children"`
 }
 
-func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Session) entity.EntityManager {
+func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Session, userId string) entity.EntityManager {
 	return entity.EntityManager{
 		Config: entity.EntityConfig{
 			SingularName: "vocabulary",
@@ -62,11 +65,25 @@ func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Sessio
 		Authorizers: map[string]entity.Authorization{
 			"default": entity.OwnerAuthorizationAdaptor{
 				Config: entity.OwnerAuthorizationConfig{
-					UserId: "e36b42fe-b09c-4514-a519-e178bb52957e",
+					UserId: userId,
 				},
 			},
 		},
 	}
+}
+
+func ToEntity(vocab *Vocabulary) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(vocab); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	jsonData, err := json.Marshal(vocab)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
 }
 
 func BuildVocabSearchQuery(userId string) map[string]interface{} {

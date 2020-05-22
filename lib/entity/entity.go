@@ -150,6 +150,7 @@ func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// @todo: invalidate cloudfront object.
 }
 
 func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
@@ -170,9 +171,12 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 }
 
 func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map[string]interface{}) {
+	// log.Printf("Check ownership of %s", id)
 	entity := loader.Load(id)
 	if entity == nil {
 		return false, nil
 	}
-	return true, entity
+	userId := fmt.Sprint(entity["userId"])
+	// log.Printf("Check Entity Ownership: %s == %s", userId, a.Config.UserId)
+	return (userId == a.Config.UserId), entity
 }

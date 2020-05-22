@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/es"
@@ -23,16 +21,18 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 
-type TaxonomyController struct {
+type ActionFunc func(context *gin.Context, ac *ActionContext)
+
+type ActionContext struct {
 	EsClient     *elasticsearch7.Client
 	Session      *session.Session
 	VocabManager entity.Manager
 }
 
-func (c *TaxonomyController) GetVocabListItems(context *gin.Context) {
+func GetVocabListItems(context *gin.Context, ac *ActionContext) {
 	userId := utils.GetSubject(context)
 	query := vocab.BuildVocabSearchQuery(userId)
-	hits := es.ExecuteSearch(c.EsClient, &query, "classified_vocabularies")
+	hits := es.ExecuteSearch(ac.EsClient, &query, "classified_vocabularies")
 	vocabs := make([]vocab.Vocabulary, len(hits))
 	for index, hit := range hits {
 		mapstructure.Decode(hit.(map[string]interface{})["_source"], &vocabs[index])
@@ -40,54 +40,44 @@ func (c *TaxonomyController) GetVocabListItems(context *gin.Context) {
 	context.JSON(200, vocabs)
 }
 
-func (c *TaxonomyController) CreateVocab(context *gin.Context) {
-	var vocab vocab.Vocabulary
-	if err := context.ShouldBind(&vocab); err != nil {
+func CreateVocab(context *gin.Context, ac *ActionContext) {
+	var obj vocab.Vocabulary
+	if err := context.ShouldBind(&obj); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	vocab.Id = utils.GenerateId()
-	vocab.UserId = utils.GetSubject(context)
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(vocab); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
-	}
-	vocabJson, err := json.Marshal(vocab)
-	if err != nil {
-		return
-	}
-	var vocabMap map[string]interface{}
-	err = json.Unmarshal(vocabJson, &vocabMap)
-	c.VocabManager.Save(vocabMap, "s3")
-	context.JSON(200, vocab)
+	obj.Id = utils.GenerateId()
+	obj.UserId = utils.GetSubject(context)
+	newEntity, _ := vocab.ToEntity(&obj)
+	ac.VocabManager.Save(newEntity, "s3")
+	context.JSON(200, newEntity)
 }
 
-func (c *TaxonomyController) UpdateVocab(context *gin.Context) {
+func UpdateVocab(context *gin.Context, ac *ActionContext) {
 	// log.Printf("UpdateVocab : %s", context.Param("id"))
-	canWrite, e := c.VocabManager.Allow(context.Param("id"), "write", "s3")
+	canWrite, oldEntity := ac.VocabManager.Allow(context.Param("id"), "write", "s3")
 	if !canWrite {
 		context.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions to write to vocabulary."})
 		return
 	}
-	var vocab vocab.Vocabulary
-	if err := context.ShouldBind(&vocab); err != nil {
+	var obj vocab.Vocabulary
+	if err := context.ShouldBind(&obj); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	vocab.Id = fmt.Sprint(e["id"])
-	vocab.UserId = fmt.Sprint(e["userId"])
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(vocab); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
+	obj.Id = fmt.Sprint(oldEntity["id"])
+	obj.UserId = fmt.Sprint(oldEntity["userId"])
+	newEntity, _ := vocab.ToEntity(&obj)
+	ac.VocabManager.Save(newEntity, "s3")
+	context.JSON(200, newEntity)
+}
+
+func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
+	return func(context *gin.Context) {
+		userId := utils.GetSubject(context)
+		ac.VocabManager = vocab.CreateVocabManager(ac.EsClient, ac.Session, userId)
+		action(context, &ac)
 	}
-	vocabJson, err := json.Marshal(vocab)
-	if err != nil {
-		return
-	}
-	var vocabMap map[string]interface{}
-	err = json.Unmarshal(vocabJson, &vocabMap)
-	c.VocabManager.Save(vocabMap, "s3")
-	context.JSON(200, vocab)
 }
 
 func init() {
@@ -106,15 +96,19 @@ func init() {
 	}
 
 	sess := session.Must(session.NewSession())
+	// vocabManager := vocab.CreateVocabManager(esClient, sess)
 
-	vocabManager := vocab.CreateVocabManager(esClient, sess)
+	actionContext := ActionContext{
+		EsClient: esClient,
+		Session:  sess,
+	}
 
-	taxonomyController := TaxonomyController{VocabManager: &vocabManager, EsClient: esClient, Session: sess}
+	// taxonomyController := TaxonomyController{VocabManager: &vocabManager, EsClient: esClient, Session: sess}
 
 	r := gin.Default()
-	r.GET("/taxonomy/vocabularylistitems", taxonomyController.GetVocabListItems)
-	r.POST("/taxonomy/vocabulary", taxonomyController.CreateVocab)
-	r.PUT("/taxonomy/vocabulary/:id", taxonomyController.UpdateVocab)
+	r.GET("/taxonomy/vocabularylistitems", DeclareAction(GetVocabListItems, actionContext))
+	r.POST("/taxonomy/vocabulary", DeclareAction(CreateVocab, actionContext))
+	r.PUT("/taxonomy/vocabulary/:id", DeclareAction(UpdateVocab, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

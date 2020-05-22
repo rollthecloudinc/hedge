@@ -2,13 +2,10 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 
 	ads "goclassifieds/lib/ads"
 	entity "goclassifieds/lib/entity"
@@ -17,9 +14,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
@@ -40,7 +35,7 @@ func (c *AdsController) GetAdListItems(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	query := buildAdsSearchQuery(&req)
+	query := ads.BuildAdsSearchQuery(&req)
 	hits := es.ExecuteSearch(c.EsClient, &query, "classified_ads")
 	ads := make([]ads.Ad, len(hits))
 	for index, hit := range hits {
@@ -64,109 +59,12 @@ func (c *AdsController) CreateAd(context *gin.Context) {
 	}
 	adJson, err := json.Marshal(ad)
 	if err != nil {
-        return
+		return
 	}
 	var adMap map[string]interface{}
 	err = json.Unmarshal(adJson, &adMap)
 	c.AdsManager.Save(adMap, "s3")
 	context.JSON(200, ad)
-}
-
-func buildAdsSearchQuery(req *ads.AdListitemsRequest) map[string]interface{} {
-	filterMust := []interface{}{
-		map[string]interface{}{
-			"term": map[string]interface{}{
-				"adType": map[string]interface{}{
-					"value": req.AdType,
-				},
-			},
-		},
-	}
-
-	if req.Location != "" {
-		cords := strings.Split(req.Location, ",")
-		lat, e := strconv.ParseFloat(cords[1], 64)
-		if e != nil {
-
-		}
-		lon, e := strconv.ParseFloat(cords[0], 64)
-		if e != nil {
-
-		}
-		geoFilter := map[string]interface{}{
-			"geo_distance": map[string]interface{}{
-				"validation_method": "ignore_malformed",
-				"distance":          "10m",
-				"distance_type":     "arc",
-				"location": map[string]interface{}{
-					"lat": lat,
-					"lon": lon,
-				},
-			},
-		}
-		filterMust = append(filterMust, geoFilter)
-	}
-
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"filter": []interface{}{
-					map[string]interface{}{
-						"bool": map[string]interface{}{
-							"must": filterMust,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	if req.SearchString != "" || req.Features != nil {
-
-		var matchMust []interface{}
-
-		if req.SearchString != "" {
-			matchSearchString := map[string]interface{}{
-				"match": map[string]interface{}{
-					"title": map[string]interface{}{
-						"query": req.SearchString,
-					},
-				},
-			}
-			matchMust = append(matchMust, matchSearchString)
-		}
-
-		if req.Features != nil {
-			matchMust = buildAdFeaturesSearchQuery(matchMust, req.Features)
-		}
-
-		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"] = matchMust
-
-	}
-	return query
-}
-
-func buildAdFeaturesSearchQuery(query []interface{}, features []string) []interface{} {
-	for _, feature := range features {
-		featureFilter := map[string]interface{}{
-			"nested": map[string]interface{}{
-				"path": "features",
-				"query": map[string]interface{}{
-					"bool": map[string]interface{}{
-						"must": map[string]interface{}{
-							"match": map[string]interface{}{
-								"features.humanName": map[string]interface{}{
-									"query": feature,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		query = append(query, featureFilter)
-	}
-	return query
 }
 
 func init() {

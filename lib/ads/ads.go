@@ -4,6 +4,8 @@ import (
 	attr "goclassifieds/lib/attr"
 	"goclassifieds/lib/entity"
 	vocab "goclassifieds/lib/vocab"
+	"strconv"
+	"strings"
 
 	session "github.com/aws/aws-sdk-go/aws/session"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
@@ -90,4 +92,101 @@ func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) 
 			},
 		},
 	}
+}
+
+func BuildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
+	filterMust := []interface{}{
+		map[string]interface{}{
+			"term": map[string]interface{}{
+				"adType": map[string]interface{}{
+					"value": req.AdType,
+				},
+			},
+		},
+	}
+
+	if req.Location != "" {
+		cords := strings.Split(req.Location, ",")
+		lat, e := strconv.ParseFloat(cords[1], 64)
+		if e != nil {
+
+		}
+		lon, e := strconv.ParseFloat(cords[0], 64)
+		if e != nil {
+
+		}
+		geoFilter := map[string]interface{}{
+			"geo_distance": map[string]interface{}{
+				"validation_method": "ignore_malformed",
+				"distance":          "10m",
+				"distance_type":     "arc",
+				"location": map[string]interface{}{
+					"lat": lat,
+					"lon": lon,
+				},
+			},
+		}
+		filterMust = append(filterMust, geoFilter)
+	}
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"filter": []interface{}{
+					map[string]interface{}{
+						"bool": map[string]interface{}{
+							"must": filterMust,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if req.SearchString != "" || req.Features != nil {
+
+		var matchMust []interface{}
+
+		if req.SearchString != "" {
+			matchSearchString := map[string]interface{}{
+				"match": map[string]interface{}{
+					"title": map[string]interface{}{
+						"query": req.SearchString,
+					},
+				},
+			}
+			matchMust = append(matchMust, matchSearchString)
+		}
+
+		if req.Features != nil {
+			matchMust = buildAdFeaturesSearchQuery(matchMust, req.Features)
+		}
+
+		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"] = matchMust
+
+	}
+	return query
+}
+
+func buildAdFeaturesSearchQuery(query []interface{}, features []string) []interface{} {
+	for _, feature := range features {
+		featureFilter := map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "features",
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must": map[string]interface{}{
+							"match": map[string]interface{}{
+								"features.humanName": map[string]interface{}{
+									"query": feature,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		query = append(query, featureFilter)
+	}
+	return query
 }

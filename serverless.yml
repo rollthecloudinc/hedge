@@ -17,9 +17,6 @@ package:
   individually: true
   exclude:
     - ./**
-  include:
-    - bazel-bin/api/ads/linux_amd64_pure_stripped/**
-    - bazel-bin/func/index_ad/linux_amd64_pure_stripped/**
 resources:
   Resources:
     adsApiRole:
@@ -63,6 +60,47 @@ resources:
                   Action:
                     - "s3:PutObject"
                   Resource: "arn:aws:s3:::classifieds-ui-dev/ads/*"
+    taxonomyApiRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: "goclassifieds-taxonomy-api-us-east-1-lambdaRole"
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: goclassifieds-taxonomy-api-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "s3:PutObject"
+                  Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
     indexAdFuncRole:
       Type: AWS::IAM::Role
       Properties:
@@ -104,6 +142,47 @@ resources:
                   Action:
                     - "s3:GetObject"
                   Resource: "arn:aws:s3:::classifieds-ui-dev/ads/*"
+    indexVocabFuncRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: "goclassifieds-index-vocab-us-east-1-lambdaRole"
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: goclassifieds-index-vocab-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "s3:GetObject"
+                  Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
 functions:
   ads-api:
     handler: bazel-bin/api/ads/linux_amd64_pure_stripped/ads
@@ -124,6 +203,29 @@ functions:
       - httpApi:
           path: /ads/adlistitems
           method: GET
+  taxonomy-api:
+    handler: bazel-bin/api/taxonomy/linux_amd64_pure_stripped/taxonomy
+    role: taxonomyApiRole
+    package:
+      include:
+        - bazel-bin/api/taxonomy/linux_amd64_pure_stripped/taxonomy
+      exclude:
+        - bazel-bin/api/taxonomy/linux_amd64_pure_stripped/**
+    events:
+      - httpApi:
+          path: /taxonomy/vocabulary
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - taxonomy_api/taxonomy_api
+      - httpApi:
+          path: /taxonomy/vocabularylistitems
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - taxonomy_api/taxonomy_api
   index-ad:
     handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
     role: indexAdFuncRole
@@ -138,5 +240,21 @@ functions:
           event: s3:ObjectCreated:*
           rules:
             - prefix: ads/
+            - suffix: .json.gz
+          existing: true
+  index-vocab:
+    handler: bazel-bin/func/index_vocab/linux_amd64_pure_stripped/index_vocab
+    role: indexVocabFuncRole
+    package:
+      include:
+        - bazel-bin/func/index_vocab/linux_amd64_pure_stripped/index_vocab
+      exclude:
+        - bazel-bin/func/index_vocab/linux_amd64_pure_stripped/**
+    events:
+      - s3:
+          bucket: classifieds-ui-dev
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: vocabularies/
             - suffix: .json.gz
           existing: true

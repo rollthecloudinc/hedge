@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"html/template"
+	"fmt"
 	"log"
 	"net/http"
+	"text/template"
 
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/es"
@@ -24,26 +25,71 @@ var ginLambda *ginadapter.GinLambda
 
 type ActionFunc func(context *gin.Context, ac *ActionContext)
 
-type QueryTemplates struct {
-	ProfileListItems *template.Template
-}
-
 type ActionContext struct {
 	EsClient        *elasticsearch7.Client
 	Session         *session.Session
 	ProfilesManager entity.Manager
-	QueryTemplates  QueryTemplates
+	QueryTemplate   *template.Template
 }
 
 func GetProfileListItems(context *gin.Context, ac *ActionContext) {
-	parentId := context.Query("parentId")
-	query := profiles.ProfileListItemsQuery{
-		UserId:   utils.GetSubject(context),
-		ParentId: parentId,
-	}
-	search := profiles.ProfilesListItemsSearch(&query, ac.QueryTemplates.ProfileListItems)
-	hits := es.ExecuteSearch(ac.EsClient, &search, "classified_profiles")
+	hits := es.ExecuteQuery(ac.EsClient, es.TemplateBuilder{
+		Index:    "classified_profiles",
+		Name:     "profilelistitems",
+		Template: ac.QueryTemplate,
+		Data: profiles.ProfileListItemsQuery{
+			UserId:   utils.GetSubject(context),
+			ParentId: context.Query("parentId"),
+		},
+	})
 	items := make([]profiles.Profile, len(hits))
+	for index, hit := range hits {
+		mapstructure.Decode(hit.(map[string]interface{})["_source"], &items[index])
+	}
+	context.JSON(200, items)
+}
+
+func GetProfileNavItems(context *gin.Context, ac *ActionContext) {
+	hits := es.ExecuteQuery(ac.EsClient, es.TemplateBuilder{
+		Index:    "classified_profiles",
+		Name:     "profilenavitems1",
+		Template: ac.QueryTemplate,
+		Data: profiles.ProfileNavItemsQuery1{
+			UserId: utils.GetSubject(context),
+		},
+	})
+	rootIds := make(map[string]bool)
+	for _, hit := range hits {
+		id := fmt.Sprint(hit.(map[string]interface{})["_source"].(map[string]interface{})["id"])
+		parentId := fmt.Sprint(hit.(map[string]interface{})["_source"].(map[string]interface{})["parentId"])
+		_, ok := rootIds[id]
+		if !ok && (parentId == "" || parentId == "<nil>") {
+			rootIds[id] = true
+		}
+	}
+	for _, hit := range hits {
+		parentId := fmt.Sprint(hit.(map[string]interface{})["_source"].(map[string]interface{})["parentId"])
+		_, ok := rootIds[parentId]
+		if !ok && parentId != "" && parentId != "<nil>" {
+			rootIds[parentId] = true
+		}
+	}
+	i := 0
+	ids := make([]string, len(rootIds))
+	for key := range rootIds {
+		ids[i] = key
+		i++
+	}
+	hits = es.ExecuteQuery(ac.EsClient, es.TemplateBuilder{
+		Index:    "classified_profiles",
+		Name:     "profilenavitems2",
+		Template: ac.QueryTemplate,
+		Data: profiles.ProfileNavItemsQuery2{
+			Ids:  ids,
+			Last: i - 1,
+		},
+	})
+	items := make([]profiles.ProfileNavItem, len(hits))
 	for index, hit := range hits {
 		mapstructure.Decode(hit.(map[string]interface{})["_source"], &items[index])
 	}
@@ -101,21 +147,20 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 
-	t, err := template.ParseFiles("api/profiles/queries/profilelistitems.json")
+	t, err := template.ParseFiles("api/profiles/queries.json.tmpl")
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 	}
 
 	actionContext := ActionContext{
-		EsClient: esClient,
-		Session:  sess,
-		QueryTemplates: QueryTemplates{
-			ProfileListItems: t,
-		},
+		EsClient:      esClient,
+		Session:       sess,
+		QueryTemplate: t,
 	}
 
 	r := gin.Default()
 	r.GET("/profiles/profilelistitems", DeclareAction(GetProfileListItems, actionContext))
+	r.GET("/profiles/profilenavitems", DeclareAction(GetProfileNavItems, actionContext))
 	r.POST("/profiles/profile", DeclareAction(CreateProfile, actionContext))
 
 	ginLambda = ginadapter.New(r)

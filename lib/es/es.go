@@ -5,9 +5,54 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"text/template"
 
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
+
+type SearchQueryBuilder interface {
+	Build() map[string]interface{}
+	GetIndex() string
+}
+
+type TemplateBuilder struct {
+	Index    string
+	Data     interface{}
+	Template *template.Template
+	Name     string
+}
+
+func (t TemplateBuilder) GetIndex() string {
+	return t.Index
+}
+
+func (t TemplateBuilder) Build() map[string]interface{} {
+	var tb bytes.Buffer
+	err := t.Template.ExecuteTemplate(&tb, t.Name, t.Data)
+	if err != nil {
+		log.Printf("Build Query Error: %s", err.Error())
+	}
+
+	var query map[string]interface{}
+	err = json.Unmarshal(tb.Bytes(), &query)
+	if err != nil {
+		log.Printf("Unmarshall Query Error: %s", err.Error())
+	}
+
+	return query
+}
+
+func ExecuteQuery(esClient *elasticsearch7.Client, builder SearchQueryBuilder) []interface{} {
+	query := builder.Build()
+
+	var qb bytes.Buffer
+	if err := json.NewEncoder(&qb).Encode(query); err != nil {
+		log.Fatalf("Error encoding search query: %s", err)
+	}
+	log.Printf("Search Query: %s", qb.String())
+
+	return ExecuteSearch(esClient, &query, builder.GetIndex())
+}
 
 func ExecuteSearch(esClient *elasticsearch7.Client, query *map[string]interface{}, index string) []interface{} {
 	var buf bytes.Buffer

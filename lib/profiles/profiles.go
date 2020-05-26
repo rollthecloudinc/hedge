@@ -3,7 +3,6 @@ package profiles
 import (
 	"bytes"
 	"encoding/json"
-	"html/template"
 	"log"
 )
 
@@ -108,6 +107,12 @@ type Address struct {
 	Country string `form:"country" json:"country" binding:"required"`
 }
 
+type ProfileNavItem struct {
+	Id       string `json:"id" binding:"required"`
+	ParentId string `json:"parentId"`
+	Title    string `json:"title" binding:"required"`
+}
+
 type ProfilePermissions struct {
 	ReadUserIds   []string `json:"readUserIds"`
 	WriteUserIds  []string `json:"writeUserIds"`
@@ -117,6 +122,15 @@ type ProfilePermissions struct {
 type ProfileListItemsQuery struct {
 	ParentId string
 	UserId   string
+}
+
+type ProfileNavItemsQuery1 struct {
+	UserId string
+}
+
+type ProfileNavItemsQuery2 struct {
+	Ids  []string
+	Last int
 }
 
 func ToEntity(profile *Profile) (map[string]interface{}, error) {
@@ -131,23 +145,4 @@ func ToEntity(profile *Profile) (map[string]interface{}, error) {
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
-}
-
-func ProfilesListItemsSearch(query *ProfileListItemsQuery, t *template.Template) map[string]interface{} {
-
-	var out bytes.Buffer
-	err := t.Execute(&out, query)
-	if err != nil {
-		log.Printf("Error: %s", err.Error())
-	}
-	var search map[string]interface{}
-	err = json.Unmarshal(out.Bytes(), &search)
-
-	var buf2 bytes.Buffer
-	if err := json.NewEncoder(&buf2).Encode(search); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
-	}
-	log.Printf("Search Query: %s", buf2.String())
-
-	return search
 }

@@ -18,10 +18,23 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
+type EntityHook func(enity map[string]interface{}) (bool, error)
+
 type EntityConfig struct {
 	SingularName string
 	PluralName   string
 	IdKey        string
+}
+
+type DefaultManagerConfig struct {
+	EsClient     *elasticsearch7.Client
+	Session      *session.Session
+	UserId       string
+	SingularName string
+	PluralName   string
+	Index        string
+	BeforeSave   EntityHook
+	AfterSave   EntityHook
 }
 
 type EntityManager struct {
@@ -29,6 +42,12 @@ type EntityManager struct {
 	Loaders     map[string]Loader
 	Storages    map[string]Storage
 	Authorizers map[string]Authorization
+	Hooks       EntityHooks
+}
+
+type EntityHooks struct {
+	BeforeSave EntityHook
+	AfterSave  EntityHook
 }
 
 type Manager interface {
@@ -82,7 +101,16 @@ type OwnerAuthorizationAdaptor struct {
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
+	if m.Hooks.BeforeSave != nil {
+		abort, err := m.Hooks.BeforeSave(entity)
+		if abort || err != nil {
+			return
+		}
+	}
 	m.Storages[storage].Store(id, entity)
+	if m.Hooks.AfterSave != nil {
+		m.Hooks.AfterSave(entity)
+	}
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -179,4 +207,42 @@ func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map
 	userId := fmt.Sprint(entity["userId"])
 	// log.Printf("Check Entity Ownership: %s == %s", userId, a.Config.UserId)
 	return (userId == a.Config.UserId), entity
+}
+
+func NewDefaultManager(config DefaultManagerConfig) EntityManager {
+	return EntityManager{
+		Config: EntityConfig{
+			SingularName: config.SingularName,
+			PluralName:   config.PluralName,
+			IdKey:        "id",
+		},
+		Loaders: map[string]Loader{
+			"s3": S3LoaderAdaptor{
+				Config: S3AdaptorConfig{
+					Session: config.Session,
+					Bucket:  "classifieds-ui-dev",
+					Prefix:  config.PluralName + "/",
+				},
+			},
+		},
+		Storages: map[string]Storage{
+			"s3": S3StorageAdaptor{
+				Config: S3AdaptorConfig{
+					Session: config.Session,
+					Bucket:  "classifieds-ui-dev",
+					Prefix:  config.PluralName + "/",
+				},
+			},
+			"elastic": ElasticStorageAdaptor{
+				Config: ElasticAdaptorConfig{
+					Index:  config.Index,
+					Client: config.EsClient,
+				},
+			},
+		},
+		Hooks: EntityHooks{
+			BeforeSave: config.BeforeSave,
+			AfterSave: config.AfterSave,
+		},
+	}
 }

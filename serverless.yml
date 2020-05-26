@@ -102,6 +102,48 @@ resources:
                     - "s3:PutObject"
                     - "s3:GetObject"
                   Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
+    profilesApiRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: "goclassifieds-profiles-api-us-east-1-lambdaRole"
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: goclassifieds-profiles-api-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "s3:PutObject"
+                    - "s3:GetObject"
+                  Resource: "arn:aws:s3:::classifieds-ui-dev/profiles/*"
     indexAdFuncRole:
       Type: AWS::IAM::Role
       Properties:
@@ -184,6 +226,47 @@ resources:
                   Action:
                     - "s3:GetObject"
                   Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
+    indexProfileFuncRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: "goclassifieds-index-profile-us-east-1-lambdaRole"
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: goclassifieds-index-profile-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "s3:GetObject"
+                  Resource: "arn:aws:s3:::classifieds-ui-dev/profiles/*"
 functions:
   ads-api:
     handler: bazel-bin/api/ads/linux_amd64_pure_stripped/ads
@@ -234,6 +317,30 @@ functions:
             name: cognito
             scopes:
               - taxonomy_api/taxonomy_api
+  profiles-api:
+    handler: bazel-bin/api/profiles/linux_amd64_pure_stripped/profiles
+    role: profilesApiRole
+    package:
+      include:
+        - bazel-bin/api/profiles/linux_amd64_pure_stripped/profiles
+        - api/profiles/queries/profilelistitems.json
+      exclude:
+        - bazel-bin/api/profiles/linux_amd64_pure_stripped/**
+    events:
+      - httpApi:
+          path: /profiles/profile
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - profiles_api/profiles_api
+      - httpApi:
+          path: /profiles/profilelistitems
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - profiles_api/profiles_api
   index-ad:
     handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
     role: indexAdFuncRole
@@ -264,5 +371,21 @@ functions:
           event: s3:ObjectCreated:*
           rules:
             - prefix: vocabularies/
+            - suffix: .json.gz
+          existing: true
+  index-profile:
+    handler: bazel-bin/func/index_profile/linux_amd64_pure_stripped/index_profile
+    role: indexProfileFuncRole
+    package:
+      include:
+        - bazel-bin/func/index_profile/linux_amd64_pure_stripped/index_profile
+      exclude:
+        - bazel-bin/func/index_profile/linux_amd64_pure_stripped/**
+    events:
+      - s3:
+          bucket: classifieds-ui-dev
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: profiles/
             - suffix: .json.gz
           existing: true

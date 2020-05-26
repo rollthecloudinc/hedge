@@ -1,0 +1,66 @@
+{
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "term": {
+                                    "parentId.keyword": {
+                                        "value": "{{ .ParentId }}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "bool": {
+                        "should": [
+                            {
+                                "bool": {
+                                    "filter": [
+                                        {
+                                            "term": {
+                                                "entityPermissions.readUserIds.keyword": {
+                                                    "value": "{{ .UserId }}"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "filter": [
+                                        {
+                                            "term": {
+                                                "entityPermissions.writeUserIds.keyword": {
+                                                    "value": "{{ .UserId }}"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "filter": [
+                                        {
+                                            "term": {
+                                                "entityPermissions.deleteUserIds.keyword": {
+                                                    "value": "{{ .UserId }}"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

@@ -3,11 +3,8 @@ package profiles
 import (
 	"bytes"
 	"encoding/json"
-	"goclassifieds/lib/entity"
+	"html/template"
 	"log"
-
-	"github.com/aws/aws-sdk-go/aws/session"
-	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
 type ProfileStatuses int32
@@ -76,8 +73,8 @@ type Profile struct {
 	CompanyName       string             `form:"companyName" json:"companyName"`
 	Email             string             `form:"email" json:"email"`
 	Introduction      string             `form:"introduction" json:"introduction"`
-	Logo              ProfileImage       `form:"logo" json:"logo"`
-	Headshot          ProfileImage       `form:"headshot" json:"headshot"`
+	Logo              *ProfileImage      `form:"logo,omitempty" json:"logo,omitempty" binding:"omitempty"`
+	Headshot          *ProfileImage      `form:"headshot,omitempty" json:"headshot,omitempty" binding:"omitempty"`
 	PhoneNumbers      []PhoneNumber      `form:"phoneNumbers[]" json:"phoneNumbers"`
 	Locations         []Location         `form:"locations[]" json:"locations"`
 	EntityPermissions ProfilePermissions `json:"entityPermissions"`
@@ -117,38 +114,9 @@ type ProfilePermissions struct {
 	DeleteUserIds []string `json:"deleteUserIds"`
 }
 
-func CreateProfileManager(esClient *elasticsearch7.Client, session *session.Session) entity.EntityManager {
-	return entity.EntityManager{
-		Config: entity.EntityConfig{
-			SingularName: "profile",
-			PluralName:   "profiles",
-			IdKey:        "id",
-		},
-		Loaders: map[string]entity.Loader{
-			"s3": entity.S3LoaderAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "profiles/",
-				},
-			},
-		},
-		Storages: map[string]entity.Storage{
-			"s3": entity.S3StorageAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "profiles/",
-				},
-			},
-			"elastic": entity.ElasticStorageAdaptor{
-				Config: entity.ElasticAdaptorConfig{
-					Index:  "classified_profiles",
-					Client: esClient,
-				},
-			},
-		},
-	}
+type ProfileListItemsQuery struct {
+	ParentId string
+	UserId   string
 }
 
 func ToEntity(profile *Profile) (map[string]interface{}, error) {
@@ -163,4 +131,23 @@ func ToEntity(profile *Profile) (map[string]interface{}, error) {
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
+}
+
+func ProfilesListItemsSearch(query *ProfileListItemsQuery, t *template.Template) map[string]interface{} {
+
+	var out bytes.Buffer
+	err := t.Execute(&out, query)
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+	}
+	var search map[string]interface{}
+	err = json.Unmarshal(out.Bytes(), &search)
+
+	var buf2 bytes.Buffer
+	if err := json.NewEncoder(&buf2).Encode(search); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	log.Printf("Search Query: %s", buf2.String())
+
+	return search
 }

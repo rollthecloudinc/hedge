@@ -58,9 +58,32 @@ func CreateAd(context *gin.Context, ac *ActionContext) {
 	context.JSON(200, newEntity)
 }
 
+/*func BeforeAdSave(context *gin.Context, ac *ActionContext) entity.EntityHook {
+	return func(entity map[string]interface{}) (bool, error) {
+		log.Printf("Entity Hook Activated")
+		var obj ads.Ad
+		if err := context.ShouldBind(&obj); err != nil {
+			context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return true, err
+		}
+		entity["Id"] = utils.GenerateId()
+		entity["Status"] = ads.Submitted // @todo: Enums not being validated :(
+		entity["UserId"] = utils.GetSubject(context)
+		return false, nil
+	}
+}*/
+
 func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 	return func(context *gin.Context) {
-		ac.AdsManager = ads.CreateAdManager(ac.EsClient, ac.Session)
+		ac.AdsManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
+			SingularName: "ad",
+			PluralName:   "ads",
+			Index:        "classified_ads",
+			EsClient:     ac.EsClient,
+			Session:      ac.Session,
+			UserId:       utils.GetSubject(context),
+			// BeforeSave: BeforeAdSave(context, &ac),
+		})
 		action(context, &ac)
 	}
 }

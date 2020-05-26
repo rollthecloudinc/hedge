@@ -4,14 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	attr "goclassifieds/lib/attr"
-	"goclassifieds/lib/entity"
 	vocab "goclassifieds/lib/vocab"
 	"log"
 	"strconv"
 	"strings"
-
-	session "github.com/aws/aws-sdk-go/aws/session"
-	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
 type AdTypes int32
@@ -61,40 +57,6 @@ type AdImage struct {
 	Id     string `form:"id" json:"id" binding:"required"`
 	Path   string `form:"path" json:"path" binding:"required"`
 	Weight int    `form:"weight" json:"weight" binding:"required"`
-}
-
-func CreateAdManager(esClient *elasticsearch7.Client, session *session.Session) entity.EntityManager {
-	return entity.EntityManager{
-		Config: entity.EntityConfig{
-			SingularName: "ad",
-			PluralName:   "ads",
-			IdKey:        "id",
-		},
-		Loaders: map[string]entity.Loader{
-			"s3": entity.S3LoaderAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "ads/",
-				},
-			},
-		},
-		Storages: map[string]entity.Storage{
-			"s3": entity.S3StorageAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "ads/",
-				},
-			},
-			"elastic": entity.ElasticStorageAdaptor{
-				Config: entity.ElasticAdaptorConfig{
-					Index:  "classified_ads",
-					Client: esClient,
-				},
-			},
-		},
-	}
 }
 
 func ToEntity(ad *Ad) (map[string]interface{}, error) {

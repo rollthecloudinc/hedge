@@ -25,19 +25,19 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 
 	sess := session.Must(session.NewSession())
 
-	adManager := entity.NewDefaultManager(entity.DefaultManagerConfig{
-		SingularName: "ad",
-		PluralName:   "ads",
-		Index:        "classified_ads",
+	profilesManager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+		SingularName: "profile",
+		PluralName:   "profiles",
+		Index:        "classified_profiles",
 		EsClient:     esClient,
 		Session:      sess,
 		UserId:       "",
 	})
 
 	for _, record := range s3Event.Records {
-		id := record.S3.Object.Key[4 : len(record.S3.Object.Key)-8]
-		ad := adManager.Load(id, "s3")
-		adManager.Save(ad, "elastic")
+		id := record.S3.Object.Key[9 : len(record.S3.Object.Key)-8]
+		profile := profilesManager.Load(id, "s3")
+		profilesManager.Save(profile, "elastic")
 	}
 }
 

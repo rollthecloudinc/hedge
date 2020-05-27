@@ -456,6 +456,8 @@ functions:
       - httpApi:
           path: /entity/{entityName}
           method: POST
+          authorizer:
+            name: cognito
   index-ad:
     handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
     role: indexAdFuncRole

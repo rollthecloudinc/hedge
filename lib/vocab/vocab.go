@@ -13,21 +13,21 @@ import (
 type Vocabulary struct {
 	Id          string `form:"id" json:"id"`
 	UserId      string `form:"userId" json:"userId"`
-	MachineName string `form:"machineName" json:"machineName" binding:"required"`
-	HumanName   string `form:"humanName" json:"humanName" binding:"required"`
-	Terms       []Term `form:"terms[]" json:"terms" binding:"required"`
+	MachineName string `form:"machineName" json:"machineName" binding:"required" validate:"required"`
+	HumanName   string `form:"humanName" json:"humanName" binding:"required" validate:"required"`
+	Terms       []Term `form:"terms[]" json:"terms" binding:"required" validate:"required"`
 }
 
 type Term struct {
-	Id           string `form:"id" json:"id" binding:"required"`
-	VocabularyId string `form:"vocabularyId" json:"vocabularyId" binding:"required"`
+	Id           string `form:"id" json:"id" binding:"required" validate:"required"`
+	VocabularyId string `form:"vocabularyId" json:"vocabularyId" binding:"required" validate:"required"`
 	ParentId     string `form:"parentId" json:"parentId"`
-	MachineName  string `form:"machineName" json:"machineName" binding:"required"`
-	HumanName    string `form:"humanName" json:"humanName" binding:"required"`
-	Weight       int    `form:"weight" json:"weight" binding:"required"`
-	Group        bool   `form:"group" json:"group" binding:"required"`
-	Selected     bool   `form:"selected" json:"selected" binding:"required"`
-	Level        int    `form:"level" json:"level" binding:"required"`
+	MachineName  string `form:"machineName" json:"machineName" binding:"required" validate:"required"`
+	HumanName    string `form:"humanName" json:"humanName" binding:"required" validate:"required"`
+	Weight       int    `form:"weight" json:"weight" binding:"required" validate:"required"`
+	Group        bool   `form:"group" json:"group" binding:"required" validate:"required"`
+	Selected     bool   `form:"selected" json:"selected" binding:"required" validate:"required"`
+	Level        int    `form:"level" json:"level" binding:"required" validate:"required"`
 	Children     []Term `form:"children[]" json:"children"`
 }
 

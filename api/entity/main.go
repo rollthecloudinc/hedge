@@ -95,7 +95,11 @@ func CreateEntity(context *gin.Context, ac *ActionContext) {
 		log.Printf("Error json binding: %s", err.Error())
 	}
 	json.Unmarshal(body, &e)
-	newEntity, _ := ac.EntityManager.Create(e)
+	newEntity, err := ac.EntityManager.Create(e)
+	if err != nil {
+		context.JSON(500, err)
+		return
+	}
 	context.JSON(200, newEntity)
 }
 

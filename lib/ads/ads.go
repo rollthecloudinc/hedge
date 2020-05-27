@@ -39,40 +39,40 @@ type AdListitemsRequest struct {
 }
 
 type Ad struct {
-	Id          string                `json:"id"`
-	AdType      AdTypes               `form:"adType" json:"adType" binding:"required"`
-	Status      AdStatuses            `form:"status" json:"status"`
-	Title       string                `form:"title" json:"title" binding:"required"`
-	Description string                `form:"description" json:"description" binding:"required"`
-	Location    [2]float64            `form:"location[]" json:"location" binding:"required"`
-	UserId      string                `form:"userId" json:"userId"`
+	Id          string                `json:"id" validate:"required"`
+	AdType      *AdTypes              `form:"adType" json:"adType" binding:"required" validate:"required"`
+	Status      *AdStatuses           `form:"status" json:"status" validate:"required"`
+	Title       string                `form:"title" json:"title" binding:"required" validate:"required"`
+	Description string                `form:"description" json:"description" binding:"required" validate:"required"`
+	Location    [2]float64            `form:"location[]" json:"location" binding:"required" validate:"required"`
+	UserId      string                `form:"userId" json:"userId" validate:"required"`
 	ProfileId   string                `form:"profileId" json:"profileId"`
-	CityDisplay string                `form:"cityDisplay" json:"cityDisplay" binding:"required"`
-	Images      []AdImage             `form:"images[]" json:"images"`
-	Attributes  []attr.AttributeValue `form:"attributes[]" json:"attributes"`
-	FeatureSets []vocab.Vocabulary    `form:"featureSets[]" json:"featureSets"`
+	CityDisplay string                `form:"cityDisplay" json:"cityDisplay" binding:"required" validate:"required"`
+	Images      []AdImage             `form:"images[]" json:"images" validate:"dive"`
+	Attributes  []attr.AttributeValue `form:"attributes[]" json:"attributes" validate:"dive"`
+	FeatureSets []vocab.Vocabulary    `form:"featureSets[]" json:"featureSets" validate:"dive"`
 }
 
 type AdImage struct {
-	Id     string `form:"id" json:"id" binding:"required"`
-	Path   string `form:"path" json:"path" binding:"required"`
-	Weight int    `form:"weight" json:"weight" binding:"required"`
+	Id     string `form:"id" json:"id" binding:"required" validate:"required"`
+	Path   string `form:"path" json:"path" binding:"required" validate:"required"`
+	Weight int    `form:"weight" json:"weight" binding:"required" validate:"required"`
 }
 
 type AdType struct {
-	Id         AdTypes           `form:"id" json:"id" binding:"required"`
-	Name       string            `form:"name" json:"name" binding:"required"`
-	Attributes []AdTypeAttribute `form:"attributes[]" json:"attributes" binding:"required"`
-	Filters    []AdTypeAttribute `form:"filters[]" json:"filters" binding:"required"`
+	Id         AdTypes           `form:"id" json:"id" binding:"required" validate:"required"`
+	Name       string            `form:"name" json:"name" binding:"required" validate:"required"`
+	Attributes []AdTypeAttribute `form:"attributes[]" json:"attributes" binding:"required" validate:"required"`
+	Filters    []AdTypeAttribute `form:"filters[]" json:"filters" binding:"required" validate:"required"`
 }
 
 type AdTypeAttribute struct {
-	Name       string              `form:"name" json:"name" binding:"required"`
-	Type       attr.AttributeTypes `form:"type" json:"type" binding:"required"`
-	Label      string              `form:"label" json:"label" binding:"required"`
-	Required   bool                `form:"required" json:"required" binding:"required"`
-	Widget     string              `form:"widget" json:"widget" binding:"required"`
-	Attributes []AdTypeAttribute   `form:"attributes[]" json:"attributes" binding:"required"`
+	Name       string              `form:"name" json:"name" binding:"required" validate:"required"`
+	Type       attr.AttributeTypes `form:"type" json:"type" binding:"required" validate:"required"`
+	Label      string              `form:"label" json:"label" binding:"required" validate:"required"`
+	Required   bool                `form:"required" json:"required" binding:"required" validate:"required"`
+	Widget     string              `form:"widget" json:"widget" binding:"required" validate:"required"`
+	Attributes []AdTypeAttribute   `form:"attributes[]" json:"attributes" binding:"required" validate:"required"`
 }
 
 func ToEntity(ad *Ad) (map[string]interface{}, error) {

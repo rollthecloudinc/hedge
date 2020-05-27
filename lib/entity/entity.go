@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -37,8 +38,9 @@ type ValidateEntityRequest struct {
 }
 
 type ValidateEntityResponse struct {
-	Entity map[string]interface{}
-	Valid  bool
+	Entity       map[string]interface{}
+	Valid        bool
+	Unauthorized bool
 }
 
 type DefaultManagerConfig struct {
@@ -277,30 +279,31 @@ func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map
 
 func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
-	log.Print("Create: 1")
-
 	request := ValidateEntityRequest{
 		EntityName: m.Config.SingularName,
 		Entity:     entity,
 		UserId:     c.Config.UserId,
 	}
 
-	log.Print("Create: 2")
-
 	payload, err := json.Marshal(request)
 	if err != nil {
 		log.Printf("Error marshalling entity validation request: %s", err.Error())
+		return entity, errors.New("Error marshalling entity validation request")
 	}
-
-	log.Print("Create: 3")
 
 	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-dev-ValidateEntity"), Payload: payload})
 	if err != nil {
 		log.Printf("error invoking entity validation: %s", err.Error())
+		return entity, errors.New("Error invoking validation")
 	}
 
 	var validateRes ValidateEntityResponse
 	json.Unmarshal(res.Payload, &validateRes)
+
+	if validateRes.Unauthorized {
+		log.Printf("Unauthorized to create entity")
+		return entity, errors.New("Unauthorized to create entity")
+	}
 
 	if validateRes.Valid {
 		log.Printf("Lambda Response valid")
@@ -308,8 +311,7 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return validateRes.Entity, nil
 	}
 
-	log.Printf("Lambda Response invalid")
-	return entity, nil
+	return entity, errors.New("Entity invalid")
 }
 
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {

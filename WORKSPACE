@@ -166,8 +166,8 @@ go_repository(
 go_repository(
     name = "com_github_go_playground_validator_v10",
     importpath = "github.com/go-playground/validator/v10",
-    sum = "h1:KgJ0snyC2R9VXYN2rneOtQcw5aHQB1Vv0sFl1UcHBOY=",
-    version = "v10.2.0",
+    sum = "h1:nZU+7q+yJoFmwvNgv/LnPUkwPal62+b2xXj0AU1Es7o=",
+    version = "v10.3.0",
 )
 
 go_repository(

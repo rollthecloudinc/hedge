@@ -114,3 +114,20 @@ func BuildVocabSearchQuery(userId string) map[string]interface{} {
 
 	return query
 }
+
+func FlattenTerm(term Term, selectedOnly bool) []Term {
+	leafNodes := make([]Term, 0)
+	if term.Children == nil || len(term.Children) == 0 {
+		if !selectedOnly || term.Selected {
+			leafNodes = append(leafNodes, term)
+		}
+	} else {
+		for _, childTerm := range term.Children {
+			flatChildren := FlattenTerm(childTerm, selectedOnly)
+			for _, flatChild := range flatChildren {
+				leafNodes = append(leafNodes, flatChild)
+			}
+		}
+	}
+	return leafNodes
+}

@@ -5,6 +5,7 @@ import (
 	"goclassifieds/lib/ads"
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/vocab"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -52,8 +53,19 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 				allAttrValues = append(allAttrValues, flatAttr)
 			}
 		}
-
 		item.Attributes = allAttrValues
+
+		for index, featureSet := range item.FeatureSets {
+			allFeatureTerms := make([]vocab.Term, 0)
+			for _, term := range featureSet.Terms {
+				flatTerms := vocab.FlattenTerm(term, true)
+				for _, flatTerm := range flatTerms {
+					allFeatureTerms = append(allFeatureTerms, flatTerm)
+				}
+			}
+			item.FeatureSets[index].Terms = allFeatureTerms
+		}
+
 		entity, _ = ads.ToEntity(&item)
 
 		adManager.Save(entity, "elastic")

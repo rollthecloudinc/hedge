@@ -11,6 +11,7 @@ import (
 	"log"
 
 	"goclassifieds/lib/attr"
+	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
@@ -20,6 +21,7 @@ import (
 	s3 "github.com/aws/aws-sdk-go/service/s3"
 	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	"github.com/go-playground/validator/v10"
 )
 
 type EntityHook func(enity map[string]interface{}) (bool, error)
@@ -61,12 +63,6 @@ type EntityManager struct {
 	Loaders     map[string]Loader
 	Storages    map[string]Storage
 	Authorizers map[string]Authorization
-	Hooks       EntityHooks
-}
-
-type EntityHooks struct {
-	BeforeSave EntityHook
-	AfterSave  EntityHook
 }
 
 type Manager interface {
@@ -135,26 +131,31 @@ type DefaultCreatorAdaptor struct {
 	Config DefaultCreatorConfig
 }
 
+type EntityTypeCreatorAdaptor struct {
+	Config DefaultCreatorConfig
+}
+
 type EntityType struct {
-	Id         string            `form:"id" json:"id" binding:"required"`
-	Owner      string            `form:"owner" json:"owner"`
+	Id         string            `form:"id" json:"id" binding:"required" validate:"required"`
+	UserId     string            `form:"userId" json:"userId" binding:"required" validate:"required"`
+	Owner      string            `form:"owner" json:"owner" validate:"required"`
 	OwnerId    string            `form:"ownerId" json:"ownerId"`
 	ParentId   string            `form:"parentId" json:"parentId"`
-	Name       string            `form:"name" json:"name" binding:"required"`
+	Name       string            `form:"name" json:"name" binding:"required" validate:"required"`
 	Overlay    bool              `form:"overlay" json:"overlay" binding:"required"`
-	Target     string            `form:"target" json:"target" binding:"required"`
-	Attributes []EntityAttribute `form:"attributes[]" json:"attributes" binding:"required"`
-	Filters    []EntityAttribute `form:"filters[]" json:"filters" binding:"required"`
+	Target     string            `form:"target" json:"target" binding:"required" validate:"required"`
+	Attributes []EntityAttribute `form:"attributes[]" json:"attributes" binding:"required" validate:"dive"`
+	Filters    []EntityAttribute `form:"filters[]" json:"filters" binding:"required" validate:"dive"`
 }
 
 type EntityAttribute struct {
-	Name       string                 `form:"name" json:"name" binding:"required"`
-	Type       attr.AttributeTypes    `form:"type" json:"type" binding:"required"`
-	Label      string                 `form:"label" json:"label" binding:"required"`
+	Name       string                 `form:"name" json:"name" binding:"required" validate:"required"`
+	Type       *attr.AttributeTypes   `form:"type" json:"type" binding:"required" validate:"required"`
+	Label      string                 `form:"label" json:"label" binding:"required" validate:"required"`
 	Required   bool                   `form:"required" json:"required" binding:"required"`
-	Widget     string                 `form:"widget" json:"widget" binding:"required"`
+	Widget     string                 `form:"widget" json:"widget" binding:"required" validate:"required"`
 	Settings   map[string]interface{} `form:"settings" json:"settings"`
-	Attributes []EntityAttribute      `form:"attributes[]" json:"attributes" binding:"required"`
+	Attributes []EntityAttribute      `form:"attributes[]" json:"attributes" binding:"required" validate:"dive"`
 }
 
 func (m EntityManager) Create(entity map[string]interface{}) (map[string]interface{}, error) {
@@ -169,16 +170,7 @@ func (m EntityManager) Delete(entity map[string]interface{}) {
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
-	if m.Hooks.BeforeSave != nil {
-		abort, err := m.Hooks.BeforeSave(entity)
-		if abort || err != nil {
-			return
-		}
-	}
 	m.Storages[storage].Store(id, entity)
-	if m.Hooks.AfterSave != nil {
-		m.Hooks.AfterSave(entity)
-	}
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -314,6 +306,61 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 	return entity, errors.New("Entity invalid")
 }
 
+func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+
+	log.Print("EntityTypeCreatorAdaptor: 1")
+
+	jsonData, err := json.Marshal(entity)
+	if err != nil {
+		return entity, err
+	}
+
+	log.Print("EntityTypeCreatorAdaptor: 2")
+
+	var obj EntityType
+	err = json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return entity, err
+	}
+
+	log.Print("EntityTypeCreatorAdaptor: 3")
+
+	obj.Id = utils.GenerateId()
+	obj.UserId = c.Config.UserId
+
+	log.Print("EntityTypeCreatorAdaptor: 4")
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+	if err != nil {
+		return entity, err.(validator.ValidationErrors)
+	}
+
+	log.Print("EntityTypeCreatorAdaptor: 5")
+
+	newEntity, _ := TypeToEntity(&obj)
+	m.Save(newEntity, c.Config.Save)
+
+	log.Print("EntityTypeCreatorAdaptor: 6")
+
+	return newEntity, nil
+
+}
+
+func TypeToEntity(entityType *EntityType) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(entityType); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	jsonData, err := json.Marshal(entityType)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
+}
+
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 	return EntityManager{
 		Config: EntityConfig{
@@ -352,9 +399,39 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 				},
 			},
 		},
-		Hooks: EntityHooks{
-			BeforeSave: config.BeforeSave,
-			AfterSave:  config.AfterSave,
+	}
+}
+
+func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
+	return EntityManager{
+		Config: EntityConfig{
+			SingularName: "type",
+			PluralName:   "types",
+			IdKey:        "id",
+		},
+		Creator: EntityTypeCreatorAdaptor{
+			Config: DefaultCreatorConfig{
+				Lambda: config.Lambda,
+				UserId: config.UserId,
+				Save:   "elastic",
+			},
+		},
+		Loaders: map[string]Loader{
+			/*"s3": S3LoaderAdaptor{
+				Config: S3AdaptorConfig{
+					Session: config.Session,
+					Bucket:  "classifieds-ui-dev",
+					Prefix:  config.PluralName + "/",
+				},
+			},*/
+		},
+		Storages: map[string]Storage{
+			"elastic": ElasticStorageAdaptor{
+				Config: ElasticAdaptorConfig{
+					Index:  "classified_types",
+					Client: config.EsClient,
+				},
+			},
 		},
 	}
 }

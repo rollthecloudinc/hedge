@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"text/template"
@@ -19,7 +17,6 @@ import (
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
-	"github.com/mitchellh/mapstructure"
 	"github.com/tangzero/inflector"
 )
 
@@ -33,14 +30,13 @@ type ActionContext struct {
 	Lambda        *lambda2.Lambda
 	EntityManager entity.Manager
 	EntityName    string
-	EntityType    string
 	Template      *template.Template
 }
 
 type TypeTemplateData struct {
 }
 
-func GetEntityTypes(context *gin.Context, ac *ActionContext) {
+/*func GetEntityTypes(context *gin.Context, ac *ActionContext) {
 
 	var tb bytes.Buffer
 	err := ac.Template.ExecuteTemplate(&tb, ac.EntityName, TypeTemplateData{})
@@ -60,9 +56,11 @@ func GetEntityTypes(context *gin.Context, ac *ActionContext) {
 	}
 
 	context.JSON(200, typedTypes)
-}
+}*/
 
-func GetEntityType(context *gin.Context, ac *ActionContext) {
+/*func GetEntityType(context *gin.Context, ac *ActionContext) {
+
+	typeId = context.Param("typeId")
 
 	var tb bytes.Buffer
 	err := ac.Template.ExecuteTemplate(&tb, ac.EntityName, TypeTemplateData{})
@@ -78,69 +76,65 @@ func GetEntityType(context *gin.Context, ac *ActionContext) {
 
 	var typedType entity.EntityType
 	for _, jType := range types {
-		name := fmt.Sprint(jType["name"])
-		if name == ac.EntityType {
+		id := fmt.Sprint(jType["id"])
+		if id == typeId {
 			mapstructure.Decode(jType, &typedType)
 			break
 		}
 	}
 
 	context.JSON(200, typedType)
-}
+}*/
 
 func CreateEntity(context *gin.Context, ac *ActionContext) {
+	log.Print("CreateEntity 1")
 	var e map[string]interface{}
 	body, err := ioutil.ReadAll(context.Request.Body)
 	if err != nil {
 		log.Printf("Error json binding: %s", err.Error())
 	}
+	log.Print("CreateEntity 2")
 	json.Unmarshal(body, &e)
+	log.Print("CreateEntity 3")
 	newEntity, err := ac.EntityManager.Create(e)
 	if err != nil {
+		log.Print("CreateEntity 4 %s", err.Error())
 		context.JSON(500, err)
 		return
 	}
+	log.Print("CreateEntity 5")
 	context.JSON(200, newEntity)
 }
 
-/*func GetAdType(context *gin.Context, ac *ActionContext) {
-	adTypeId, _ := context.Params.Get("adTypeId")
-	adType := ads.GetAdType(ads.MapAdType(adTypeId))
-	jsonData, _ := json.Marshal(adType)
-	var entity map[string]interface{}
-	json.Unmarshal(jsonData, &entity)
-	context.JSON(200, entity)
-}*/
-
-/*func BeforeAdSave(context *gin.Context, ac *ActionContext) entity.EntityHook {
-	return func(entity map[string]interface{}) (bool, error) {
-		log.Printf("Entity Hook Activated")
-		var obj ads.Ad
-		if err := context.ShouldBind(&obj); err != nil {
-			context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return true, err
-		}
-		entity["Id"] = utils.GenerateId()
-		entity["Status"] = ads.Submitted // @todo: Enums not being validated :(
-		entity["UserId"] = utils.GetSubject(context)
-		return false, nil
-	}
-}*/
-
 func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
+	log.Print("DeclareAction 1")
 	return func(context *gin.Context) {
+		log.Print("DeclareAction 2")
 		ac.EntityName = context.Param("entityName")
-		ac.EntityType = context.Param("entityType")
-		ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
-			SingularName: ac.EntityName,
-			PluralName:   inflector.Pluralize(ac.EntityName),
-			Index:        "classified_" + inflector.Pluralize(ac.EntityName),
-			EsClient:     ac.EsClient,
-			Session:      ac.Session,
-			Lambda:       ac.Lambda,
-			UserId:       utils.GetSubject(context),
-			// BeforeSave: BeforeAdSave(context, &ac),
-		})
+		if ac.EntityName == "type" {
+			log.Print("DeclareAction 3")
+			ac.EntityManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
+				SingularName: ac.EntityName,
+				PluralName:   inflector.Pluralize(ac.EntityName),
+				Index:        "classified_" + inflector.Pluralize(ac.EntityName),
+				EsClient:     ac.EsClient,
+				Session:      ac.Session,
+				Lambda:       ac.Lambda,
+				UserId:       utils.GetSubject(context),
+			})
+		} else {
+			log.Print("DeclareAction 4")
+			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
+				SingularName: ac.EntityName,
+				PluralName:   inflector.Pluralize(ac.EntityName),
+				Index:        "classified_" + inflector.Pluralize(ac.EntityName),
+				EsClient:     ac.EsClient,
+				Session:      ac.Session,
+				Lambda:       ac.Lambda,
+				UserId:       utils.GetSubject(context),
+			})
+		}
+		log.Print("DeclareAction 5")
 		action(context, &ac)
 	}
 }
@@ -176,9 +170,10 @@ func init() {
 	}
 
 	r := gin.Default()
-	r.GET("/entity/:entityName/types", DeclareAction(GetEntityTypes, actionContext))
-	r.GET("/entity/:entityName/type/:entityType", DeclareAction(GetEntityType, actionContext))
+	//r.GET("/entity/:entityName/types", DeclareAction(GetEntityTypes, actionContext))
+	//r.GET("/entity/type/:typeId", DeclareAction(GetEntityType, actionContext))
 	r.POST("/entity/:entityName", DeclareAction(CreateEntity, actionContext))
+	// r.GET("/entity/:entityName/entities", DeclareAction(CreateEntity, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

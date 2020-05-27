@@ -361,20 +361,7 @@ functions:
         - bazel-bin/api/ads/linux_amd64_pure_stripped/**
     events:
       - httpApi:
-          path: /ads/ad
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - ads_api/ads_api
-      - httpApi:
           path: /ads/adlistitems
-          method: GET
-      - httpApi:
-          path: /ads/adtypes
-          method: GET
-      - httpApi:
-          path: /ads/adtype/{adTypeId}
           method: GET
   taxonomy-api:
     handler: bazel-bin/api/taxonomy/linux_amd64_pure_stripped/taxonomy
@@ -447,12 +434,6 @@ functions:
       exclude:
         - bazel-bin/api/entity/linux_amd64_pure_stripped/**
     events:
-      - httpApi:
-          path: /entity/{entityName}/types
-          method: GET
-      - httpApi:
-          path: /entity/{entityName}/type/{entityType}
-          method: GET
       - httpApi:
           path: /entity/{entityName}
           method: POST

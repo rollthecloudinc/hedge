@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -45,52 +44,6 @@ func GetAdListItems(context *gin.Context, ac *ActionContext) {
 	context.JSON(200, ads)
 }
 
-func CreateAd(context *gin.Context, ac *ActionContext) {
-	var obj ads.Ad
-	if err := context.ShouldBind(&obj); err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	obj.Id = utils.GenerateId()
-	obj.Status = ads.Submitted // @todo: Enums not being validated :(
-	obj.UserId = utils.GetSubject(context)
-	newEntity, _ := ads.ToEntity(&obj)
-	ac.AdsManager.Save(newEntity, "s3")
-	context.JSON(200, newEntity)
-}
-
-func GetAdTypes(context *gin.Context, ac *ActionContext) {
-	adTypes := ads.GetAdTypes()
-	jsonData, _ := json.Marshal(adTypes)
-	var entities []map[string]interface{}
-	json.Unmarshal(jsonData, &entities)
-	context.JSON(200, entities)
-}
-
-func GetAdType(context *gin.Context, ac *ActionContext) {
-	adTypeId, _ := context.Params.Get("adTypeId")
-	adType := ads.GetAdType(ads.MapAdType(adTypeId))
-	jsonData, _ := json.Marshal(adType)
-	var entity map[string]interface{}
-	json.Unmarshal(jsonData, &entity)
-	context.JSON(200, entity)
-}
-
-/*func BeforeAdSave(context *gin.Context, ac *ActionContext) entity.EntityHook {
-	return func(entity map[string]interface{}) (bool, error) {
-		log.Printf("Entity Hook Activated")
-		var obj ads.Ad
-		if err := context.ShouldBind(&obj); err != nil {
-			context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return true, err
-		}
-		entity["Id"] = utils.GenerateId()
-		entity["Status"] = ads.Submitted // @todo: Enums not being validated :(
-		entity["UserId"] = utils.GetSubject(context)
-		return false, nil
-	}
-}*/
-
 func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 	return func(context *gin.Context) {
 		ac.AdsManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
@@ -130,9 +83,6 @@ func init() {
 
 	r := gin.Default()
 	r.GET("/ads/adlistitems", DeclareAction(GetAdListItems, actionContext))
-	r.POST("/ads/ad", DeclareAction(CreateAd, actionContext))
-	r.GET("/ads/adtypes", DeclareAction(GetAdTypes, actionContext))
-	r.GET("/ads/adtype/:adTypeId", DeclareAction(GetAdType, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

@@ -9,7 +9,10 @@ import (
 
 func GetSubject(context *gin.Context) string {
 	authPieces := strings.Split(context.GetHeader("Authorization"), " ")
-	claims := jwt.StandardClaims{}
-	jwt.ParseWithClaims(authPieces[1], &claims, nil)
-	return claims.Subject
+	if len(authPieces) == 2 {
+		claims := jwt.StandardClaims{}
+		jwt.ParseWithClaims(authPieces[1], &claims, nil)
+		return claims.Subject
+	}
+	return ""
 }

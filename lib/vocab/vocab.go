@@ -28,7 +28,7 @@ type Term struct {
 	Group        bool   `form:"group" json:"group" binding:"required"`
 	Selected     bool   `form:"selected" json:"selected" binding:"required"`
 	Level        int    `form:"level" json:"level" binding:"required"`
-	Children     []Term `form:"children" json:"children"`
+	Children     []Term `form:"children[]" json:"children"`
 }
 
 func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Session, userId string) entity.EntityManager {

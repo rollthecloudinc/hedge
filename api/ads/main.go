@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -56,6 +57,23 @@ func CreateAd(context *gin.Context, ac *ActionContext) {
 	newEntity, _ := ads.ToEntity(&obj)
 	ac.AdsManager.Save(newEntity, "s3")
 	context.JSON(200, newEntity)
+}
+
+func GetAdTypes(context *gin.Context, ac *ActionContext) {
+	adTypes := ads.GetAdTypes()
+	jsonData, _ := json.Marshal(adTypes)
+	var entities []map[string]interface{}
+	json.Unmarshal(jsonData, &entities)
+	context.JSON(200, entities)
+}
+
+func GetAdType(context *gin.Context, ac *ActionContext) {
+	adTypeId, _ := context.Params.Get("adTypeId")
+	adType := ads.GetAdType(ads.MapAdType(adTypeId))
+	jsonData, _ := json.Marshal(adType)
+	var entity map[string]interface{}
+	json.Unmarshal(jsonData, &entity)
+	context.JSON(200, entity)
 }
 
 /*func BeforeAdSave(context *gin.Context, ac *ActionContext) entity.EntityHook {
@@ -113,6 +131,8 @@ func init() {
 	r := gin.Default()
 	r.GET("/ads/adlistitems", DeclareAction(GetAdListItems, actionContext))
 	r.POST("/ads/ad", DeclareAction(CreateAd, actionContext))
+	r.GET("/ads/adtypes", DeclareAction(GetAdTypes, actionContext))
+	r.GET("/ads/adtype/:adTypeId", DeclareAction(GetAdType, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

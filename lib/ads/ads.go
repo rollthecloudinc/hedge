@@ -59,6 +59,22 @@ type AdImage struct {
 	Weight int    `form:"weight" json:"weight" binding:"required"`
 }
 
+type AdType struct {
+	Id         AdTypes           `form:"id" json:"id" binding:"required"`
+	Name       string            `form:"name" json:"name" binding:"required"`
+	Attributes []AdTypeAttribute `form:"attributes[]" json:"attributes" binding:"required"`
+	Filters    []AdTypeAttribute `form:"filters[]" json:"filters" binding:"required"`
+}
+
+type AdTypeAttribute struct {
+	Name       string              `form:"name" json:"name" binding:"required"`
+	Type       attr.AttributeTypes `form:"type" json:"type" binding:"required"`
+	Label      string              `form:"label" json:"label" binding:"required"`
+	Required   bool                `form:"required" json:"required" binding:"required"`
+	Widget     string              `form:"widget" json:"widget" binding:"required"`
+	Attributes []AdTypeAttribute   `form:"attributes[]" json:"attributes" binding:"required"`
+}
+
 func ToEntity(ad *Ad) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
@@ -71,6 +87,128 @@ func ToEntity(ad *Ad) (map[string]interface{}, error) {
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
+}
+
+func GetAdTypes() []AdType {
+	return []AdType{
+		{
+			Id:         General,
+			Name:       "general",
+			Attributes: []AdTypeAttribute{},
+			Filters:    []AdTypeAttribute{},
+		},
+		{
+			Id:   RealEstate,
+			Name: "realestate",
+			Attributes: []AdTypeAttribute{
+				{
+					Name:       "price",
+					Type:       attr.Number,
+					Label:      "Asking Price",
+					Required:   true,
+					Widget:     "text",
+					Attributes: []AdTypeAttribute{},
+				},
+				{
+					Name:       "beds",
+					Type:       attr.Number,
+					Label:      "Beds",
+					Required:   true,
+					Widget:     "text",
+					Attributes: []AdTypeAttribute{},
+				},
+				{
+					Name:       "baths",
+					Type:       attr.Number,
+					Label:      "Baths",
+					Required:   true,
+					Widget:     "text",
+					Attributes: []AdTypeAttribute{},
+				},
+				{
+					Name:       "sqft",
+					Type:       attr.Number,
+					Label:      "Sqft",
+					Required:   true,
+					Widget:     "text",
+					Attributes: []AdTypeAttribute{},
+				},
+			},
+			Filters: []AdTypeAttribute{},
+		},
+		{
+			Id:         Rental,
+			Name:       "rentals",
+			Attributes: []AdTypeAttribute{},
+			Filters:    []AdTypeAttribute{},
+		},
+		{
+			Id:   Auto,
+			Name: "auto",
+			Attributes: []AdTypeAttribute{
+				{
+					Name:     "ymm",
+					Type:     attr.Complex,
+					Label:    "YMM",
+					Required: false,
+					Widget:   "ymm_selector",
+					Attributes: []AdTypeAttribute{
+						{
+							Name:       "year",
+							Type:       attr.Number,
+							Label:      "Year",
+							Required:   false,
+							Widget:     "text",
+							Attributes: []AdTypeAttribute{},
+						},
+						{
+							Name:       "make",
+							Type:       attr.Text,
+							Label:      "Make",
+							Required:   false,
+							Widget:     "text",
+							Attributes: []AdTypeAttribute{},
+						},
+						{
+							Name:       "model",
+							Type:       attr.Text,
+							Label:      "Model",
+							Required:   false,
+							Widget:     "text",
+							Attributes: []AdTypeAttribute{},
+						},
+					},
+				},
+			},
+			Filters: []AdTypeAttribute{},
+		},
+	}
+}
+
+func GetAdType(adTypeId AdTypes) AdType {
+	adTypes := GetAdTypes()
+	var match AdType
+	for _, adType := range adTypes {
+		if adType.Id == adTypeId {
+			match = adType
+		}
+	}
+	return match
+}
+
+func MapAdType(s string) AdTypes {
+	switch s {
+	case "0":
+		return General
+	case "1":
+		return RealEstate
+	case "2":
+		return Rental
+	case "3":
+		return Auto
+	default:
+		return -1
+	}
 }
 
 func BuildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {

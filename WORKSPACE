@@ -645,3 +645,10 @@ go_repository(
     sum = "h1:iDwIio/3gk2QtLLEsqU5lInaMzos0hDTz8a6lazSFVw=",
     version = "v1.3.0",
 )
+
+go_repository(
+    name = "com_github_tangzero_inflector",
+    importpath = "github.com/tangzero/inflector",
+    sum = "h1:933dvPwRUUOAl98hyeeXuzFix3HwDt5j+45lleu8oh0=",
+    version = "v1.0.0",
+)

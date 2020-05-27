@@ -1,0 +1,107 @@
+{{ define "ad" }}
+[
+  {
+    "id": "",
+    "owner": "system",
+    "overlay": false,
+    "name": "general",
+    "target": "ad",
+    "attributes": [],
+    "filters": []
+  },
+  {
+    "id": "",
+    "owner": "system",
+    "overlay": false,
+    "name": "realestate",
+    "target": "ad",
+    "attributes": [
+      {
+        "name": "price",
+        "type": 0,
+        "label": "Asking Price",
+        "required": true,
+        "widget": "text",
+        "attributes": []
+      },
+      {
+        "name": "beds",
+        "type": 0,
+        "label": "Beds",
+        "required": true,
+        "widget": "text",
+        "attributes": []
+      },
+      {
+        "name": "baths",
+        "type": 0,
+        "label": "Baths",
+        "required": true,
+        "widget": "text",
+        "attributes": []
+      },
+      {
+        "name": "sqft",
+        "type": 0,
+        "label": "Sqft",
+        "required": true,
+        "widget": "text",
+        "attributes": []
+      }
+    ],
+    "filters": []
+  },
+  {
+    "id": "",
+    "owner": "system",
+    "overlay": false,
+    "name": "rentals",
+    "target": "ad",
+    "attributes": [],
+    "filters": []
+  },
+  {
+    "id": "",
+    "owner": "system",
+    "overlay": false,
+    "name": "auto",
+    "target": "ad",
+    "attributes": [
+      {
+        "name": "ymm",
+        "type": 2,
+        "label": "YMM",
+        "required": false,
+        "widget": "ymm_selector",
+        "attributes": [
+          {
+            "name": "year",
+            "type": 0,
+            "label": "Year",
+            "required": false,
+            "widget": "text",
+            "attributes": []
+          },
+          {
+            "name": "make",
+            "type": 1,
+            "label": "Make",
+            "required": false,
+            "widget": "text",
+            "attributes": []
+          },
+          {
+            "name": "model",
+            "type": 1,
+            "label": "Model",
+            "required": false,
+            "widget": "text",
+            "attributes": []
+          }
+        ]
+      }
+    ],
+    "filters": []
+  }
+]
+{{end}}

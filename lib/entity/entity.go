@@ -9,8 +9,11 @@ import (
 	"io/ioutil"
 	"log"
 
+	"goclassifieds/lib/attr"
+
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
+	lambda "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	s3 "github.com/aws/aws-sdk-go/service/s3"
@@ -26,19 +29,33 @@ type EntityConfig struct {
 	IdKey        string
 }
 
+type ValidateEntityRequest struct {
+	EntityName string
+	EntityType string
+	UserId     string
+	Entity     map[string]interface{}
+}
+
+type ValidateEntityResponse struct {
+	Entity map[string]interface{}
+	Valid  bool
+}
+
 type DefaultManagerConfig struct {
 	EsClient     *elasticsearch7.Client
 	Session      *session.Session
+	Lambda       *lambda.Lambda
 	UserId       string
 	SingularName string
 	PluralName   string
 	Index        string
 	BeforeSave   EntityHook
-	AfterSave   EntityHook
+	AfterSave    EntityHook
 }
 
 type EntityManager struct {
 	Config      EntityConfig
+	Creator     Creator
 	Loaders     map[string]Loader
 	Storages    map[string]Storage
 	Authorizers map[string]Authorization
@@ -51,6 +68,9 @@ type EntityHooks struct {
 }
 
 type Manager interface {
+	Create(entity map[string]interface{}) (map[string]interface{}, error)
+	Update(entity map[string]interface{})
+	Delete(entity map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
@@ -62,6 +82,10 @@ type Storage interface {
 
 type Loader interface {
 	Load(id string) map[string]interface{}
+}
+
+type Creator interface {
+	Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
 }
 
 type Authorization interface {
@@ -83,6 +107,12 @@ type OwnerAuthorizationConfig struct {
 	UserId string
 }
 
+type DefaultCreatorConfig struct {
+	Lambda *lambda.Lambda
+	UserId string
+	Save   string
+}
+
 type S3LoaderAdaptor struct {
 	Config S3AdaptorConfig
 }
@@ -97,6 +127,42 @@ type ElasticStorageAdaptor struct {
 
 type OwnerAuthorizationAdaptor struct {
 	Config OwnerAuthorizationConfig
+}
+
+type DefaultCreatorAdaptor struct {
+	Config DefaultCreatorConfig
+}
+
+type EntityType struct {
+	Id         string            `form:"id" json:"id" binding:"required"`
+	Owner      string            `form:"owner" json:"owner"`
+	OwnerId    string            `form:"ownerId" json:"ownerId"`
+	ParentId   string            `form:"parentId" json:"parentId"`
+	Name       string            `form:"name" json:"name" binding:"required"`
+	Overlay    bool              `form:"overlay" json:"overlay" binding:"required"`
+	Target     string            `form:"target" json:"target" binding:"required"`
+	Attributes []EntityAttribute `form:"attributes[]" json:"attributes" binding:"required"`
+	Filters    []EntityAttribute `form:"filters[]" json:"filters" binding:"required"`
+}
+
+type EntityAttribute struct {
+	Name       string                 `form:"name" json:"name" binding:"required"`
+	Type       attr.AttributeTypes    `form:"type" json:"type" binding:"required"`
+	Label      string                 `form:"label" json:"label" binding:"required"`
+	Required   bool                   `form:"required" json:"required" binding:"required"`
+	Widget     string                 `form:"widget" json:"widget" binding:"required"`
+	Settings   map[string]interface{} `form:"settings" json:"settings"`
+	Attributes []EntityAttribute      `form:"attributes[]" json:"attributes" binding:"required"`
+}
+
+func (m EntityManager) Create(entity map[string]interface{}) (map[string]interface{}, error) {
+	return m.Creator.Create(entity, &m)
+}
+
+func (m EntityManager) Update(entity map[string]interface{}) {
+}
+
+func (m EntityManager) Delete(entity map[string]interface{}) {
 }
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
@@ -209,12 +275,56 @@ func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map
 	return (userId == a.Config.UserId), entity
 }
 
+func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+
+	log.Print("Create: 1")
+
+	request := ValidateEntityRequest{
+		EntityName: m.Config.SingularName,
+		Entity:     entity,
+		UserId:     c.Config.UserId,
+	}
+
+	log.Print("Create: 2")
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("Error marshalling entity validation request: %s", err.Error())
+	}
+
+	log.Print("Create: 3")
+
+	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-dev-ValidateEntity"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking entity validation: %s", err.Error())
+	}
+
+	var validateRes ValidateEntityResponse
+	json.Unmarshal(res.Payload, &validateRes)
+
+	if validateRes.Valid {
+		log.Printf("Lambda Response valid")
+		m.Save(validateRes.Entity, c.Config.Save)
+		return validateRes.Entity, nil
+	}
+
+	log.Printf("Lambda Response invalid")
+	return entity, nil
+}
+
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 	return EntityManager{
 		Config: EntityConfig{
 			SingularName: config.SingularName,
 			PluralName:   config.PluralName,
 			IdKey:        "id",
+		},
+		Creator: DefaultCreatorAdaptor{
+			Config: DefaultCreatorConfig{
+				Lambda: config.Lambda,
+				UserId: config.UserId,
+				Save:   "s3",
+			},
 		},
 		Loaders: map[string]Loader{
 			"s3": S3LoaderAdaptor{
@@ -242,7 +352,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 		},
 		Hooks: EntityHooks{
 			BeforeSave: config.BeforeSave,
-			AfterSave: config.AfterSave,
+			AfterSave:  config.AfterSave,
 		},
 	}
 }

@@ -436,6 +436,12 @@ functions:
     events:
       - httpApi:
           path: /entity/{entityName}
+          method: GET
+      - httpApi:
+          path: /entity/{entityName}/{queryName}
+          method: GET
+      - httpApi:
+          path: /entity/{entityName}
           method: POST
           authorizer:
             name: cognito

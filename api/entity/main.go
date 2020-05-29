@@ -86,6 +86,12 @@ type TypeTemplateData struct {
 	context.JSON(200, typedType)
 }*/
 
+func GetEntities(context *gin.Context, ac *ActionContext) {
+	query := context.Param("queryName")
+	entities := ac.EntityManager.Find("default", query)
+	context.JSON(200, entities)
+}
+
 func CreateEntity(context *gin.Context, ac *ActionContext) {
 	log.Print("CreateEntity 1")
 	var e map[string]interface{}
@@ -110,27 +116,32 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 	log.Print("DeclareAction 1")
 	return func(context *gin.Context) {
 		log.Print("DeclareAction 2")
-		ac.EntityName = context.Param("entityName")
-		if ac.EntityName == "type" {
+		entityName := context.Param("entityName")
+		pluralName := inflector.Pluralize(entityName)
+		singularName := inflector.Singularize(entityName)
+		ac.EntityName = singularName
+		if singularName == "type" {
 			log.Print("DeclareAction 3")
 			ac.EntityManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
-				SingularName: ac.EntityName,
-				PluralName:   inflector.Pluralize(ac.EntityName),
-				Index:        "classified_" + inflector.Pluralize(ac.EntityName),
+				SingularName: singularName,
+				PluralName:   pluralName,
+				Index:        "classified_" + pluralName,
 				EsClient:     ac.EsClient,
 				Session:      ac.Session,
 				Lambda:       ac.Lambda,
+				Template:     ac.Template,
 				UserId:       utils.GetSubject(context),
 			})
 		} else {
 			log.Print("DeclareAction 4")
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
-				SingularName: ac.EntityName,
-				PluralName:   inflector.Pluralize(ac.EntityName),
-				Index:        "classified_" + inflector.Pluralize(ac.EntityName),
+				SingularName: singularName,
+				PluralName:   pluralName,
+				Index:        "classified_" + pluralName,
 				EsClient:     ac.EsClient,
 				Session:      ac.Session,
 				Lambda:       ac.Lambda,
+				Template:     ac.Template,
 				UserId:       utils.GetSubject(context),
 			})
 		}
@@ -172,6 +183,8 @@ func init() {
 	r := gin.Default()
 	//r.GET("/entity/:entityName/types", DeclareAction(GetEntityTypes, actionContext))
 	//r.GET("/entity/type/:typeId", DeclareAction(GetEntityType, actionContext))
+	r.GET("/entity/:entityName", DeclareAction(GetEntities, actionContext))
+	r.GET("/entity/:entityName/:queryName", DeclareAction(GetEntities, actionContext))
 	r.POST("/entity/:entityName", DeclareAction(CreateEntity, actionContext))
 	// r.GET("/entity/:entityName/entities", DeclareAction(CreateEntity, actionContext))
 

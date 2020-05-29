@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"text/template"
 
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/utils"
@@ -49,6 +50,7 @@ type DefaultManagerConfig struct {
 	EsClient     *elasticsearch7.Client
 	Session      *session.Session
 	Lambda       *lambda.Lambda
+	Template     *template.Template
 	UserId       string
 	SingularName string
 	PluralName   string
@@ -61,6 +63,7 @@ type EntityManager struct {
 	Config      EntityConfig
 	Creator     Creator
 	Loaders     map[string]Loader
+	Finders     map[string]Finder
 	Storages    map[string]Storage
 	Authorizers map[string]Authorization
 }
@@ -71,6 +74,7 @@ type Manager interface {
 	Delete(entity map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
+	Find(finder string, query string) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 }
 
@@ -86,6 +90,10 @@ type Creator interface {
 	Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
 }
 
+type Finder interface {
+	Find(query string) []map[string]interface{}
+}
+
 type Authorization interface {
 	CanWrite(id string, loader Loader) (bool, map[string]interface{})
 }
@@ -99,6 +107,13 @@ type S3AdaptorConfig struct {
 type ElasticAdaptorConfig struct {
 	Client *elasticsearch7.Client
 	Index  string
+}
+
+type ElasticTemplateFinderConfig struct {
+	Client   *elasticsearch7.Client
+	Index    string
+	Template *template.Template
+	Name     string
 }
 
 type OwnerAuthorizationConfig struct {
@@ -123,6 +138,10 @@ type ElasticStorageAdaptor struct {
 	Config ElasticAdaptorConfig
 }
 
+type ElasticTemplateFinder struct {
+	Config ElasticTemplateFinderConfig
+}
+
 type OwnerAuthorizationAdaptor struct {
 	Config OwnerAuthorizationConfig
 }
@@ -133,6 +152,14 @@ type DefaultCreatorAdaptor struct {
 
 type EntityTypeCreatorAdaptor struct {
 	Config DefaultCreatorConfig
+}
+
+type DefaultEntityTypeFinderConfig struct {
+	Template *template.Template
+}
+
+type DefaultEntityTypeFinder struct {
+	Config DefaultEntityTypeFinderConfig
 }
 
 type EntityType struct {
@@ -171,6 +198,10 @@ func (m EntityManager) Delete(entity map[string]interface{}) {
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
 	m.Storages[storage].Store(id, entity)
+}
+
+func (m EntityManager) Find(finder string, query string) []map[string]interface{} {
+	return m.Finders[finder].Find(query)
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -347,6 +378,41 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 }
 
+/*func (f ElasticTemplateFinder) Find(query string, , m *EntityManager) map[string]interface{} {
+
+	hits := es.ExecuteQuery(f.Config.EsClient, es.TemplateBuilder{
+		Index:    f.Config.Index,
+		Name:     query,
+		Template: f.Config.Template,
+		/*Data: profiles.ProfileListItemsQuery{
+			UserId:   utils.GetSubject(context),
+			ParentId: context.Query("parentId"),
+		},
+	})
+
+	return hits
+
+}*/
+
+func (f DefaultEntityTypeFinder) Find(query string) []map[string]interface{} {
+
+	var tb bytes.Buffer
+	var data map[string]interface{}
+	err := f.Config.Template.ExecuteTemplate(&tb, query, data)
+	if err != nil {
+		log.Printf("Entity Type Error: %s", err.Error())
+	}
+
+	var types []map[string]interface{}
+	err = json.Unmarshal(tb.Bytes(), &types)
+	if err != nil {
+		log.Printf("Unmarshall Entity Types Error: %s", err.Error())
+	}
+
+	return types
+
+}
+
 func TypeToEntity(entityType *EntityType) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(entityType); err != nil {
@@ -414,6 +480,21 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 				Lambda: config.Lambda,
 				UserId: config.UserId,
 				Save:   "elastic",
+			},
+		},
+		Finders: map[string]Finder{
+			/*"default": ElasticTemplateFinder{
+				Config: ElasticTemplateFinderConfig{
+					Index:  "classified_types",
+					Client: config.EsClient,
+					Template: config.Template,
+					Name: "all"
+				},
+			}*/
+			"default": DefaultEntityTypeFinder{
+				Config: DefaultEntityTypeFinderConfig{
+					Template: config.Template,
+				},
 			},
 		},
 		Loaders: map[string]Loader{

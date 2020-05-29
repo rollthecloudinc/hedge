@@ -67,7 +67,7 @@ func BuildAdsSearchQuery(req *AdListitemsRequest) map[string]interface{} {
 	filterMust := []interface{}{
 		map[string]interface{}{
 			"term": map[string]interface{}{
-				"typeId": map[string]interface{}{
+				"typeId.keyword": map[string]interface{}{
 					"value": req.TypeId,
 				},
 			},

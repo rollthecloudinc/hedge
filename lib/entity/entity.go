@@ -74,7 +74,7 @@ type Manager interface {
 	Delete(entity map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
-	Find(finder string, query string) []map[string]interface{}
+	Find(finder string, query string, data map[string][]string) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 }
 
@@ -91,7 +91,7 @@ type Creator interface {
 }
 
 type Finder interface {
-	Find(query string) []map[string]interface{}
+	Find(query string, data map[string][]string) []map[string]interface{}
 }
 
 type Authorization interface {
@@ -204,8 +204,8 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	m.Storages[storage].Store(id, entity)
 }
 
-func (m EntityManager) Find(finder string, query string) []map[string]interface{} {
-	return m.Finders[finder].Find(query)
+func (m EntityManager) Find(finder string, query string, data map[string][]string) []map[string]interface{} {
+	return m.Finders[finder].Find(query, data)
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -250,7 +250,8 @@ func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{
 }
 
 func (l FinderLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
-	entities := m.Find("default", l.Finder)
+	var data map[string][]string
+	entities := m.Find("default", l.Finder, data)
 	var match map[string]interface{}
 	for _, ent := range entities {
 		k := fmt.Sprint(ent[m.Config.IdKey])
@@ -411,10 +412,9 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 }*/
 
-func (f DefaultEntityTypeFinder) Find(query string) []map[string]interface{} {
+func (f DefaultEntityTypeFinder) Find(query string, data map[string][]string) []map[string]interface{} {
 
 	var tb bytes.Buffer
-	var data map[string]interface{}
 	err := f.Config.Template.ExecuteTemplate(&tb, query, data)
 	if err != nil {
 		log.Printf("Entity Type Error: %s", err.Error())
@@ -426,7 +426,15 @@ func (f DefaultEntityTypeFinder) Find(query string) []map[string]interface{} {
 		log.Printf("Unmarshall Entity Types Error: %s", err.Error())
 	}
 
-	return types
+	filteredTypes := make([]map[string]interface{}, 0)
+	for _, entType := range types {
+		name := fmt.Sprint(entType["name"])
+		if data["name"] == nil || data["name"][0] == "" || data["name"][0] == name {
+			filteredTypes = append(filteredTypes, entType)
+		}
+	}
+
+	return filteredTypes
 
 }
 

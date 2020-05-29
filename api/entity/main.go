@@ -91,7 +91,8 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
 	id, err := uuid.Parse(query)
 	if err != nil {
-		entities := ac.EntityManager.Find("default", query)
+		context.Request.URL.Query()
+		entities := ac.EntityManager.Find("default", query, context.Request.URL.Query())
 		context.JSON(200, entities)
 	} else {
 		ent := ac.EntityManager.Load(id.String(), "default")

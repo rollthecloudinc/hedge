@@ -17,6 +17,7 @@ import (
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/tangzero/inflector"
 )
 
@@ -88,8 +89,14 @@ type TypeTemplateData struct {
 
 func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
-	entities := ac.EntityManager.Find("default", query)
-	context.JSON(200, entities)
+	id, err := uuid.Parse(query)
+	if err != nil {
+		entities := ac.EntityManager.Find("default", query)
+		context.JSON(200, entities)
+	} else {
+		ent := ac.EntityManager.Load(id.String(), "default")
+		context.JSON(200, ent)
+	}
 }
 
 func CreateEntity(context *gin.Context, ac *ActionContext) {

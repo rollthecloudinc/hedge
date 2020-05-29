@@ -83,7 +83,7 @@ type Storage interface {
 }
 
 type Loader interface {
-	Load(id string) map[string]interface{}
+	Load(id string, m *EntityManager) map[string]interface{}
 }
 
 type Creator interface {
@@ -95,7 +95,7 @@ type Finder interface {
 }
 
 type Authorization interface {
-	CanWrite(id string, loader Loader) (bool, map[string]interface{})
+	CanWrite(id string, m *EntityManager) (bool, map[string]interface{})
 }
 
 type S3AdaptorConfig struct {
@@ -128,6 +128,10 @@ type DefaultCreatorConfig struct {
 
 type S3LoaderAdaptor struct {
 	Config S3AdaptorConfig
+}
+
+type FinderLoaderAdaptor struct {
+	Finder string
 }
 
 type S3StorageAdaptor struct {
@@ -205,18 +209,18 @@ func (m EntityManager) Find(finder string, query string) []map[string]interface{
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
-	return m.Loaders[loader].Load(id)
+	return m.Loaders[loader].Load(id, &m)
 }
 
 func (m EntityManager) Allow(id string, op string, loader string) (bool, map[string]interface{}) {
 	if op == "write" {
-		return m.Authorizers["default"].CanWrite(id, m.Loaders[loader])
+		return m.Authorizers["default"].CanWrite(id, &m)
 	} else {
 		return false, nil
 	}
 }
 
-func (l S3LoaderAdaptor) Load(id string) map[string]interface{} {
+func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
 
 	buf := aws.NewWriteAtBuffer([]byte{})
 
@@ -243,6 +247,19 @@ func (l S3LoaderAdaptor) Load(id string) map[string]interface{} {
 	var entity map[string]interface{}
 	json.Unmarshal(text, &entity)
 	return entity
+}
+
+func (l FinderLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
+	entities := m.Find("default", l.Finder)
+	var match map[string]interface{}
+	for _, ent := range entities {
+		k := fmt.Sprint(ent[m.Config.IdKey])
+		if k == id {
+			match = ent
+			break
+		}
+	}
+	return match
 }
 
 func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {
@@ -289,9 +306,9 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	}
 }
 
-func (a OwnerAuthorizationAdaptor) CanWrite(id string, loader Loader) (bool, map[string]interface{}) {
+func (a OwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
 	// log.Printf("Check ownership of %s", id)
-	entity := loader.Load(id)
+	entity := m.Load(id, "default")
 	if entity == nil {
 		return false, nil
 	}
@@ -505,6 +522,9 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 					Prefix:  config.PluralName + "/",
 				},
 			},*/
+			"default": FinderLoaderAdaptor{
+				Finder: "all",
+			},
 		},
 		Storages: map[string]Storage{
 			"elastic": ElasticStorageAdaptor{

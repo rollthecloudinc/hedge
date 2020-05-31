@@ -431,6 +431,7 @@ functions:
       include:
         - bazel-bin/api/entity/linux_amd64_pure_stripped/entity
         - api/entity/types.json.tmpl
+        - api/entity/queries.json.tmpl
       exclude:
         - bazel-bin/api/entity/linux_amd64_pure_stripped/**
     events:

@@ -176,7 +176,7 @@ func init() {
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
 
-	t, err := template.ParseFiles("api/entity/types.json.tmpl")
+	t, err := template.ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 	}

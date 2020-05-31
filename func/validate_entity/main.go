@@ -36,24 +36,6 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		return invalid, err
 	}
 
-	/*var obj ads.Ad
-	err = json.Unmarshal(jsonData, &obj)
-	if err != nil {
-		return invalid, err
-	}
-
-	submitted := ads.Submitted
-
-	obj.Id = utils.GenerateId()
-	obj.Status = &submitted // @todo: Enums not being validated :(
-	obj.UserId = payload.UserId
-
-	validate := validator.New()
-	err = validate.Struct(obj)
-	if err != nil {
-		return invalid, err.(validator.ValidationErrors)
-	}*/
-
 	var newEntity map[string]interface{}
 	if payload.EntityName == "ad" {
 		newEntity, err = ValidateAd(jsonData, payload)

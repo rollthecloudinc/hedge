@@ -17,5 +17,6 @@ go_library(
         "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
         "@com_github_elastic_go_elasticsearch_v7//esapi:go_default_library",
         "@com_github_go_playground_validator_v10//:go_default_library",
+        "@com_github_mitchellh_mapstructure//:go_default_library",
     ]
 )

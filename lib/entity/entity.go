@@ -12,12 +12,14 @@ import (
 	"text/template"
 
 	"goclassifieds/lib/attr"
+	"goclassifieds/lib/es"
 	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/mitchellh/mapstructure"
 
 	s3 "github.com/aws/aws-sdk-go/service/s3"
 	esapi "github.com/elastic/go-elasticsearch/esapi"
@@ -113,7 +115,6 @@ type ElasticTemplateFinderConfig struct {
 	Client   *elasticsearch7.Client
 	Index    string
 	Template *template.Template
-	Name     string
 }
 
 type OwnerAuthorizationConfig struct {
@@ -396,21 +397,26 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 }
 
-/*func (f ElasticTemplateFinder) Find(query string, , m *EntityManager) map[string]interface{} {
+func (f ElasticTemplateFinder) Find(query string, data map[string][]string) []map[string]interface{} {
 
-	hits := es.ExecuteQuery(f.Config.EsClient, es.TemplateBuilder{
+	hits := es.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
 		Index:    f.Config.Index,
 		Name:     query,
 		Template: f.Config.Template,
 		/*Data: profiles.ProfileListItemsQuery{
 			UserId:   utils.GetSubject(context),
 			ParentId: context.Query("parentId"),
-		},
+		},*/
 	})
 
-	return hits
+	docs := make([]map[string]interface{}, len(hits))
+	for index, hit := range hits {
+		mapstructure.Decode(hit.(map[string]interface{})["_source"], &docs[index])
+	}
 
-}*/
+	return docs
+
+}
 
 func (f DefaultEntityTypeFinder) Find(query string, data map[string][]string) []map[string]interface{} {
 
@@ -464,6 +470,15 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 				Lambda: config.Lambda,
 				UserId: config.UserId,
 				Save:   "s3",
+			},
+		},
+		Finders: map[string]Finder{
+			"default": ElasticTemplateFinder{
+				Config: ElasticTemplateFinderConfig{
+					Index:    config.Index,
+					Client:   config.EsClient,
+					Template: config.Template,
+				},
 			},
 		},
 		Loaders: map[string]Loader{

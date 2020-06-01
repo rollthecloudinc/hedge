@@ -40,6 +40,31 @@
 					}
 				}
                 {{ end }}
+                {{ with .features }}{{ if $.searchString }},{{ end }}
+				{
+					"nested": {
+						"path": "featureSets",
+						"query": {
+                            "nested": {
+                                "path": "featureSets.terms",
+                                "query": {
+                                    "bool": {
+								        "must": [
+                                            {{ range $index, $feature := . }}{{ if ne $index 0 }},{{ end }}
+									        { 
+                                                "match": { 
+                                                    "featureSets.terms.humanName": "{{ $feature }}" 
+                                                } 
+                                            }
+                                            {{ end }}
+                                        ]
+								    }
+                                }
+                            }
+						}
+					}
+				}
+                {{ end }}
 			]
 		}
 	}

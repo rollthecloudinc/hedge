@@ -26,6 +26,35 @@
 								}
 							}
                             {{ end }}{{ end }}
+                            {{ range $key, $value := . }}
+                                {{ if and (ne $key "typeId") (ne $key "location") (ne $key "searchString") (ne $key "features") }}
+                                ,{
+                                    "nested": {
+                                        "path": "attributes",
+                                        "query": {
+                                            "bool": {
+                                                "must": [
+                                                    {
+                                                        "term": {
+                                                            "attributes.name": {
+                                                                "value": "{{ $key }}"
+                                                            }
+                                                        }
+                                                    },
+                                                    {
+                                                        "terms": {
+                                                            "attributes.intValue": [
+                                                                {{ index $value 0 }}
+                                                            ]
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                                {{ end }}
+                            {{ end }}
 						]
 					}
 				}

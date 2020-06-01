@@ -31,13 +31,15 @@
 				}
 			],
 			"must": [
+                {{ with .searchString }}
 				{
 					"match": {
 						"title": {
-							"query": "dsafsdfsdfsd"
+							"query": "{{ index . 0 }}"
 						}
 					}
 				}
+                {{ end }}
 			]
 		}
 	}

@@ -29,6 +29,7 @@ type ActionContext struct {
 	EsClient      *elasticsearch7.Client
 	Session       *session.Session
 	Lambda        *lambda2.Lambda
+	TypeManager   entity.Manager
 	EntityManager entity.Manager
 	EntityName    string
 	Template      *template.Template
@@ -91,8 +92,14 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
 	id, err := uuid.Parse(query)
 	if err != nil {
-		context.Request.URL.Query()
-		entities := ac.EntityManager.Find("default", query, context.Request.URL.Query())
+		data := entity.EntityFinderDataBag{
+			Query: context.Request.URL.Query(),
+		}
+		typeId := context.Param("typeId")
+		if typeId != "" {
+			ac.TypeManager.Load(context.Param("typeId"), "default")
+		}
+		entities := ac.EntityManager.Find("default", query, &data)
 		context.JSON(200, entities)
 	} else {
 		ent := ac.EntityManager.Load(id.String(), "default")
@@ -128,18 +135,19 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 		pluralName := inflector.Pluralize(entityName)
 		singularName := inflector.Singularize(entityName)
 		ac.EntityName = singularName
+		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
+			SingularName: "type",
+			PluralName:   "typyes",
+			Index:        "classified_types",
+			EsClient:     ac.EsClient,
+			Session:      ac.Session,
+			Lambda:       ac.Lambda,
+			Template:     ac.Template,
+			UserId:       utils.GetSubject(context),
+		})
 		if singularName == "type" {
 			log.Print("DeclareAction 3")
-			ac.EntityManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
-				SingularName: singularName,
-				PluralName:   pluralName,
-				Index:        "classified_" + pluralName,
-				EsClient:     ac.EsClient,
-				Session:      ac.Session,
-				Lambda:       ac.Lambda,
-				Template:     ac.Template,
-				UserId:       utils.GetSubject(context),
-			})
+			ac.EntityManager = ac.TypeManager
 		} else {
 			log.Print("DeclareAction 4")
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{

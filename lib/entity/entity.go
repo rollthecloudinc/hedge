@@ -80,7 +80,7 @@ type Manager interface {
 	Delete(entity map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
-	Find(finder string, query string, data map[string][]string) []map[string]interface{}
+	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 }
 
@@ -209,11 +209,8 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	m.Storages[storage].Store(id, entity)
 }
 
-func (m EntityManager) Find(finder string, query string, data map[string][]string) []map[string]interface{} {
-	dataBag := EntityFinderDataBag{
-		Query: data,
-	}
-	return m.Finders[finder].Find(query, &dataBag)
+func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
+	return m.Finders[finder].Find(query, data)
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -258,8 +255,8 @@ func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{
 }
 
 func (l FinderLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
-	var data map[string][]string
-	entities := m.Find("default", l.Finder, data)
+	data := EntityFinderDataBag{}
+	entities := m.Find("default", l.Finder, &data)
 	var match map[string]interface{}
 	for _, ent := range entities {
 		k := fmt.Sprint(ent[m.Config.IdKey])
@@ -466,6 +463,21 @@ func TypeToEntity(entityType *EntityType) (map[string]interface{}, error) {
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
+}
+
+func FlattenEntityAttribute(attribute EntityAttribute) []EntityAttribute {
+	leafNodes := make([]EntityAttribute, 0)
+	if attribute.Attributes == nil || len(attribute.Attributes) == 0 {
+		leafNodes = append(leafNodes, attribute)
+	} else {
+		for _, attr := range attribute.Attributes {
+			flatChildren := FlattenEntityAttribute(attr)
+			for _, flatChild := range flatChildren {
+				leafNodes = append(leafNodes, flatChild)
+			}
+		}
+	}
+	return leafNodes
 }
 
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {

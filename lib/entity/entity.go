@@ -493,7 +493,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			Config: DefaultCreatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
-				Save:   "s3",
+				Save:   "default",
 			},
 		},
 		Finders: map[string]Finder{
@@ -515,7 +515,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Storages: map[string]Storage{
-			"s3": S3StorageAdaptor{
+			"default": S3StorageAdaptor{
 				Config: S3AdaptorConfig{
 					Session: config.Session,
 					Bucket:  "classifieds-ui-dev",
@@ -543,18 +543,10 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			Config: DefaultCreatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
-				Save:   "elastic",
+				Save:   "default",
 			},
 		},
 		Finders: map[string]Finder{
-			/*"default": ElasticTemplateFinder{
-				Config: ElasticTemplateFinderConfig{
-					Index:  "classified_types",
-					Client: config.EsClient,
-					Template: config.Template,
-					Name: "all"
-				},
-			}*/
 			"default": DefaultEntityTypeFinder{
 				Config: DefaultEntityTypeFinderConfig{
 					Template: config.Template,
@@ -562,19 +554,12 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Loaders: map[string]Loader{
-			/*"s3": S3LoaderAdaptor{
-				Config: S3AdaptorConfig{
-					Session: config.Session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  config.PluralName + "/",
-				},
-			},*/
 			"default": FinderLoaderAdaptor{
 				Finder: "all",
 			},
 		},
 		Storages: map[string]Storage{
-			"elastic": ElasticStorageAdaptor{
+			"default": ElasticStorageAdaptor{
 				Config: ElasticAdaptorConfig{
 					Index:  "classified_types",
 					Client: config.EsClient,

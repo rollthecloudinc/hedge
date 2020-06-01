@@ -42,6 +42,10 @@ type ValidateEntityRequest struct {
 	Entity     map[string]interface{}
 }
 
+type EntityFinderDataBag struct {
+	Query map[string][]string
+}
+
 type ValidateEntityResponse struct {
 	Entity       map[string]interface{}
 	Valid        bool
@@ -93,7 +97,7 @@ type Creator interface {
 }
 
 type Finder interface {
-	Find(query string, data map[string][]string) []map[string]interface{}
+	Find(query string, data *EntityFinderDataBag) []map[string]interface{}
 }
 
 type Authorization interface {
@@ -206,7 +210,10 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 }
 
 func (m EntityManager) Find(finder string, query string, data map[string][]string) []map[string]interface{} {
-	return m.Finders[finder].Find(query, data)
+	dataBag := EntityFinderDataBag{
+		Query: data,
+	}
+	return m.Finders[finder].Find(query, &dataBag)
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -397,7 +404,7 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 }
 
-func (f ElasticTemplateFinder) Find(query string, data map[string][]string) []map[string]interface{} {
+func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
 
 	/*var b bytes.Buffer
 	if err := json.NewEncoder(&b).Encode(data); err != nil {
@@ -421,7 +428,7 @@ func (f ElasticTemplateFinder) Find(query string, data map[string][]string) []ma
 
 }
 
-func (f DefaultEntityTypeFinder) Find(query string, data map[string][]string) []map[string]interface{} {
+func (f DefaultEntityTypeFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
 
 	var tb bytes.Buffer
 	err := f.Config.Template.ExecuteTemplate(&tb, query, data)
@@ -438,7 +445,7 @@ func (f DefaultEntityTypeFinder) Find(query string, data map[string][]string) []
 	filteredTypes := make([]map[string]interface{}, 0)
 	for _, entType := range types {
 		name := fmt.Sprint(entType["name"])
-		if data["name"] == nil || data["name"][0] == "" || data["name"][0] == name {
+		if data.Query["name"] == nil || data.Query["name"][0] == "" || data.Query["name"][0] == name {
 			filteredTypes = append(filteredTypes, entType)
 		}
 	}

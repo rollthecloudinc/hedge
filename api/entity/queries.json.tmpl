@@ -9,11 +9,11 @@
 							{
 								"term": {
 									"typeId.keyword": {
-										"value": "{{ index . "typeId" 0 }}"
+										"value": "{{ index .Query "typeId" 0 }}"
 									}
 								}
 							}
-                            {{ with .location }}{{ if eq (len .) 2 }},
+                            {{ with .Query.location }}{{ if eq (len .) 2 }},
 							{
 								"geo_distance": {
 									"validation_method": "ignore_malformed",
@@ -26,7 +26,7 @@
 								}
 							}
                             {{ end }}{{ end }}
-                            {{ range $key, $value := . }}
+                            {{ range $key, $value := .Query }}
                                 {{ if and (ne $key "typeId") (ne $key "location") (ne $key "searchString") (ne $key "features") }}
                                 ,{
                                     "nested": {
@@ -60,16 +60,16 @@
 				}
 			],
 			"must": [
-                {{ with .searchString }}
+                {{ with .Query.searchString }}
 				{
 					"match": {
 						"title": {
-							"query": "{{ index . 0 }}"
+							"query": "{{ index .Query 0 }}"
 						}
 					}
 				}
                 {{ end }}
-                {{ with .features }}{{ if $.searchString }},{{ end }}
+                {{ with .Query.features }}{{ if $.Query.searchString }},{{ end }}
 				{
 					"nested": {
 						"path": "featureSets",

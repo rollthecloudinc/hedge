@@ -26,8 +26,8 @@
 								}
 							}
                             {{ end }}{{ end }}
-                            {{ range $key, $value := .Query }}
-                                {{ if and (ne $key "typeId") (ne $key "location") (ne $key "searchString") (ne $key "features") }}
+                            {{ range $index, $attribute := .Attributes }}
+                                {{ if (index $.Query $attribute.Name) }}
                                 ,{
                                     "nested": {
                                         "path": "attributes",
@@ -37,14 +37,14 @@
                                                     {
                                                         "term": {
                                                             "attributes.name": {
-                                                                "value": "{{ $key }}"
+                                                                "value": "{{ $attribute.Name }}"
                                                             }
                                                         }
                                                     },
                                                     {
                                                         "terms": {
                                                             "attributes.intValue": [
-                                                                {{ index $value 0 }}
+                                                                {{ index $.Query $attribute.Name 0 }}
                                                             ]
                                                         }
                                                     }

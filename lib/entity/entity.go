@@ -43,7 +43,8 @@ type ValidateEntityRequest struct {
 }
 
 type EntityFinderDataBag struct {
-	Query map[string][]string
+	Query      map[string][]string
+	Attributes []EntityAttribute
 }
 
 type ValidateEntityResponse struct {

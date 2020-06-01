@@ -18,6 +18,7 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/mitchellh/mapstructure"
 	"github.com/tangzero/inflector"
 )
 
@@ -92,12 +93,22 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
 	id, err := uuid.Parse(query)
 	if err != nil {
-		data := entity.EntityFinderDataBag{
-			Query: context.Request.URL.Query(),
-		}
 		typeId := context.Param("typeId")
+		allAttributes := make([]entity.EntityAttribute, 0)
 		if typeId != "" {
-			ac.TypeManager.Load(context.Param("typeId"), "default")
+			objType := ac.TypeManager.Load(context.Param("typeId"), "default")
+			var entType entity.EntityType
+			mapstructure.Decode(objType, &entType)
+			for _, attribute := range entType.Attributes {
+				flatAttributes := entity.FlattenEntityAttribute(attribute)
+				for _, flatAttribute := range flatAttributes {
+					allAttributes = append(allAttributes, flatAttribute)
+				}
+			}
+		}
+		data := entity.EntityFinderDataBag{
+			Query:      context.Request.URL.Query(),
+			Attributes: allAttributes,
 		}
 		entities := ac.EntityManager.Find("default", query, &data)
 		context.JSON(200, entities)

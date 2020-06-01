@@ -116,6 +116,7 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 		data := entity.EntityFinderDataBag{
 			Query:      context.Request.URL.Query(),
 			Attributes: allAttributes,
+			UserId:     utils.GetSubject(context),
 		}
 		entities := ac.EntityManager.Find("default", query, &data)
 		context.JSON(200, entities)

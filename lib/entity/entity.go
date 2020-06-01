@@ -45,6 +45,7 @@ type ValidateEntityRequest struct {
 type EntityFinderDataBag struct {
 	Query      map[string][]string
 	Attributes []EntityAttribute
+	UserId     string
 }
 
 type ValidateEntityResponse struct {

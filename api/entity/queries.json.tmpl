@@ -9,21 +9,23 @@
 							{
 								"term": {
 									"typeId.keyword": {
-										"value": "5665f5f8-5533-4aa1-96f4-b78e02714de0"
+										"value": "{{ index . "typeId" 0 }}"
 									}
 								}
-							},
+							}
+                            {{ with .location }}{{ if eq (len .) 2 }},
 							{
 								"geo_distance": {
 									"validation_method": "ignore_malformed",
 									"distance": "10m",
 									"distance_type": "arc",
 									"location": {
-										"lat": 42.3474,
-										"lon": -83.0604
+										"lat": {{ index . 1 }},
+										"lon": {{ index . 0 }}
 									}
 								}
 							}
+                            {{ end }}{{ end }}
 						]
 					}
 				}

@@ -399,14 +399,17 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 func (f ElasticTemplateFinder) Find(query string, data map[string][]string) []map[string]interface{} {
 
+	/*var b bytes.Buffer
+	if err := json.NewEncoder(&b).Encode(data); err != nil {
+		log.Fatalf("Error encoding search query: %s", err)
+	}
+	log.Printf("template data: %s", b.String())*/
+
 	hits := es.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
 		Index:    f.Config.Index,
 		Name:     query,
 		Template: f.Config.Template,
-		/*Data: profiles.ProfileListItemsQuery{
-			UserId:   utils.GetSubject(context),
-			ParentId: context.Query("parentId"),
-		},*/
+		Data:     data,
 	})
 
 	docs := make([]map[string]interface{}, len(hits))

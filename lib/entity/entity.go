@@ -404,11 +404,11 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
 
-	/*var b bytes.Buffer
+	var b bytes.Buffer
 	if err := json.NewEncoder(&b).Encode(data); err != nil {
 		log.Fatalf("Error encoding search query: %s", err)
 	}
-	log.Printf("template data: %s", b.String())*/
+	log.Printf("template data: %s", b.String())
 
 	hits := es.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
 		Index:    f.Config.Index,

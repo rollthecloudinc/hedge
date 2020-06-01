@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
 	"text/template"
 
-	entity "goclassifieds/lib/entity"
-	utils "goclassifieds/lib/utils"
+	"goclassifieds/lib/entity"
+	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -93,15 +94,21 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
 	id, err := uuid.Parse(query)
 	if err != nil {
-		typeId := context.Param("typeId")
+		typeId := context.Query("typeId")
 		allAttributes := make([]entity.EntityAttribute, 0)
 		if typeId != "" {
-			objType := ac.TypeManager.Load(context.Param("typeId"), "default")
+			objType := ac.TypeManager.Load(typeId, "default")
 			var entType entity.EntityType
 			mapstructure.Decode(objType, &entType)
+			var b bytes.Buffer
+			if err := json.NewEncoder(&b).Encode(objType); err != nil {
+				log.Fatalf("Error encoding obj type: %s", err)
+			}
+			log.Printf("obj type: %s", b.String())
 			for _, attribute := range entType.Attributes {
 				flatAttributes := entity.FlattenEntityAttribute(attribute)
 				for _, flatAttribute := range flatAttributes {
+					log.Printf("attribute: %s", flatAttribute.Name)
 					allAttributes = append(allAttributes, flatAttribute)
 				}
 			}

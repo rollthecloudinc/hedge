@@ -43,9 +43,19 @@
                                                     },
                                                     {
                                                         "terms": {
+                                                            {{ if eq (print $attribute.Type) "0" }}
                                                             "attributes.intValue": [
-                                                                {{ index $.Query $attribute.Name 0 }}
+                                                                {{range $index2, $value := (index $.Query $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
+                                                                    {{ $value }}
+                                                                {{ end }}
                                                             ]
+                                                            {{ else }}
+                                                            "attributes.value": [
+                                                                {{range $index2, $value := (index $.Query $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
+                                                                    "{{ $value }}"
+                                                                {{ end }}
+                                                            ]                
+                                                            {{ end }}
                                                         }
                                                     }
                                                 ]

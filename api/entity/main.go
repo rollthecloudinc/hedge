@@ -37,61 +37,11 @@ type ActionContext struct {
 	Template      *template.Template
 }
 
-type TypeTemplateData struct {
-}
-
-/*func GetEntityTypes(context *gin.Context, ac *ActionContext) {
-
-	var tb bytes.Buffer
-	err := ac.Template.ExecuteTemplate(&tb, ac.EntityName, TypeTemplateData{})
-	if err != nil {
-		log.Printf("Entity Type Error: %s", err.Error())
-	}
-
-	var types []map[string]interface{}
-	err = json.Unmarshal(tb.Bytes(), &types)
-	if err != nil {
-		log.Printf("Unmarshall Entity Types Error: %s", err.Error())
-	}
-
-	typedTypes := make([]entity.EntityType, len(types))
-	for index, jType := range types {
-		mapstructure.Decode(jType, &typedTypes[index])
-	}
-
-	context.JSON(200, typedTypes)
-}*/
-
-/*func GetEntityType(context *gin.Context, ac *ActionContext) {
-
-	typeId = context.Param("typeId")
-
-	var tb bytes.Buffer
-	err := ac.Template.ExecuteTemplate(&tb, ac.EntityName, TypeTemplateData{})
-	if err != nil {
-		log.Printf("Entity Type Error: %s", err.Error())
-	}
-
-	var types []map[string]interface{}
-	err = json.Unmarshal(tb.Bytes(), &types)
-	if err != nil {
-		log.Printf("Unmarshall Entity Types Error: %s", err.Error())
-	}
-
-	var typedType entity.EntityType
-	for _, jType := range types {
-		id := fmt.Sprint(jType["id"])
-		if id == typeId {
-			mapstructure.Decode(jType, &typedType)
-			break
-		}
-	}
-
-	context.JSON(200, typedType)
-}*/
-
 func GetEntities(context *gin.Context, ac *ActionContext) {
 	query := context.Param("queryName")
+	if query == "" {
+		query = inflector.Pluralize(ac.EntityName)
+	}
 	id, err := uuid.Parse(query)
 	if err != nil {
 		typeId := context.Query("typeId")
@@ -121,42 +71,36 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 		entities := ac.EntityManager.Find("default", query, &data)
 		context.JSON(200, entities)
 	} else {
+		log.Printf("entity by id: %s", id)
 		ent := ac.EntityManager.Load(id.String(), "default")
 		context.JSON(200, ent)
 	}
 }
 
 func CreateEntity(context *gin.Context, ac *ActionContext) {
-	log.Print("CreateEntity 1")
 	var e map[string]interface{}
 	body, err := ioutil.ReadAll(context.Request.Body)
 	if err != nil {
 		log.Printf("Error json binding: %s", err.Error())
 	}
-	log.Print("CreateEntity 2")
 	json.Unmarshal(body, &e)
-	log.Print("CreateEntity 3")
 	newEntity, err := ac.EntityManager.Create(e)
 	if err != nil {
-		log.Print("CreateEntity 4 %s", err.Error())
 		context.JSON(500, err)
 		return
 	}
-	log.Print("CreateEntity 5")
 	context.JSON(200, newEntity)
 }
 
 func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
-	log.Print("DeclareAction 1")
 	return func(context *gin.Context) {
-		log.Print("DeclareAction 2")
 		entityName := context.Param("entityName")
 		pluralName := inflector.Pluralize(entityName)
 		singularName := inflector.Singularize(entityName)
 		ac.EntityName = singularName
 		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
 			SingularName: "type",
-			PluralName:   "typyes",
+			PluralName:   "types",
 			Index:        "classified_types",
 			EsClient:     ac.EsClient,
 			Session:      ac.Session,
@@ -165,10 +109,8 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 			UserId:       utils.GetSubject(context),
 		})
 		if singularName == "type" {
-			log.Print("DeclareAction 3")
 			ac.EntityManager = ac.TypeManager
 		} else {
-			log.Print("DeclareAction 4")
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
 				SingularName: singularName,
 				PluralName:   pluralName,
@@ -180,7 +122,6 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 				UserId:       utils.GetSubject(context),
 			})
 		}
-		log.Print("DeclareAction 5")
 		action(context, &ac)
 	}
 }
@@ -216,12 +157,9 @@ func init() {
 	}
 
 	r := gin.Default()
-	//r.GET("/entity/:entityName/types", DeclareAction(GetEntityTypes, actionContext))
-	//r.GET("/entity/type/:typeId", DeclareAction(GetEntityType, actionContext))
 	r.GET("/entity/:entityName", DeclareAction(GetEntities, actionContext))
 	r.GET("/entity/:entityName/:queryName", DeclareAction(GetEntities, actionContext))
 	r.POST("/entity/:entityName", DeclareAction(CreateEntity, actionContext))
-	// r.GET("/entity/:entityName/entities", DeclareAction(CreateEntity, actionContext))
 
 	ginLambda = ginadapter.New(r)
 }

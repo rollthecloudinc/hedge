@@ -1,4 +1,4 @@
-{{ define "adlistitems" }}
+{{ define "ads" }}
 {
 	"query": {
 		"bool": {
@@ -110,7 +110,7 @@
 }
 {{end}}
 
-{{ define "profilelistitems" }}
+{{ define "profiles" }}
 {
     "query": {
         "bool": {
@@ -171,6 +171,28 @@
                                 }
                             }
                         ]
+                    }
+                }
+            ]
+        }
+    }
+}
+{{ end }}
+
+{{ define "vocabularies" }}
+{
+    "query": {
+        "bool": {
+            "filter": [
+                {
+                    "bool": {
+                        "must": {
+                            "term": {
+                                "userId.keyword": {
+                                    "value": "{{ .UserId }}"
+                                }
+                            }
+                        }   
                     }
                 }
             ]

@@ -506,7 +506,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Loaders: map[string]Loader{
-			"s3": S3LoaderAdaptor{
+			"default": S3LoaderAdaptor{
 				Config: S3AdaptorConfig{
 					Session: config.Session,
 					Bucket:  "classifieds-ui-dev",

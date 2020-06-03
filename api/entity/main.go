@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"strings"
 	"text/template"
 
 	"goclassifieds/lib/entity"
@@ -26,6 +27,8 @@ import (
 var ginLambda *ginadapter.GinLambda
 
 type ActionFunc func(context *gin.Context, ac *ActionContext)
+
+type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
 
 type ActionContext struct {
 	EsClient      *elasticsearch7.Client
@@ -126,6 +129,53 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 	}
 }
 
+func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
+
+	return func(e string, data *entity.EntityFinderDataBag) []map[string]interface{} {
+
+		pieces := strings.Split(e, "/")
+		pluralName := inflector.Pluralize(pieces[0])
+		singularName := inflector.Singularize(pieces[0])
+
+		query := pluralName
+		if len(pieces) == 2 {
+			query = pieces[1]
+		}
+
+		entityManager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+			SingularName: singularName,
+			PluralName:   pluralName,
+			Index:        "classified_" + pluralName,
+			EsClient:     ac.EsClient,
+			Session:      ac.Session,
+			Lambda:       ac.Lambda,
+			Template:     ac.Template,
+			UserId:       "",
+		})
+
+		/*data := entity.EntityFinderDataBag{
+			Query:  queryData,
+			UserId: userId,
+		}*/
+
+		/*data := entity.EntityFinderDataBag{
+			Query:  make(map[string][]string, 0),
+			UserId: "",
+		}*/
+
+		// @todo: allow third piece to specify type so that attributes can be replaced in data bag.
+		// Will need to clone data bag and swap out attributes.
+		// Limit nesting to avoid infinite loop -- only three levels allowed. Should be enough.
+
+		entities := entityManager.Find("default", query, data)
+
+		log.Print("TemplateQuery 8")
+		return entities
+
+	}
+
+}
+
 func init() {
 	// stdout and stderr are sent to AWS CloudWatch Logs
 	log.Printf("Gin cold start")
@@ -144,17 +194,23 @@ func init() {
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
 
-	t, err := template.ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")
-	if err != nil {
-		log.Printf("Error: %s", err.Error())
-	}
-
 	actionContext := ActionContext{
 		EsClient: esClient,
 		Session:  sess,
 		Lambda:   lClient,
-		Template: t,
 	}
+
+	funcMap := template.FuncMap{
+		"query": TemplateQuery(&actionContext),
+	}
+
+	t, err := template.New("").Funcs(funcMap).ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")
+
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+	}
+
+	actionContext.Template = t
 
 	r := gin.Default()
 	r.GET("/entity/:entityName", DeclareAction(GetEntities, actionContext))

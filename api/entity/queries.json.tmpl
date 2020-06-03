@@ -179,6 +179,98 @@
 }
 {{ end }}
 
+{{ define "_profiles" }}
+{
+    "query": {
+        "bool": {
+            "should": [
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "term": {
+                                    "entityPermissions.readUserIds.keyword": {
+                                        "value": "{{ .UserId }}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "term": {
+                                    "entityPermissions.writeUserIds.keyword": {
+                                        "value": "{{ .UserId }}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "term": {
+                                    "entityPermissions.deleteUserIds.keyword": {
+                                        "value": "{{ .UserId }}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}
+{{ end }}
+
+{{ define "profilenavitems" }}
+{
+    "query": {
+        "bool": {
+            "should": [
+                {{ $profiles := (query "profile/_profiles" .) }}
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "terms": {
+                                    "id.keyword": [
+                                        {{ range $index, $profile := $profiles }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $profile "id" }}"
+                                        {{ end }}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "terms": {
+                                    "parentId.keyword": [
+                                        {{ range $index, $profile := $profiles }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $profile "id" }}"
+                                        {{ end }}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}
+{{ end }}
+
 {{ define "vocabularies" }}
 {
     "query": {

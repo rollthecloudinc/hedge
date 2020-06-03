@@ -4,35 +4,31 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"log"
 	"strings"
 	"text/template"
 
 	"goclassifieds/lib/entity"
-	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tangzero/inflector"
 )
 
-var ginLambda *ginadapter.GinLambda
+// var ginLambda *ginadapter.GinLambda
+var actions map[string]ActionHandler
 
-type ActionFunc func(context *gin.Context, ac *ActionContext)
+type ActionHandler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
+type ActionFunc func(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error)
 
 type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
 type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
-
-type TemplateLambdaRequest struct {
-}
 
 type ActionContext struct {
 	EsClient      *elasticsearch7.Client
@@ -44,14 +40,16 @@ type ActionContext struct {
 	Template      *template.Template
 }
 
-func GetEntities(context *gin.Context, ac *ActionContext) {
-	query := context.Param("queryName")
+func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	var res events.APIGatewayProxyResponse
+	pathPieces := strings.Split(req.Path, "/")
+	query := pathPieces[3]
 	if query == "" {
 		query = inflector.Pluralize(ac.EntityName)
 	}
 	id, err := uuid.Parse(query)
 	if err != nil {
-		typeId := context.Query("typeId")
+		typeId := req.QueryStringParameters["typeId"]
 		allAttributes := make([]entity.EntityAttribute, 0)
 		if typeId != "" {
 			objType := ac.TypeManager.Load(typeId, "default")
@@ -71,40 +69,58 @@ func GetEntities(context *gin.Context, ac *ActionContext) {
 			}
 		}
 		data := entity.EntityFinderDataBag{
-			Query:      context.Request.URL.Query(),
+			Query:      req.MultiValueQueryStringParameters,
 			Attributes: allAttributes,
-			UserId:     utils.GetSubject(context),
+			UserId:     GetUserId(req),
 		}
 		entities := ac.EntityManager.Find("default", query, &data)
-		context.JSON(200, entities)
+		//context.JSON(200, entities)
+		body, err := json.Marshal(entities)
+		if err != nil {
+			return res, err
+		}
+		res.StatusCode = 200
+		res.Headers = map[string]string{
+			"Content-Type": "application/json",
+		}
+		res.Body = string(body[:])
+		return res, nil
 	} else {
 		log.Printf("entity by id: %s", id)
-		ent := ac.EntityManager.Load(id.String(), "default")
-		context.JSON(200, ent)
+		ac.EntityManager.Load(id.String(), "default")
+		res.StatusCode = 200
+		return res, nil
+		// context.JSON(200, ent)
 	}
 }
 
-func CreateEntity(context *gin.Context, ac *ActionContext) {
+func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
-	body, err := ioutil.ReadAll(context.Request.Body)
+	var res events.APIGatewayProxyResponse
+	/*(body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.Printf("Error json binding: %s", err.Error())
-	}
+		return res, err
+	}*/
+	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
-	newEntity, err := ac.EntityManager.Create(e)
+	_, err := ac.EntityManager.Create(e)
 	if err != nil {
-		context.JSON(500, err)
-		return
+		// context.JSON(500, err)
+		return res, err
 	}
-	context.JSON(200, newEntity)
+	res.StatusCode = 200
+	return res, nil
+	// context.JSON(200, newEntity)
 }
 
-func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
-	return func(context *gin.Context) {
-		entityName := context.Param("entityName")
+func DeclareAction(action ActionFunc, ac ActionContext) ActionHandler {
+	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+		pathPieces := strings.Split(req.Path, "/")
+		entityName := pathPieces[2]
 		pluralName := inflector.Pluralize(entityName)
 		singularName := inflector.Singularize(entityName)
 		ac.EntityName = singularName
+		userId := GetUserId(req)
 		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
 			SingularName: "type",
 			PluralName:   "types",
@@ -113,7 +129,7 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 			Session:      ac.Session,
 			Lambda:       ac.Lambda,
 			Template:     ac.Template,
-			UserId:       utils.GetSubject(context),
+			UserId:       userId,
 		})
 		if singularName == "type" {
 			ac.EntityManager = ac.TypeManager
@@ -126,10 +142,10 @@ func DeclareAction(action ActionFunc, ac ActionContext) gin.HandlerFunc {
 				Session:      ac.Session,
 				Lambda:       ac.Lambda,
 				Template:     ac.Template,
-				UserId:       utils.GetSubject(context),
+				UserId:       userId,
 			})
 		}
-		action(context, &ac)
+		return action(req, &ac)
 	}
 }
 
@@ -208,6 +224,17 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 	}
 }
 
+func GetUserId(req *events.APIGatewayProxyRequest) string {
+	userId := ""
+	if req.RequestContext.Authorizer["claims"] != nil {
+		userId = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["sub"])
+		if userId == "<nil>" {
+			userId = ""
+		}
+	}
+	return userId
+}
+
 func init() {
 	// stdout and stderr are sent to AWS CloudWatch Logs
 	log.Printf("Gin cold start")
@@ -245,18 +272,33 @@ func init() {
 
 	actionContext.Template = t
 
-	r := gin.Default()
+	/*r := gin.Default()
 	r.GET("/entity/:entityName", DeclareAction(GetEntities, actionContext))
 	r.GET("/entity/:entityName/:queryName", DeclareAction(GetEntities, actionContext))
 	r.POST("/entity/:entityName", DeclareAction(CreateEntity, actionContext))
 
-	ginLambda = ginadapter.New(r)
+	ginLambda = ginadapter.New(r)*/
+
+	actions = map[string]ActionHandler{
+		"persist": DeclareAction(CreateEntity, actionContext),
+		"view":    DeclareAction(GetEntities, actionContext),
+	}
 }
 
 func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// If no name is provided in the HTTP request body, throw an error
-	res, err := ginLambda.ProxyWithContext(ctx, req)
-	res.Headers["Access-Control-Allow-Origin"] = "*"
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		log.Fatalf("Error encoding request: %s", err)
+	}
+	log.Printf("request: %s", buf)
+
+	res, err := actions["view"](&req)
+
+	// If no name is provided in the HTTP request body, throw an error
+	//res, err := ginLambda.ProxyWithContext(ctx, req)
+	//res.Headers["Access-Control-Allow-Origin"] = "*"
+
 	return res, err
 }
 

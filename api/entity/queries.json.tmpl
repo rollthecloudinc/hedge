@@ -235,14 +235,15 @@
         "bool": {
             "should": [
                 {{ $profiles := (query "profile/_profiles" .) }}
+                {{ $res := (lambda "profile/ReadableProfiles" .UserId $profiles) }}
                 {
                     "bool": {
                         "filter": [
                             {
                                 "terms": {
                                     "id.keyword": [
-                                        {{ range $index, $profile := $profiles }}
-                                            {{ if ne $index 0 }},{{ end }}"{{ index $profile "id" }}"
+                                        {{ range $index, $id := $res.Data }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $id "value" }}"
                                         {{ end }}
                                     ]
                                 }
@@ -256,8 +257,8 @@
                             {
                                 "terms": {
                                     "parentId.keyword": [
-                                        {{ range $index, $profile := $profiles }}
-                                            {{ if ne $index 0 }},{{ end }}"{{ index $profile "id" }}"
+                                        {{ range $index, $id := $res.Data }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $id "value" }}"
                                         {{ end }}
                                     ]
                                 }

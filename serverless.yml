@@ -350,6 +350,43 @@ resources:
                         - Ref: 'AWS::Region'
                         - Ref: 'AWS::AccountId'
                         - 'log-group:/aws/lambda/*:*:*'
+    ReadableProfilesFuncRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: "goclassifieds-readable-profiles-us-east-1-lambdaRole"
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: goclassifieds-readable-profiles-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
 functions:
   ads-api:
     handler: bazel-bin/api/ads/linux_amd64_pure_stripped/ads
@@ -502,3 +539,11 @@ functions:
         - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
       exclude:
         - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
+  ReadableProfiles:
+    handler: bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
+    role: ReadableProfilesFuncRole
+    package:
+      include:
+        - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
+      exclude:
+        - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**

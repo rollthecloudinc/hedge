@@ -29,6 +29,10 @@ var ginLambda *ginadapter.GinLambda
 type ActionFunc func(context *gin.Context, ac *ActionContext)
 
 type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
+type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
+
+type TemplateLambdaRequest struct {
+}
 
 type ActionContext struct {
 	EsClient      *elasticsearch7.Client
@@ -176,6 +180,34 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 
 }
 
+func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
+	return func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse {
+
+		pieces := strings.Split(e, "/")
+		pluralName := inflector.Pluralize(pieces[0])
+		singularName := inflector.Singularize(pieces[0])
+
+		functionName := pluralName
+		if len(pieces) == 2 {
+			functionName = "goclassifieds-api-dev-" + pieces[1]
+		}
+
+		request := entity.EntityDataRequest{
+			EntityName: singularName,
+			UserId:     userId,
+			Data:       data,
+		}
+
+		res, err := entity.ExecuteEntityLambda(ac.Lambda, functionName, &request)
+		if err != nil {
+			log.Printf("error invoking template lambda: %s", err.Error())
+		}
+
+		return res
+
+	}
+}
+
 func init() {
 	// stdout and stderr are sent to AWS CloudWatch Logs
 	log.Printf("Gin cold start")
@@ -201,7 +233,8 @@ func init() {
 	}
 
 	funcMap := template.FuncMap{
-		"query": TemplateQuery(&actionContext),
+		"query":  TemplateQuery(&actionContext),
+		"lambda": TemplateLambda(&actionContext),
 	}
 
 	t, err := template.New("").Funcs(funcMap).ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")

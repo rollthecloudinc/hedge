@@ -42,6 +42,14 @@ type ValidateEntityRequest struct {
 	Entity     map[string]interface{}
 }
 
+type EntityDataRequest struct {
+	EntityName string
+	EntityType string
+	UserId     string
+	Entity     map[string]interface{}
+	Data       []map[string]interface{}
+}
+
 type EntityFinderDataBag struct {
 	Query      map[string][]string
 	Attributes []EntityAttribute
@@ -52,6 +60,10 @@ type ValidateEntityResponse struct {
 	Entity       map[string]interface{}
 	Valid        bool
 	Unauthorized bool
+}
+
+type EntityDataResponse struct {
+	Data []map[string]interface{}
 }
 
 type DefaultManagerConfig struct {
@@ -480,6 +492,29 @@ func FlattenEntityAttribute(attribute EntityAttribute) []EntityAttribute {
 		}
 	}
 	return leafNodes
+}
+
+func ExecuteEntityLambda(lam *lambda.Lambda, functionName string, request *EntityDataRequest) (EntityDataResponse, error) {
+
+	deadResponse := EntityDataResponse{}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("Error marshalling entity lambda request: %s", err.Error())
+		return deadResponse, errors.New("Error marshalling entity lambda request")
+	}
+
+	res, err := lam.Invoke(&lambda.InvokeInput{FunctionName: aws.String(functionName), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking entity lambda: %s", err.Error())
+		return deadResponse, errors.New("Error invoking entity lambda")
+	}
+
+	var dataRes EntityDataResponse
+	json.Unmarshal(res.Payload, &dataRes)
+
+	return dataRes, nil
+
 }
 
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {

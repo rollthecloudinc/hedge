@@ -2,7 +2,7 @@ service: goclassifieds-api
 provider:
   name: aws
   runtime: go1.x
-  memorySize: 128
+  memorySize: 256
   timeout: 10
   httpApi:
     payload: '1.0'
@@ -19,131 +19,6 @@ package:
     - ./**
 resources:
   Resources:
-    adsApiRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-ads-api-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-ads-api-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:PutObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/ads/*"
-    taxonomyApiRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-taxonomy-api-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-taxonomy-api-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:PutObject"
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
-    profilesApiRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-profiles-api-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-profiles-api-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:PutObject"
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/profiles/*"
     EntityApiRole:
       Type: AWS::IAM::Role
       Properties:
@@ -190,278 +65,8 @@ resources:
                   Action:
                     - "lambda:InvokeFunction"
                   Resource: "*"
-    indexAdFuncRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-index-ad-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-index-ad-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/ads/*"
-    indexVocabFuncRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-index-vocab-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-index-vocab-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/vocabularies/*"
-    indexProfileFuncRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-index-profile-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-index-profile-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-                - Effect: "Allow"
-                  Action:
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/profiles/*"
-    ValidateEntityFuncRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-validate-entity-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-validate-entity-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
-    ReadableProfilesFuncRole:
-      Type: AWS::IAM::Role
-      Properties:
-        Path: "/"
-        RoleName: "goclassifieds-readable-profiles-us-east-1-lambdaRole"
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole   
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        Policies:
-          - PolicyName: goclassifieds-readable-profiles-lambda
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogGroup
-                    - logs:CreateLogStream
-                    - logs:PutLogEvents
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:GetLogEvents
-                    - logs:FilterLogEvents
-                  Resource:
-                    - 'Fn::Join':
-                      - ':'
-                      -
-                        - 'arn:aws:logs'
-                        - Ref: 'AWS::Region'
-                        - Ref: 'AWS::AccountId'
-                        - 'log-group:/aws/lambda/*:*:*'
 functions:
-  ads-api:
-    handler: bazel-bin/api/ads/linux_amd64_pure_stripped/ads
-    role: adsApiRole
-    package:
-      include:
-        - bazel-bin/api/ads/linux_amd64_pure_stripped/ads
-      exclude:
-        - bazel-bin/api/ads/linux_amd64_pure_stripped/**
-    events:
-      - httpApi:
-          path: /ads/adlistitems
-          method: GET
-  taxonomy-api:
-    handler: bazel-bin/api/taxonomy/linux_amd64_pure_stripped/taxonomy
-    role: taxonomyApiRole
-    package:
-      include:
-        - bazel-bin/api/taxonomy/linux_amd64_pure_stripped/taxonomy
-      exclude:
-        - bazel-bin/api/taxonomy/linux_amd64_pure_stripped/**
-    events:
-      - httpApi:
-          path: /taxonomy/vocabulary
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-      - httpApi:
-          path: /taxonomy/vocabulary/{id}
-          method: PUT
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-      - httpApi:
-          path: /taxonomy/vocabularylistitems
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-  profiles-api:
-    handler: bazel-bin/api/profiles/linux_amd64_pure_stripped/profiles
-    role: profilesApiRole
-    package:
-      include:
-        - bazel-bin/api/profiles/linux_amd64_pure_stripped/profiles
-        - api/profiles/queries.json.tmpl
-      exclude:
-        - bazel-bin/api/profiles/linux_amd64_pure_stripped/**
-    events:
-      - httpApi:
-          path: /profiles/profile
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
-      - httpApi:
-          path: /profiles/profilelistitems
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
-      - httpApi:
-          path: /profiles/profilenavitems
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
-  entity-api:
+  EntityApi:
     handler: bazel-bin/api/entity/linux_amd64_pure_stripped/entity
     role: EntityApiRole
     package:
@@ -473,74 +78,104 @@ functions:
         - bazel-bin/api/entity/linux_amd64_pure_stripped/**
     events:
       - httpApi:
-          path: /entity/profile/profilenavitems
+          path: /adprofileitems/{proxy+}
           method: GET
           authorizer:
             name: cognito
             scopes:
               - profiles_api/profiles_api
       - httpApi:
-          path: /entity/{entityName}
+          path: /adtypes/{proxy+}
           method: GET
       - httpApi:
-          path: /entity/{entityName}/{queryName}
+          path: /adlistitems/{proxy+}
           method: GET
       - httpApi:
-          path: /entity/{entityName}
+          path: /ad/{id}
+          method: GET
+      - httpApi:
+          path: /profile/{id}
+          method: GET
+      - httpApi:
+          path: /profilelistitems
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - profiles_api/profiles_api
+      - httpApi:
+          path: /vocabulary/{id}
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - taxonomy_api/taxonomy_api
+      - httpApi:
+          path: /vocabularylistitems
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - taxonomy_api/taxonomy_api
+      - httpApi:
+          path: /ad/{proxy+}
           method: POST
           authorizer:
             name: cognito
-  index-ad:
-    handler: bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
-    role: indexAdFuncRole
+            scopes:
+              - ads_api/ads_api
+      - httpApi:
+          path: /vocabulary/{proxy+}
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - taxonomy_api/taxonomy_api
+      - httpApi:
+          path: /profile/{proxy+}
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - profiles_api/profiles_api
+  MediaApi:
+    handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
+    role: EntityApiRole
     package:
       include:
-        - bazel-bin/func/index_ad/linux_amd64_pure_stripped/index_ad
+        - bazel-bin/api/media/linux_amd64_pure_stripped/media
       exclude:
-        - bazel-bin/func/index_ad/linux_amd64_pure_stripped/**
+        - bazel-bin/api/media/linux_amd64_pure_stripped/**
+    events:
+      - httpApi:
+          path: /media/{prefix}
+          method: GET
+      - httpApi:
+          path: /media
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - media_api/media_api
+  IndexEntity:
+    handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
+    role: EntityApiRole
+    package:
+      include:
+        - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
+      exclude:
+        - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
     events:
       - s3:
           bucket: classifieds-ui-dev
           event: s3:ObjectCreated:*
           rules:
-            - prefix: ads/
             - suffix: .json.gz
           existing: true
-  index-vocab:
-    handler: bazel-bin/func/index_vocab/linux_amd64_pure_stripped/index_vocab
-    role: indexVocabFuncRole
-    package:
-      include:
-        - bazel-bin/func/index_vocab/linux_amd64_pure_stripped/index_vocab
-      exclude:
-        - bazel-bin/func/index_vocab/linux_amd64_pure_stripped/**
-    events:
-      - s3:
-          bucket: classifieds-ui-dev
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: vocabularies/
-            - suffix: .json.gz
-          existing: true
-  index-profile:
-    handler: bazel-bin/func/index_profile/linux_amd64_pure_stripped/index_profile
-    role: indexProfileFuncRole
-    package:
-      include:
-        - bazel-bin/func/index_profile/linux_amd64_pure_stripped/index_profile
-      exclude:
-        - bazel-bin/func/index_profile/linux_amd64_pure_stripped/**
-    events:
-      - s3:
-          bucket: classifieds-ui-dev
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: profiles/
-            - suffix: .json.gz
-          existing: true
+
   ValidateEntity:
     handler: bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
-    role: ValidateEntityFuncRole
+    role: EntityApiRole
     package:
       include:
         - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
@@ -548,7 +183,7 @@ functions:
         - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
   ReadableProfiles:
     handler: bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
-    role: ReadableProfilesFuncRole
+    role: EntityApiRole
     package:
       include:
         - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles

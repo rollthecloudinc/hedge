@@ -38,6 +38,7 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 
 	var newEntity map[string]interface{}
 	if payload.EntityName == "ad" {
+		log.Printf("validate an ad")
 		newEntity, err = ValidateAd(jsonData, payload)
 	} else if payload.EntityName == "vocabulary" {
 		newEntity, err = ValidateVocabulary(jsonData, payload)
@@ -46,6 +47,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
+
+	log.Printf("after validation")
 
 	if err != nil {
 		return invalid, err
@@ -61,6 +64,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 func ValidateAd(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
 	var deadObject map[string]interface{}
 
+	log.Printf("Inside ValidateAd")
+
 	var obj ads.Ad
 	err := json.Unmarshal(jsonData, &obj)
 	if err != nil {
@@ -75,7 +80,10 @@ func ValidateAd(jsonData []byte, payload *entity.ValidateEntityRequest) (map[str
 
 	validate := validator.New()
 	err = validate.Struct(obj)
+
 	if err != nil {
+		msg, _ := json.Marshal(err.(validator.ValidationErrors))
+		log.Printf("Validation Errors: %s", string(msg))
 		return deadObject, err.(validator.ValidationErrors)
 	}
 

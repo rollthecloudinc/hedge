@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,16 +15,14 @@ import (
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tangzero/inflector"
 )
 
 // var ginLambda *ginadapter.GinLambda
-var actions map[string]ActionHandler
+var handler Handler
 
-type ActionHandler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
-type ActionFunc func(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error)
+type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
 
 type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
 type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
@@ -38,89 +35,120 @@ type ActionContext struct {
 	EntityManager entity.Manager
 	EntityName    string
 	Template      *template.Template
+	TemplateName  string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var res events.APIGatewayProxyResponse
 	pathPieces := strings.Split(req.Path, "/")
-	query := pathPieces[3]
-	if query == "" {
-		query = inflector.Pluralize(ac.EntityName)
+
+	query := inflector.Pluralize(ac.EntityName)
+	if len(pathPieces) == 3 && pathPieces[2] != "" {
+		query = pathPieces[2]
+	} else if ac.TemplateName != "" {
+		query = ac.TemplateName
 	}
-	id, err := uuid.Parse(query)
+
+	typeId := req.QueryStringParameters["typeId"]
+	allAttributes := make([]entity.EntityAttribute, 0)
+
+	if typeId != "" {
+		objType := ac.TypeManager.Load(typeId, "default")
+		var entType entity.EntityType
+		mapstructure.Decode(objType, &entType)
+		var b bytes.Buffer
+		if err := json.NewEncoder(&b).Encode(objType); err != nil {
+			log.Fatalf("Error encoding obj type: %s", err)
+		}
+		log.Printf("obj type: %s", b.String())
+		for _, attribute := range entType.Attributes {
+			flatAttributes := entity.FlattenEntityAttribute(attribute)
+			for _, flatAttribute := range flatAttributes {
+				log.Printf("attribute: %s", flatAttribute.Name)
+				allAttributes = append(allAttributes, flatAttribute)
+			}
+		}
+	}
+	data := entity.EntityFinderDataBag{
+		Req:        req,
+		Attributes: allAttributes,
+	}
+	entities := ac.EntityManager.Find("default", query, &data)
+	body, err := json.Marshal(entities)
 	if err != nil {
-		typeId := req.QueryStringParameters["typeId"]
-		allAttributes := make([]entity.EntityAttribute, 0)
-		if typeId != "" {
-			objType := ac.TypeManager.Load(typeId, "default")
-			var entType entity.EntityType
-			mapstructure.Decode(objType, &entType)
-			var b bytes.Buffer
-			if err := json.NewEncoder(&b).Encode(objType); err != nil {
-				log.Fatalf("Error encoding obj type: %s", err)
-			}
-			log.Printf("obj type: %s", b.String())
-			for _, attribute := range entType.Attributes {
-				flatAttributes := entity.FlattenEntityAttribute(attribute)
-				for _, flatAttribute := range flatAttributes {
-					log.Printf("attribute: %s", flatAttribute.Name)
-					allAttributes = append(allAttributes, flatAttribute)
-				}
-			}
-		}
-		data := entity.EntityFinderDataBag{
-			Query:      req.MultiValueQueryStringParameters,
-			Attributes: allAttributes,
-			UserId:     GetUserId(req),
-		}
-		entities := ac.EntityManager.Find("default", query, &data)
-		//context.JSON(200, entities)
-		body, err := json.Marshal(entities)
-		if err != nil {
-			return res, err
-		}
-		res.StatusCode = 200
-		res.Headers = map[string]string{
-			"Content-Type": "application/json",
-		}
-		res.Body = string(body[:])
-		return res, nil
-	} else {
-		log.Printf("entity by id: %s", id)
-		ac.EntityManager.Load(id.String(), "default")
-		res.StatusCode = 200
-		return res, nil
-		// context.JSON(200, ent)
+		return res, err
 	}
+	res.StatusCode = 200
+	res.Headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	res.Body = string(body[:])
+	return res, nil
+}
+
+func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	var res events.APIGatewayProxyResponse
+	pathPieces := strings.Split(req.Path, "/")
+	id := pathPieces[2]
+	log.Printf("entity by id: %s", id)
+	ent := ac.EntityManager.Load(id, "default")
+	body, err := json.Marshal(ent)
+	if err != nil {
+		return res, err
+	}
+	res.StatusCode = 200
+	res.Headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	res.Body = string(body[:])
+	return res, nil
 }
 
 func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
-	var res events.APIGatewayProxyResponse
-	/*(body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		return res, err
-	}*/
+	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
-	_, err := ac.EntityManager.Create(e)
+	newEntity, err := ac.EntityManager.Create(e)
 	if err != nil {
-		// context.JSON(500, err)
+		return res, err
+	}
+	resBody, err := json.Marshal(newEntity)
+	if err != nil {
 		return res, err
 	}
 	res.StatusCode = 200
+	res.Headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	res.Body = string(resBody)
 	return res, nil
-	// context.JSON(200, newEntity)
 }
 
-func DeclareAction(action ActionFunc, ac ActionContext) ActionHandler {
+func InitializeHandler(ac ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
 		pathPieces := strings.Split(req.Path, "/")
-		entityName := pathPieces[2]
+		entityName := pathPieces[1]
+
+		if index := strings.Index(entityName, "list"); index > -1 {
+			entityName = inflector.Pluralize(entityName[0:index])
+		} else if entityName == "adprofileitems" {
+			entityName = "profiles"
+			ac.TemplateName = "profilenavitems"
+		} else if entityName == "adtypes" {
+			entityName = "types"
+			ac.TemplateName = "all"
+		}
+
 		pluralName := inflector.Pluralize(entityName)
 		singularName := inflector.Singularize(entityName)
 		ac.EntityName = singularName
 		userId := GetUserId(req)
+
+		log.Printf("entity plural name: %s", pluralName)
+		log.Printf("entity singular name: %s", singularName)
+
 		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
 			SingularName: "type",
 			PluralName:   "types",
@@ -131,6 +159,7 @@ func DeclareAction(action ActionFunc, ac ActionContext) ActionHandler {
 			Template:     ac.Template,
 			UserId:       userId,
 		})
+
 		if singularName == "type" {
 			ac.EntityManager = ac.TypeManager
 		} else {
@@ -145,7 +174,16 @@ func DeclareAction(action ActionFunc, ac ActionContext) ActionHandler {
 				UserId:       userId,
 			})
 		}
-		return action(req, &ac)
+
+		if entityName == pluralName && req.HTTPMethod == "GET" {
+			return GetEntities(req, &ac)
+		} else if entityName == singularName && req.HTTPMethod == "GET" {
+			return GetEntity(req, &ac)
+		} else if entityName == singularName && req.HTTPMethod == "POST" {
+			return CreateEntity(req, &ac)
+		}
+
+		return events.APIGatewayProxyResponse{StatusCode: 500}, nil
 	}
 }
 
@@ -279,13 +317,10 @@ func init() {
 
 	ginLambda = ginadapter.New(r)*/
 
-	actions = map[string]ActionHandler{
-		"persist": DeclareAction(CreateEntity, actionContext),
-		"view":    DeclareAction(GetEntities, actionContext),
-	}
+	handler = InitializeHandler(actionContext)
 }
 
-func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+/*func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// If no name is provided in the HTTP request body, throw an error
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
@@ -293,15 +328,15 @@ func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	}
 	log.Printf("request: %s", buf)
 
-	res, err := actions["view"](&req)
+	res, err := action(&req)
 
 	// If no name is provided in the HTTP request body, throw an error
 	//res, err := ginLambda.ProxyWithContext(ctx, req)
 	//res.Headers["Access-Control-Allow-Origin"] = "*"
 
 	return res, err
-}
+}*/
 
 func main() {
-	lambda.Start(Handler)
+	lambda.Start(handler)
 }

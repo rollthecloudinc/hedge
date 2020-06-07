@@ -9,11 +9,11 @@
 							{
 								"term": {
 									"typeId.keyword": {
-										"value": "{{ index .Query "typeId" 0 }}"
+										"value": "{{ index .Req.QueryStringParameters "typeId" }}"
 									}
 								}
 							}
-                            {{ with .Query.location }}{{ if eq (len .) 2 }},
+                            {{ with .Req.MultiValueQueryStringParameters.location }}{{ if eq (len .) 2 }},
 							{
 								"geo_distance": {
 									"validation_method": "ignore_malformed",
@@ -27,7 +27,7 @@
 							}
                             {{ end }}{{ end }}
                             {{ range $index, $attribute := .Attributes }}
-                                {{ if (index $.Query $attribute.Name) }}
+                                {{ if (index $.Req.MultiValueQueryStringParameters $attribute.Name) }}
                                 ,{
                                     "nested": {
                                         "path": "attributes",
@@ -45,13 +45,13 @@
                                                         "terms": {
                                                             {{ if eq (print $attribute.Type) "0" }}
                                                             "attributes.intValue": [
-                                                                {{range $index2, $value := (index $.Query $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
+                                                                {{range $index2, $value := (index $.Req.MultiValueQueryStringParameters $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
                                                                     {{ $value }}
                                                                 {{ end }}
                                                             ]
                                                             {{ else }}
                                                             "attributes.value": [
-                                                                {{range $index2, $value := (index $.Query $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
+                                                                {{range $index2, $value := (index $.Req.MultiValueQueryStringParameters $attribute.Name) }}{{ if ne $index2 0 }},{{ end }}
                                                                     "{{ $value }}"
                                                                 {{ end }}
                                                             ]                
@@ -70,16 +70,16 @@
 				}
 			],
 			"must": [
-                {{ with .Query.searchString }}
+                {{ with .Req.QueryStringParameters.searchString }}
 				{
 					"match": {
 						"title": {
-							"query": "{{ index .Query 0 }}"
+							"query": "{{ . }}"
 						}
 					}
 				}
                 {{ end }}
-                {{ with .Query.features }}{{ if $.Query.searchString }},{{ end }}
+                {{ with .Req.MultiValueQueryStringParameters.features }}{{ if $.Req.QueryStringParameters.searchString }},{{ end }}
 				{
 					"nested": {
 						"path": "featureSets",
@@ -121,7 +121,7 @@
                             {
                                 "term": {
                                     "parentId.keyword": {
-                                        "value": "{{ index .Query "parentId" 0 }}"
+                                        "value": "{{ index .Req.QueryStringParameters "parentId" }}"
                                     }
                                 }
                             }
@@ -137,7 +137,7 @@
                                         {
                                             "term": {
                                                 "entityPermissions.readUserIds.keyword": {
-                                                    "value": "{{ .UserId }}"
+                                                    "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                                 }
                                             }
                                         }
@@ -150,7 +150,7 @@
                                         {
                                             "term": {
                                                 "entityPermissions.writeUserIds.keyword": {
-                                                    "value": "{{ .UserId }}"
+                                                    "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                                 }
                                             }
                                         }
@@ -163,7 +163,7 @@
                                         {
                                             "term": {
                                                 "entityPermissions.deleteUserIds.keyword": {
-                                                    "value": "{{ .UserId }}"
+                                                    "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                                 }
                                             }
                                         }
@@ -190,7 +190,7 @@
                             {
                                 "term": {
                                     "entityPermissions.readUserIds.keyword": {
-                                        "value": "{{ .UserId }}"
+                                        "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                     }
                                 }
                             }
@@ -203,7 +203,7 @@
                             {
                                 "term": {
                                     "entityPermissions.writeUserIds.keyword": {
-                                        "value": "{{ .UserId }}"
+                                        "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                     }
                                 }
                             }
@@ -216,7 +216,7 @@
                             {
                                 "term": {
                                     "entityPermissions.deleteUserIds.keyword": {
-                                        "value": "{{ .UserId }}"
+                                        "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                     }
                                 }
                             }
@@ -235,7 +235,7 @@
         "bool": {
             "should": [
                 {{ $profiles := (query "profile/_profiles" .) }}
-                {{ $res := (lambda "profile/ReadableProfiles" .UserId $profiles) }}
+                {{ $res := (lambda "profile/ReadableProfiles" .Req.RequestContext.Authorizer.claims.sub $profiles) }}
                 {
                     "bool": {
                         "filter": [
@@ -282,7 +282,7 @@
                         "must": {
                             "term": {
                                 "userId.keyword": {
-                                    "value": "{{ .UserId }}"
+                                    "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
                                 }
                             }
                         }   

@@ -8,6 +8,5 @@ go_library(
     deps = [
         "//lib/attr",
         "//lib/vocab",
-        "//lib/entity"
     ],
 )

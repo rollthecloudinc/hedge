@@ -15,6 +15,7 @@ import (
 	"goclassifieds/lib/es"
 	"goclassifieds/lib/utils"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda "github.com/aws/aws-sdk-go/service/lambda"
@@ -51,9 +52,8 @@ type EntityDataRequest struct {
 }
 
 type EntityFinderDataBag struct {
-	Query      map[string][]string
+	Req        *events.APIGatewayProxyRequest
 	Attributes []EntityAttribute
-	UserId     string
 }
 
 type ValidateEntityResponse struct {
@@ -146,6 +146,10 @@ type DefaultCreatorConfig struct {
 }
 
 type S3LoaderAdaptor struct {
+	Config S3AdaptorConfig
+}
+
+type S3MediaLoaderAdaptor struct {
 	Config S3AdaptorConfig
 }
 
@@ -456,7 +460,8 @@ func (f DefaultEntityTypeFinder) Find(query string, data *EntityFinderDataBag) [
 	filteredTypes := make([]map[string]interface{}, 0)
 	for _, entType := range types {
 		name := fmt.Sprint(entType["name"])
-		if data.Query["name"] == nil || data.Query["name"][0] == "" || data.Query["name"][0] == name {
+		log.Printf("DefaultEntityTypeFinder:Find %s", name)
+		if data.Req == nil || data.Req.QueryStringParameters == nil || (data.Req.QueryStringParameters != nil && data.Req.QueryStringParameters["name"] == name) {
 			filteredTypes = append(filteredTypes, entType)
 		}
 	}

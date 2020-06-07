@@ -3,11 +3,7 @@ package vocab
 import (
 	"bytes"
 	"encoding/json"
-	"goclassifieds/lib/entity"
 	"log"
-
-	"github.com/aws/aws-sdk-go/aws/session"
-	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 )
 
 type Vocabulary struct {
@@ -31,47 +27,6 @@ type Term struct {
 	Children     []Term `form:"children[]" json:"children"`
 }
 
-func CreateVocabManager(esClient *elasticsearch7.Client, session *session.Session, userId string) entity.EntityManager {
-	return entity.EntityManager{
-		Config: entity.EntityConfig{
-			SingularName: "vocabulary",
-			PluralName:   "vocabularies",
-			IdKey:        "id",
-		},
-		Loaders: map[string]entity.Loader{
-			"s3": entity.S3LoaderAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "vocabularies/",
-				},
-			},
-		},
-		Storages: map[string]entity.Storage{
-			"s3": entity.S3StorageAdaptor{
-				Config: entity.S3AdaptorConfig{
-					Session: session,
-					Bucket:  "classifieds-ui-dev",
-					Prefix:  "vocabularies/",
-				},
-			},
-			"elastic": entity.ElasticStorageAdaptor{
-				Config: entity.ElasticAdaptorConfig{
-					Index:  "classified_vocabularies",
-					Client: esClient,
-				},
-			},
-		},
-		Authorizers: map[string]entity.Authorization{
-			"default": entity.OwnerAuthorizationAdaptor{
-				Config: entity.OwnerAuthorizationConfig{
-					UserId: userId,
-				},
-			},
-		},
-	}
-}
-
 func ToEntity(vocab *Vocabulary) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(vocab); err != nil {
@@ -84,35 +39,6 @@ func ToEntity(vocab *Vocabulary) (map[string]interface{}, error) {
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
-}
-
-func BuildVocabSearchQuery(userId string) map[string]interface{} {
-
-	filterMust := []interface{}{
-		map[string]interface{}{
-			"term": map[string]interface{}{
-				"userId.keyword": map[string]interface{}{
-					"value": userId,
-				},
-			},
-		},
-	}
-
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"filter": []interface{}{
-					map[string]interface{}{
-						"bool": map[string]interface{}{
-							"must": filterMust,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	return query
 }
 
 func FlattenTerm(term Term, selectedOnly bool) []Term {

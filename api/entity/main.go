@@ -136,14 +136,11 @@ func InitializeHandler(c *ActionContext) Handler {
 		entityName := pathPieces[1]
 
 		if index := strings.Index(entityName, "list"); index > -1 {
-			log.Print("hiho1")
 			entityName = inflector.Pluralize(entityName[0:index])
 		} else if entityName == "adprofileitems" {
-			log.Print("hiho2")
 			entityName = "profiles"
 			ac.TemplateName = "profilenavitems"
 		} else if entityName == "adtypes" {
-			log.Print("hiho3")
 			entityName = "types"
 			ac.TemplateName = "all"
 		}
@@ -290,7 +287,6 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 }
 
 func init() {
-	// stdout and stderr are sent to AWS CloudWatch Logs
 	log.Printf("Gin cold start")
 
 	elasticCfg := elasticsearch7.Config{
@@ -326,32 +322,8 @@ func init() {
 
 	actionContext.Template = t
 
-	/*r := gin.Default()
-	r.GET("/entity/:entityName", DeclareAction(GetEntities, actionContext))
-	r.GET("/entity/:entityName/:queryName", DeclareAction(GetEntities, actionContext))
-	r.POST("/entity/:entityName", DeclareAction(CreateEntity, actionContext))
-
-	ginLambda = ginadapter.New(r)*/
-
 	handler = InitializeHandler(&actionContext)
 }
-
-/*func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	// If no name is provided in the HTTP request body, throw an error
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		log.Fatalf("Error encoding request: %s", err)
-	}
-	log.Printf("request: %s", buf)
-
-	res, err := action(&req)
-
-	// If no name is provided in the HTTP request body, throw an error
-	//res, err := ginLambda.ProxyWithContext(ctx, req)
-	//res.Headers["Access-Control-Allow-Origin"] = "*"
-
-	return res, err
-}*/
 
 func main() {
 	lambda.Start(handler)

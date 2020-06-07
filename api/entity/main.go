@@ -49,6 +49,8 @@ func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.
 		query = ac.TemplateName
 	}
 
+	log.Printf("entity: %s | query: %s", ac.EntityName, query)
+
 	typeId := req.QueryStringParameters["typeId"]
 	allAttributes := make([]entity.EntityAttribute, 0)
 
@@ -125,18 +127,23 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	return res, nil
 }
 
-func InitializeHandler(ac ActionContext) Handler {
+func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
+		ac := RequestActionContext(c)
 
 		pathPieces := strings.Split(req.Path, "/")
 		entityName := pathPieces[1]
 
 		if index := strings.Index(entityName, "list"); index > -1 {
+			log.Print("hiho1")
 			entityName = inflector.Pluralize(entityName[0:index])
 		} else if entityName == "adprofileitems" {
+			log.Print("hiho2")
 			entityName = "profiles"
 			ac.TemplateName = "profilenavitems"
 		} else if entityName == "adtypes" {
+			log.Print("hiho3")
 			entityName = "types"
 			ac.TemplateName = "all"
 		}
@@ -176,11 +183,11 @@ func InitializeHandler(ac ActionContext) Handler {
 		}
 
 		if entityName == pluralName && req.HTTPMethod == "GET" {
-			return GetEntities(req, &ac)
+			return GetEntities(req, ac)
 		} else if entityName == singularName && req.HTTPMethod == "GET" {
-			return GetEntity(req, &ac)
+			return GetEntity(req, ac)
 		} else if entityName == singularName && req.HTTPMethod == "POST" {
-			return CreateEntity(req, &ac)
+			return CreateEntity(req, ac)
 		}
 
 		return events.APIGatewayProxyResponse{StatusCode: 500}, nil
@@ -262,6 +269,15 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 	}
 }
 
+func RequestActionContext(ac *ActionContext) *ActionContext {
+	return &ActionContext{
+		EsClient: ac.EsClient,
+		Session:  ac.Session,
+		Lambda:   ac.Lambda,
+		Template: ac.Template,
+	}
+}
+
 func GetUserId(req *events.APIGatewayProxyRequest) string {
 	userId := ""
 	if req.RequestContext.Authorizer["claims"] != nil {
@@ -317,7 +333,7 @@ func init() {
 
 	ginLambda = ginadapter.New(r)*/
 
-	handler = InitializeHandler(actionContext)
+	handler = InitializeHandler(&actionContext)
 }
 
 /*func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {

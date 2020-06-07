@@ -97,7 +97,7 @@ functions:
           path: /profile/{id}
           method: GET
       - httpApi:
-          path: /profilelistitems
+          path: /profilelistitems/{proxy+}
           method: GET
           authorizer:
             name: cognito
@@ -111,7 +111,7 @@ functions:
             scopes:
               - taxonomy_api/taxonomy_api
       - httpApi:
-          path: /vocabularylistitems
+          path: /vocabularylistitems/{proxy+}
           method: GET
           authorizer:
             name: cognito

@@ -49,7 +49,16 @@
         "attributes": []
       }
     ],
-    "filters": []
+    "filters": [
+      {
+        "name": "beds",
+        "type": 0,
+        "label": "Beds",
+        "required": false,
+        "widget": "text",
+        "attributes": []
+      } 
+    ]
   },
   {
     "id": "d9bf054c-2a43-4976-a35e-25bd4c58417e",
@@ -101,7 +110,38 @@
         ]
       }
     ],
-    "filters": []
+    "filters": [
+      {
+         "name": "ymm",
+         "label": "YMM",
+         "type": 2,
+         "required": false,
+         "attributes": [
+            {
+               "name": "year",
+               "label": "Year",
+               "type": 0,
+               "required": false,
+               "attributes": []
+            },
+            {
+               "name": "make",
+               "label": "Make",
+               "type": 1,
+               "required": false,
+               "attributes": []
+            },
+            {
+               "name":"model",
+               "label":"model",
+               "type": 1,
+               "required": false,
+               "attributes": []
+            }
+         ],
+         "widget": "ymm_selector"
+      }
+    ]
   }
 ]
 {{end}}

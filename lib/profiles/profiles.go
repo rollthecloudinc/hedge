@@ -76,7 +76,7 @@ type Profile struct {
 	Headshot          *ProfileImage      `form:"headshot,omitempty" json:"headshot,omitempty" binding:"omitempty" validate:"omitempty"`
 	PhoneNumbers      []PhoneNumber      `form:"phoneNumbers[]" json:"phoneNumbers" validate:"dive"`
 	Locations         []Location         `form:"locations[]" json:"locations" validate:"dive"`
-	EntityPermissions ProfilePermissions `json:"entityPermissions" validate:"required, dive"`
+	EntityPermissions ProfilePermissions `json:"entityPermissions" validate:"required"`
 }
 
 type ProfileImage struct {

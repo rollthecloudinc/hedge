@@ -157,6 +157,18 @@ functions:
             name: cognito
             scopes:
               - media_api/media_api
+  ProxyApi:
+    handler: bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
+    role: EntityApiRole
+    package:
+      include:
+        - bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
+      exclude:
+        - bazel-bin/api/proxy/linux_amd64_pure_stripped/**
+    events:
+      - httpApi:
+          path: /cities/{country}/{state}/{city}
+          method: GET
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     role: EntityApiRole

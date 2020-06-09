@@ -188,7 +188,7 @@ func InitializeHandler(c *ActionContext) Handler {
 
 		if singularName == "ad" {
 			collectionKey := "aggregations.features.features_filtered.feature_names.buckets"
-			if req.QueryStringParameters["searchString"] == "" {
+			if req.QueryStringParameters["featureSearchString"] == "" {
 				collectionKey = "aggregations.features.feature_names.buckets"
 			}
 			ac.EntityManager.AddFinder("features", entity.ElasticTemplateFinder{

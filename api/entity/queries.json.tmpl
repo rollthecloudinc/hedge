@@ -1,6 +1,5 @@
-{{ define "ads" }}
+{{ define "_ads" }}
 {
-	"query": {
 		"bool": {
 			"filter": [
 				{
@@ -106,7 +105,12 @@
                 {{ end }}
 			]
 		}
-	}
+}
+{{ end }}
+
+{{ define "ads" }}
+{
+    "query": {{ template "_ads" . }}
 }
 {{end}}
 
@@ -114,8 +118,8 @@
 {
     "aggs": {
         "features": {
-            {{ if .Req.QueryStringParameters.searchString }} "aggs": { {{ end }}
-                {{ if .Req.QueryStringParameters.searchString }} "features_filtered": { {{ end }}
+            {{ if .Req.QueryStringParameters.featureSearchString }} "aggs": { {{ end }}
+                {{ if .Req.QueryStringParameters.featureSearchString }} "features_filtered": { {{ end }}
                     "aggs": {
                         "feature_names": {
                             "terms": {
@@ -123,14 +127,14 @@
                             }
                         }
                     },
-                    {{ if .Req.QueryStringParameters.searchString }}
+                    {{ if .Req.QueryStringParameters.featureSearchString }}
                     "filter": {
                         "bool": {
                             "should": [
                                 {
                                     "match": {
                                         "featureSets.terms.humanName": {
-                                            "query": "{{ .Req.QueryStringParameters.searchString }}"
+                                            "query": "{{ .Req.QueryStringParameters.featureSearchString }}"
                                         }
                                     }
                                 }
@@ -138,26 +142,14 @@
                         }
                     }
                     {{ end }}
-                {{ if .Req.QueryStringParameters.searchString }} } {{ end }}
-            {{ if .Req.QueryStringParameters.searchString }} }, {{ end }}
+                {{ if .Req.QueryStringParameters.featureSearchString }} } {{ end }}
+            {{ if .Req.QueryStringParameters.featureSearchString }} }, {{ end }}
             "nested": {
                 "path": "featureSets.terms"
             }
         }
     },
-    "query": {
-        "bool": {
-            "filter": [
-                {
-                    "term": {
-                        "typeId.keyword": {
-                            "value": "{{ index .Req.QueryStringParameters "typeId" }}"
-                        }
-                    }
-                }
-            ]
-        }
-    },
+    "query": {{ template "_ads" . }},
     "size": 0
 }
 {{ end }}

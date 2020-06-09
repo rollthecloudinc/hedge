@@ -79,6 +79,7 @@
 				}
                 {{ end }}
                 {{ with .Req.MultiValueQueryStringParameters.features }}{{ if $.Req.QueryStringParameters.searchString }},{{ end }}
+                {{ range $index, $feature := . }}{{ if ne $index 0 }},{{ end }}
 				{
 					"nested": {
 						"path": "featureSets",
@@ -88,13 +89,11 @@
                                 "query": {
                                     "bool": {
 								        "must": [
-                                            {{ range $index, $feature := . }}{{ if ne $index 0 }},{{ end }}
 									        { 
                                                 "match": { 
                                                     "featureSets.terms.humanName": "{{ $feature }}" 
                                                 } 
                                             }
-                                            {{ end }}
                                         ]
 								    }
                                 }
@@ -102,6 +101,7 @@
 						}
 					}
 				}
+                {{ end }}
                 {{ end }}
 			]
 		}

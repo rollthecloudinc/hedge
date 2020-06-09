@@ -96,6 +96,7 @@ type Manager interface {
 	Load(id string, loader string) map[string]interface{}
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
+	AddFinder(name string, finder Finder)
 }
 
 type Storage interface {
@@ -130,9 +131,11 @@ type ElasticAdaptorConfig struct {
 }
 
 type ElasticTemplateFinderConfig struct {
-	Client   *elasticsearch7.Client
-	Index    string
-	Template *template.Template
+	Client        *elasticsearch7.Client
+	Index         string
+	Template      *template.Template
+	CollectionKey string
+	ObjectKey     string
 }
 
 type OwnerAuthorizationConfig struct {
@@ -225,6 +228,10 @@ func (m EntityManager) Delete(entity map[string]interface{}) {
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	id := fmt.Sprint(entity[m.Config.IdKey])
 	m.Storages[storage].Store(id, entity)
+}
+
+func (m EntityManager) AddFinder(name string, finder Finder) {
+	m.Finders[name] = finder
 }
 
 func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -428,15 +435,20 @@ func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []m
 	log.Printf("template data: %s", b.String())
 
 	hits := es.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
-		Index:    f.Config.Index,
-		Name:     query,
-		Template: f.Config.Template,
-		Data:     data,
+		Index:         f.Config.Index,
+		Name:          query,
+		Template:      f.Config.Template,
+		Data:          data,
+		CollectionKey: f.Config.CollectionKey,
 	})
 
 	docs := make([]map[string]interface{}, len(hits))
 	for index, hit := range hits {
-		mapstructure.Decode(hit.(map[string]interface{})["_source"], &docs[index])
+		if f.Config.ObjectKey != "" {
+			mapstructure.Decode(hit.(map[string]interface{})[f.Config.ObjectKey], &docs[index])
+		} else {
+			docs[index] = hit.(map[string]interface{})
+		}
 	}
 
 	return docs
@@ -539,9 +551,11 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 		Finders: map[string]Finder{
 			"default": ElasticTemplateFinder{
 				Config: ElasticTemplateFinderConfig{
-					Index:    config.Index,
-					Client:   config.EsClient,
-					Template: config.Template,
+					Index:         config.Index,
+					Client:        config.EsClient,
+					Template:      config.Template,
+					CollectionKey: "hits.hits",
+					ObjectKey:     "_source",
 				},
 			},
 		},

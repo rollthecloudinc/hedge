@@ -95,6 +95,9 @@ functions:
           path: /adlistitems/{proxy+}
           method: GET
       - httpApi:
+          path: /featurelistitems/{proxy+}
+          method: GET
+      - httpApi:
           path: /ad/{id}
           method: GET
       - httpApi:

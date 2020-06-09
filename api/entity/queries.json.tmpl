@@ -110,6 +110,58 @@
 }
 {{end}}
 
+{{ define "featurelistitems" }}
+{
+    "aggs": {
+        "features": {
+            {{ if .Req.QueryStringParameters.searchString }} "aggs": { {{ end }}
+                {{ if .Req.QueryStringParameters.searchString }} "features_filtered": { {{ end }}
+                    "aggs": {
+                        "feature_names": {
+                            "terms": {
+                                "field": "featureSets.terms.humanName.keyword"
+                            }
+                        }
+                    },
+                    {{ if .Req.QueryStringParameters.searchString }}
+                    "filter": {
+                        "bool": {
+                            "should": [
+                                {
+                                    "match": {
+                                        "featureSets.terms.humanName": {
+                                            "query": "{{ .Req.QueryStringParameters.searchString }}"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                    {{ end }}
+                {{ if .Req.QueryStringParameters.searchString }} } {{ end }}
+            {{ if .Req.QueryStringParameters.searchString }} }, {{ end }}
+            "nested": {
+                "path": "featureSets.terms"
+            }
+        }
+    },
+    "query": {
+        "bool": {
+            "filter": [
+                {
+                    "term": {
+                        "typeId.keyword": {
+                            "value": "{{ index .Req.QueryStringParameters "typeId" }}"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "size": 0
+}
+{{ end }}
+
 {{ define "profiles" }}
 {
     "query": {

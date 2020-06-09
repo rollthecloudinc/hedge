@@ -29,14 +29,15 @@ type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[st
 type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
 
 type ActionContext struct {
-	EsClient      *elasticsearch7.Client
-	Session       *session.Session
-	Lambda        *lambda2.Lambda
-	TypeManager   entity.Manager
-	EntityManager entity.Manager
-	EntityName    string
-	Template      *template.Template
-	TemplateName  string
+	EsClient       *elasticsearch7.Client
+	Session        *session.Session
+	Lambda         *lambda2.Lambda
+	TypeManager    entity.Manager
+	EntityManager  entity.Manager
+	EntityName     string
+	Template       *template.Template
+	TemplateName   string
+	Implementation string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -76,7 +77,7 @@ func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.
 		Req:        req,
 		Attributes: allAttributes,
 	}
-	entities := ac.EntityManager.Find("default", query, &data)
+	entities := ac.EntityManager.Find(ac.Implementation, query, &data)
 	body, err := json.Marshal(entities)
 	if err != nil {
 		return res, err
@@ -94,7 +95,7 @@ func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.AP
 	pathPieces := strings.Split(req.Path, "/")
 	id := pathPieces[2]
 	log.Printf("entity by id: %s", id)
-	ent := ac.EntityManager.Load(id, "default")
+	ent := ac.EntityManager.Load(id, ac.Implementation)
 	body, err := json.Marshal(ent)
 	if err != nil {
 		return res, err
@@ -138,6 +139,11 @@ func InitializeHandler(c *ActionContext) Handler {
 
 		if index := strings.Index(entityName, "list"); index > -1 {
 			entityName = inflector.Pluralize(entityName[0:index])
+			if entityName == "features" {
+				entityName = "ads"
+				ac.TemplateName = "featurelistitems"
+				ac.Implementation = "features"
+			}
 		} else if entityName == "adprofileitems" {
 			entityName = "profiles"
 			ac.TemplateName = "profilenavitems"
@@ -177,6 +183,22 @@ func InitializeHandler(c *ActionContext) Handler {
 				Lambda:       ac.Lambda,
 				Template:     ac.Template,
 				UserId:       userId,
+			})
+		}
+
+		if singularName == "ad" {
+			collectionKey := "aggregations.features.features_filtered.feature_names.buckets"
+			if req.QueryStringParameters["searchString"] == "" {
+				collectionKey = "aggregations.features.feature_names.buckets"
+			}
+			ac.EntityManager.AddFinder("features", entity.ElasticTemplateFinder{
+				Config: entity.ElasticTemplateFinderConfig{
+					Index:         "classified_" + pluralName,
+					Client:        ac.EsClient,
+					Template:      ac.Template,
+					CollectionKey: collectionKey,
+					ObjectKey:     "",
+				},
 			})
 		}
 
@@ -269,10 +291,11 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 
 func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
-		EsClient: ac.EsClient,
-		Session:  ac.Session,
-		Lambda:   ac.Lambda,
-		Template: ac.Template,
+		EsClient:       ac.EsClient,
+		Session:        ac.Session,
+		Lambda:         ac.Lambda,
+		Template:       ac.Template,
+		Implementation: "default",
 	}
 }
 

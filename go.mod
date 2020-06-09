@@ -3,8 +3,8 @@ module goclassifieds
 go 1.14
 
 require (
-	github.com/aws/aws-lambda-go v1.16.0
-	github.com/aws/aws-sdk-go v1.31.0 // indirect
+	github.com/aws/aws-lambda-go v1.17.0
+	github.com/aws/aws-sdk-go v1.31.13 // indirect
 	github.com/awslabs/aws-lambda-go-api-proxy v0.6.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/elastic/go-elasticsearch/v7 v7.5.1-0.20200515132447-db2bcf51489c

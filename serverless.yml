@@ -1,4 +1,6 @@
 service: goclassifieds-api
+custom:
+  elasticUrl: https://i12sa6lx3y:v75zs8pgyd@classifieds-4537380016.us-east-1.bonsaisearch.net:443
 provider:
   name: aws
   runtime: go1.x
@@ -69,6 +71,8 @@ functions:
   EntityApi:
     handler: bazel-bin/api/entity/linux_amd64_pure_stripped/entity
     role: EntityApiRole
+    environment:
+      ELASTIC_URL: ${self:custom.elasticUrl}
     package:
       include:
         - bazel-bin/api/entity/linux_amd64_pure_stripped/entity
@@ -172,6 +176,8 @@ functions:
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     role: EntityApiRole
+    environment:
+      ELASTIC_URL: ${self:custom.elasticUrl}
     package:
       include:
         - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity

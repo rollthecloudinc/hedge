@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"text/template"
 
@@ -290,9 +291,7 @@ func init() {
 	log.Printf("Gin cold start")
 
 	elasticCfg := elasticsearch7.Config{
-		Addresses: []string{
-			"https://i12sa6lx3y:v75zs8pgyd@classifieds-4537380016.us-east-1.bonsaisearch.net:443",
-		},
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
 	}
 
 	esClient, err := elasticsearch7.NewClient(elasticCfg)

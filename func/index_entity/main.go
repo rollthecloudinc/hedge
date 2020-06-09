@@ -6,6 +6,7 @@ import (
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/vocab"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -19,9 +20,7 @@ import (
 func handler(ctx context.Context, s3Event events.S3Event) {
 
 	elasticCfg := elasticsearch7.Config{
-		Addresses: []string{
-			"https://i12sa6lx3y:v75zs8pgyd@classifieds-4537380016.us-east-1.bonsaisearch.net:443",
-		},
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
 	}
 
 	esClient, err := elasticsearch7.NewClient(elasticCfg)

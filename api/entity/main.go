@@ -150,6 +150,8 @@ func InitializeHandler(c *ActionContext) Handler {
 		} else if entityName == "adtypes" {
 			entityName = "types"
 			ac.TemplateName = "all"
+		} else if entityName == "adprofile" {
+			entityName = "profile"
 		}
 
 		pluralName := inflector.Pluralize(entityName)

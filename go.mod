@@ -10,6 +10,7 @@ require (
 	github.com/elastic/go-elasticsearch/v7 v7.5.1-0.20200515132447-db2bcf51489c
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-playground/validator/v10 v10.3.0 // indirect
+	github.com/gocql/gocql v0.0.0-20200608162118-cb62e193e52b // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/mitchellh/mapstructure v1.3.0 // indirect

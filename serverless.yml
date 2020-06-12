@@ -104,6 +104,9 @@ functions:
           path: /profile/{id}
           method: GET
       - httpApi:
+          path: /adprofile/{id}
+          method: GET
+      - httpApi:
           path: /profilelistitems/{proxy+}
           method: GET
           authorizer:
@@ -175,6 +178,19 @@ functions:
     events:
       - httpApi:
           path: /cities/{country}/{state}/{city}
+          method: GET
+  ChatApi:
+    handler: bazel-bin/api/chat/linux_amd64_pure_stripped/chat
+    role: EntityApiRole
+    package:
+      include:
+        - bazel-bin/api/chat/linux_amd64_pure_stripped/chat
+        - api/chat/AmazonRootCA1.pem
+      exclude:
+        - bazel-bin/api/chat/linux_amd64_pure_stripped/**
+    events:
+      - httpApi:
+          path: /chat
           method: GET
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity

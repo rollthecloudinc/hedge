@@ -33,8 +33,8 @@ gazelle_dependencies()
 go_repository(
     name = "com_github_aws_aws_lambda_go",
     importpath = "github.com/aws/aws-lambda-go",
-    sum = "h1:9+Pp1/6cjEXYhwadp8faFXKSOWt7/tHRCnQxQmKvVwM=",
-    version = "v1.16.0",
+    sum = "h1:Ogihmi8BnpmCNktKAGpNwSiILNNING1MiosnKUfU8m0=",
+    version = "v1.17.0",
 )
 
 go_repository(
@@ -614,8 +614,8 @@ go_repository(
 go_repository(
     name = "com_github_aws_aws_sdk_go",
     importpath = "github.com/aws/aws-sdk-go",
-    sum = "h1:ITLZ0oy7IOB1NGt2Ee75bLevBaH1jaAXE2eyGbPRbCg=",
-    version = "v1.31.0",
+    sum = "h1:UeWMTRTL0XAKLR7vxDL4/u7KOtz/LtfJr+lXtxN4YEQ=",
+    version = "v1.31.13",
 )
 
 go_repository(
@@ -651,4 +651,46 @@ go_repository(
     importpath = "github.com/tangzero/inflector",
     sum = "h1:933dvPwRUUOAl98hyeeXuzFix3HwDt5j+45lleu8oh0=",
     version = "v1.0.0",
+)
+
+go_repository(
+    name = "com_github_bitly_go_hostpool",
+    importpath = "github.com/bitly/go-hostpool",
+    sum = "h1:mXoPYz/Ul5HYEDvkta6I8/rnYM5gSdSV2tJ6XbZuEtY=",
+    version = "v0.0.0-20171023180738-a3a6125de932",
+)
+
+go_repository(
+    name = "com_github_bmizerany_assert",
+    importpath = "github.com/bmizerany/assert",
+    sum = "h1:DDGfHa7BWjL4YnC6+E63dPcxHo2sUxDIu8g3QgEJdRY=",
+    version = "v0.0.0-20160611221934-b7ed37b82869",
+)
+
+go_repository(
+    name = "com_github_gocql_gocql",
+    importpath = "github.com/gocql/gocql",
+    sum = "h1:ehjJsmZzqcE3nGO1uKvEKOIflkdUyEjTDP7fA2m7f2c=",
+    version = "v0.0.0-20200608162118-cb62e193e52b",
+)
+
+go_repository(
+    name = "com_github_golang_snappy",
+    importpath = "github.com/golang/snappy",
+    sum = "h1:K9KHZbXKpGydfDN0aZrsoHpLJlZsBrGMFWbgLDGnPZk=",
+    version = "v0.0.0-20170215233205-553a64147049",
+)
+
+go_repository(
+    name = "com_github_hailocab_go_hostpool",
+    importpath = "github.com/hailocab/go-hostpool",
+    sum = "h1:5upAirOpQc1Q53c0bnx2ufif5kANL7bfZWcc6VJWJd8=",
+    version = "v0.0.0-20160125115350-e80d13ce29ed",
+)
+
+go_repository(
+    name = "in_gopkg_inf_v0",
+    importpath = "gopkg.in/inf.v0",
+    sum = "h1:73M5CoZyi3ZLMOyDlQh031Cx6N9NDJ2Vvfl76EDAgDc=",
+    version = "v0.9.1",
 )

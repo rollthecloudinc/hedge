@@ -19,8 +19,11 @@ go_library(
     importpath = "goclassifieds/api/chat",
     visibility = ["//visibility:private"],
     deps = [
+        "//lib/entity",
         "@com_github_aws_aws_lambda_go//events:go_default_library",
         "@com_github_aws_aws_lambda_go//lambda:go_default_library",
         "@com_github_gocql_gocql//:go_default_library",
+        "@com_github_aws_aws_sdk_go//service/lambda:go_default_library",
+        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
     ],
 )

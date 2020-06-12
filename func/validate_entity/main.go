@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"goclassifieds/lib/ads"
+	"goclassifieds/lib/chat"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/profiles"
 	"goclassifieds/lib/utils"
 	"goclassifieds/lib/vocab"
 	"log"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/go-playground/validator/v10"
@@ -44,6 +46,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateVocabulary(jsonData, payload)
 	} else if payload.EntityName == "profile" {
 		newEntity, err = ValidateProfile(jsonData, payload)
+	} else if payload.EntityName == "chatconnection" {
+		newEntity, err = ValidateChatConnection(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -140,6 +144,37 @@ func ValidateProfile(jsonData []byte, payload *entity.ValidateEntityRequest) (ma
 	}
 
 	newEntity, _ := profiles.ToEntity(&obj)
+	return newEntity, nil
+}
+
+func ValidateChatConnection(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	log.Print("here 1")
+
+	var obj chat.ChatConnection
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	log.Print("here 2")
+
+	obj.CreatedAt = time.Now()
+	obj.UserId = payload.UserId
+
+	log.Print("here 3")
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+	if err != nil {
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	log.Print("here 4")
+
+	newEntity, _ := chat.ToConnectionEntity(&obj)
+	log.Print("here 5")
 	return newEntity, nil
 }
 

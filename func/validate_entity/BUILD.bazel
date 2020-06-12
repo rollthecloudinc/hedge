@@ -20,6 +20,7 @@ go_library(
         "//lib/ads",
         "//lib/vocab",
         "//lib/profiles",
+        "//lib/chat",
         "@com_github_aws_aws_lambda_go//lambda:go_default_library",
         "@com_github_go_playground_validator_v10//:go_default_library",
     ],

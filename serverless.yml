@@ -16,9 +16,27 @@ provider:
         audience:
           - 3lkidn79q4jq8nahkecsguleij
 package:
-  individually: true
+  individually: false
+  include:
+    - bazel-bin/api/entity/linux_amd64_pure_stripped/entity
+    - bazel-bin/api/media/linux_amd64_pure_stripped/media
+    - bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
+    - bazel-bin/api/chat/linux_amd64_pure_stripped/chat
+    - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
+    - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
+    - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
+    - api/entity/types.json.tmpl
+    - api/entity/queries.json.tmpl
+    - api/chat/AmazonRootCA1.pem
   exclude:
     - ./**
+    - bazel-bin/api/entity/linux_amd64_pure_stripped/**
+    - bazel-bin/api/media/linux_amd64_pure_stripped/**
+    - bazel-bin/api/proxy/linux_amd64_pure_stripped/**
+    - bazel-bin/api/chat/linux_amd64_pure_stripped/**
+    - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
+    - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
+    - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**
 resources:
   Resources:
     EntityApiRole:
@@ -73,13 +91,6 @@ functions:
     role: EntityApiRole
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
-    package:
-      include:
-        - bazel-bin/api/entity/linux_amd64_pure_stripped/entity
-        - api/entity/types.json.tmpl
-        - api/entity/queries.json.tmpl
-      exclude:
-        - bazel-bin/api/entity/linux_amd64_pure_stripped/**
     events:
       - httpApi:
           path: /adprofileitems/{proxy+}
@@ -151,11 +162,6 @@ functions:
   MediaApi:
     handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
     role: EntityApiRole
-    package:
-      include:
-        - bazel-bin/api/media/linux_amd64_pure_stripped/media
-      exclude:
-        - bazel-bin/api/media/linux_amd64_pure_stripped/**
     events:
       - httpApi:
           path: /media/{prefix}
@@ -170,11 +176,6 @@ functions:
   ProxyApi:
     handler: bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
     role: EntityApiRole
-    package:
-      include:
-        - bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
-      exclude:
-        - bazel-bin/api/proxy/linux_amd64_pure_stripped/**
     events:
       - httpApi:
           path: /cities/{country}/{state}/{city}
@@ -182,26 +183,19 @@ functions:
   ChatApi:
     handler: bazel-bin/api/chat/linux_amd64_pure_stripped/chat
     role: EntityApiRole
-    package:
-      include:
-        - bazel-bin/api/chat/linux_amd64_pure_stripped/chat
-        - api/chat/AmazonRootCA1.pem
-      exclude:
-        - bazel-bin/api/chat/linux_amd64_pure_stripped/**
     events:
       - httpApi:
           path: /chat
-          method: GET
+          method: POST
+          authorizer:
+            name: cognito
+            scopes:
+              - chat/chat
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     role: EntityApiRole
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
-    package:
-      include:
-        - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
-      exclude:
-        - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
     events:
       - s3:
           bucket: classifieds-ui-dev
@@ -209,20 +203,9 @@ functions:
           rules:
             - suffix: .json.gz
           existing: true
-
   ValidateEntity:
     handler: bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     role: EntityApiRole
-    package:
-      include:
-        - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
-      exclude:
-        - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
   ReadableProfiles:
     handler: bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
     role: EntityApiRole
-    package:
-      include:
-        - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
-      exclude:
-        - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**

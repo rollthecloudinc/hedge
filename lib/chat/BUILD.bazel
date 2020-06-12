@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "chat",
+    srcs = ["chat.go"],
+    importpath = "goclassifieds/lib/chat",
+    visibility = ["//visibility:public"],
+    deps = [
+    ],
+)

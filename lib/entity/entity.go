@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
 	"text/template"
+	"time"
 
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/es"
@@ -26,6 +28,7 @@ import (
 	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-playground/validator/v10"
+	"github.com/gocql/gocql"
 )
 
 type EntityHook func(enity map[string]interface{}) (bool, error)
@@ -130,6 +133,11 @@ type ElasticAdaptorConfig struct {
 	Index  string
 }
 
+type CqlAdaptorConfig struct {
+	Session *gocql.Session
+	Table   string
+}
+
 type ElasticTemplateFinderConfig struct {
 	Client        *elasticsearch7.Client
 	Index         string
@@ -166,6 +174,10 @@ type S3StorageAdaptor struct {
 
 type ElasticStorageAdaptor struct {
 	Config ElasticAdaptorConfig
+}
+
+type CqlStorageAdaptor struct {
+	Config CqlAdaptorConfig
 }
 
 type ElasticTemplateFinder struct {
@@ -334,6 +346,37 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	_, err := req.Do(context.Background(), s.Config.Client)
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)
+	}
+}
+
+func (s CqlStorageAdaptor) Store(id string, entity map[string]interface{}) {
+	values := make([]interface{}, 0)
+	cols := make([]string, 0)
+	bind := make([]string, 0)
+	for field, value := range entity {
+		bind = append(bind, "?")
+		cols = append(cols, strings.ToLower(field))
+		xType := fmt.Sprintf("%T", value)
+		log.Printf("%s = %s", field, xType)
+		if xType == "string" {
+			t1, e := time.Parse(time.RFC3339, value.(string))
+			if e == nil {
+				log.Printf("is time: %s", value)
+				values = append(values, t1)
+			} else {
+				log.Printf("is not time: %s", value)
+				values = append(values, value)
+			}
+		} else {
+			log.Printf("is not string: %v", value)
+			values = append(values, value)
+		}
+	}
+	stmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, s.Config.Table, strings.Join(cols[:], ","), strings.Join(bind[:], ","))
+	log.Print("after exec")
+	if err := s.Config.Session.Query(stmt, values...).Exec(); err != nil {
+		log.Print("after exec error")
+		log.Fatal(err)
 	}
 }
 

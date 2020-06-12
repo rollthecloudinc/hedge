@@ -13,6 +13,7 @@ require (
 	github.com/gocql/gocql v0.0.0-20200608162118-cb62e193e52b // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/uuid v1.1.1 // indirect
+	github.com/lestrrat-go/jwx v1.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.3.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect

@@ -565,15 +565,15 @@ go_repository(
 go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
-    sum = "h1:VklqNMn3ovrHsnt90PveolxSbWFaJdECFbxSq0Mqo2M=",
-    version = "v0.0.0-20190308221718-c2843e01d9a2",
+    sum = "h1:ObdrDkeb4kJdCP557AjRjq69pTHfNouLtWZG7j9rPN8=",
+    version = "v0.0.0-20191011191535-87dc89f01550",
 )
 
 go_repository(
     name = "org_golang_x_net",
     importpath = "golang.org/x/net",
-    sum = "h1:CCH4IOTTfewWjGOlSp+zGcjutRKlBEZQ6wTn8ozI/nI=",
-    version = "v0.0.0-20200202094626-16171245cfb2",
+    sum = "h1:0mm1VjtFUOIlE1SbDlwjYaDxZVDP2S5ou6y0gSgXHu8=",
+    version = "v0.0.0-20200226121028-0de0cce0169b",
 )
 
 go_repository(
@@ -600,8 +600,8 @@ go_repository(
 go_repository(
     name = "org_golang_x_tools",
     importpath = "golang.org/x/tools",
-    sum = "h1:97SnQk1GYRXJgvwZ8fadnxDOWfKvkNQHH3CtZntPSrM=",
-    version = "v0.0.0-20190506145303-2d16b83fe98c",
+    sum = "h1:NXNmtp0ToD36cui5IqWy95LC4Y6vT/4y3RnPxlQPinU=",
+    version = "v0.0.0-20200417140056-c07e33ef3290",
 )
 
 go_repository(
@@ -707,4 +707,39 @@ go_repository(
     importpath = "github.com/scylladb/gocqlx/v2",
     sum = "h1:V6U8N0aHvPPZzD2PoDvQFmHKFokzXBJU7U/rDF33I4A=",
     version = "v2.0.3",
+)
+
+go_repository(
+    name = "com_github_lestrrat_go_iter",
+    importpath = "github.com/lestrrat-go/iter",
+    sum = "h1:FvnrqecqX4zT0wOIbYK1gNgTm0677INEWiFY8UEYggY=",
+    version = "v0.0.0-20200422075355-fc1769541911",
+)
+
+go_repository(
+    name = "com_github_lestrrat_go_jwx",
+    importpath = "github.com/lestrrat-go/jwx",
+    sum = "h1:FsbZg/v979RikHWhSu/7BRHh2Z1Z8byPleURRb1Y0XI=",
+    version = "v1.0.2",
+)
+
+go_repository(
+    name = "com_github_lestrrat_go_pdebug",
+    importpath = "github.com/lestrrat-go/pdebug",
+    sum = "h1:aEZT3f1GGg5RIlHMAy4/4fe4ciOi3SCwYoaURphcB4k=",
+    version = "v0.0.0-20200204225717-4d6bd78da58d",
+)
+
+go_repository(
+    name = "com_github_yuin_goldmark",
+    importpath = "github.com/yuin/goldmark",
+    sum = "h1:nqDD4MMMQA0lmWq03Z2/myGPYLQoXtmi0rGVs95ntbo=",
+    version = "v1.1.27",
+)
+
+go_repository(
+    name = "org_golang_x_mod",
+    importpath = "golang.org/x/mod",
+    sum = "h1:KU7oHjnv3XNWfa5COkzUifxZmxp1TyI7ImMXqFxLwvQ=",
+    version = "v0.2.0",
 )

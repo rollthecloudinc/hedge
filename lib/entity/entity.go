@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	s3 "github.com/aws/aws-sdk-go/service/s3"
 	esapi "github.com/elastic/go-elasticsearch/esapi"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
@@ -132,6 +133,11 @@ type S3AdaptorConfig struct {
 	Session *session.Session
 }
 
+type CognitoAdaptorConfig struct {
+	Client     *cognitoidentityprovider.CognitoIdentityProvider
+	UserPoolId string
+}
+
 type ElasticAdaptorConfig struct {
 	Client *elasticsearch7.Client
 	Index  string
@@ -174,6 +180,10 @@ type S3LoaderAdaptor struct {
 
 type S3MediaLoaderAdaptor struct {
 	Config S3AdaptorConfig
+}
+
+type CognitoLoaderAdaptor struct {
+	Config CognitoAdaptorConfig
 }
 
 type FinderLoaderAdaptor struct {
@@ -319,6 +329,27 @@ func (l FinderLoaderAdaptor) Load(id string, m *EntityManager) map[string]interf
 		}
 	}
 	return match
+}
+
+func (l CognitoLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
+	res, err := l.Config.Client.ListUsers(&cognitoidentityprovider.ListUsersInput{
+		Filter:     aws.String("sub=\"" + id + "\""),
+		UserPoolId: aws.String(l.Config.UserPoolId),
+		Limit:      aws.Int64(1),
+	})
+	if err != nil {
+		log.Print(err)
+	}
+	jsonData, err := json.Marshal(res.Users[0])
+	if err != nil {
+		log.Print(err)
+	}
+	var obj map[string]interface{}
+	err = json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		log.Print(err)
+	}
+	return obj
 }
 
 func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {

@@ -743,3 +743,10 @@ go_repository(
     sum = "h1:KU7oHjnv3XNWfa5COkzUifxZmxp1TyI7ImMXqFxLwvQ=",
     version = "v0.2.0",
 )
+
+go_repository(
+    name = "com_github_aws_aws_sdk_go_v2",
+    importpath = "github.com/aws/aws-sdk-go-v2",
+    sum = "h1:+E1q1LLSfHSDn/DzOtdJOX+pLZE2HiNV2yO5AjZINwM=",
+    version = "v0.23.0",
+)

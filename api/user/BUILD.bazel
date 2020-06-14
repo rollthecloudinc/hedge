@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "user",
+    embed = [":go_default_library"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/user",
+    visibility = ["//visibility:public"]
+)
+#go_test(
+#    name = "mainTest",
+#    srcs = ["main_test.go"],
+#)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/user",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/entity",
+        "//lib/user",
+        "@com_github_aws_aws_lambda_go//events:go_default_library",
+        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
+        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
+        "@com_github_aws_aws_sdk_go//service/cognitoidentityprovider:go_default_library",
+    ],
+)

@@ -13,6 +13,8 @@ github.com/aws/aws-sdk-go v1.31.0 h1:ITLZ0oy7IOB1NGt2Ee75bLevBaH1jaAXE2eyGbPRbCg
 github.com/aws/aws-sdk-go v1.31.0/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
 github.com/aws/aws-sdk-go v1.31.13 h1:UeWMTRTL0XAKLR7vxDL4/u7KOtz/LtfJr+lXtxN4YEQ=
 github.com/aws/aws-sdk-go v1.31.13/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
+github.com/aws/aws-sdk-go-v2 v0.23.0 h1:+E1q1LLSfHSDn/DzOtdJOX+pLZE2HiNV2yO5AjZINwM=
+github.com/aws/aws-sdk-go-v2 v0.23.0/go.mod h1:2LhT7UgHOXK3UXONKI5OMgIyoQL6zTAw/jwIeX6yqzw=
 github.com/awslabs/aws-lambda-go-api-proxy v0.6.0 h1:wbMkrj4dxSlW9BZ03mKip95YEodNcLGbZuP/ArG6+Ec=
 github.com/awslabs/aws-lambda-go-api-proxy v0.6.0/go.mod h1:hxP3G7NUojx/te+NJok/k9IkANYPlll5kST3fveu16I=
 github.com/aymerick/raymond v2.0.2+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
@@ -85,6 +87,7 @@ github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed/go.mod h1:tMW
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/formBinder v5.0.0+incompatible/go.mod h1:i8kTYUOEstd/S8TG0ChTXQdf4ermA/e8vJX0+QruD9w=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
+github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af/go.mod h1:Nht3zPeWKUH0NzdCt2Blrr5ys8VGpn0CEB0cQHVjt7k=
 github.com/jmespath/go-jmespath v0.3.0 h1:OS12ieG61fsCg5+qLJ+SsW9NicxNkg3b25OyT2yCeUc=
 github.com/jmespath/go-jmespath v0.3.0/go.mod h1:9QtRXoHjLGCJ5IBSaohpXITPlowMeeYCZ7fLUTSywik=
 github.com/json-iterator/go v0.0.0-20180128142709-bca911dae073 h1:GAEb5ZL9Cd0a56kaWwoFD8ln4/1YUptTOyTiieM/7OE=

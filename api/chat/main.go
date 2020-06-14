@@ -169,6 +169,7 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 						"userid":         "userId",
 						"senderid":       "senderId",
 						"recipientlabel": "recipientLabel",
+						"createdat":      "createdAt",
 					},
 				},
 			},

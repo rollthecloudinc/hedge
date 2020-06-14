@@ -8,3 +8,17 @@ SELECT
 WHERE 
      userid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
 {{end}}
+
+{{ define "chatmessages" }}
+SELECT 
+     senderid,
+     recipientid,
+     createdat,
+     message
+ FROM
+     chatmessages 
+WHERE 
+     senderid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
+  AND
+     recipientid = {{ bindValue (index .Req.QueryStringParameters "recipientId") }}
+{{end}}

@@ -164,6 +164,12 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 					Template: ac.Template,
 					Table:    inflector.Pluralize(ac.EntityName),
 					Bindings: ac.Bindings,
+					Aliases: map[string]string{
+						"recipientid":    "recipientId",
+						"userid":         "userId",
+						"senderid":       "senderId",
+						"recipientlabel": "recipientLabel",
+					},
 				},
 			},
 		},

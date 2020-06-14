@@ -155,6 +155,7 @@ type CqlTemplateFinderConfig struct {
 	Table    string
 	Template *template.Template
 	Bindings *VariableBindings
+	Aliases  map[string]string
 }
 
 type OwnerAuthorizationConfig struct {
@@ -558,10 +559,19 @@ func (f CqlTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[s
 	rows := make([]map[string]interface{}, 0)
 	iter := f.Config.Session.Query(tb.String(), f.Config.Bindings.Values...).Iter()
 	for {
+		rawRow := make(map[string]interface{})
 		row := make(map[string]interface{})
 
-		if !iter.MapScan(row) {
+		if !iter.MapScan(rawRow) {
 			break
+		}
+
+		for field, val := range rawRow {
+			if _, ok := f.Config.Aliases[field]; ok {
+				row[f.Config.Aliases[field]] = val
+			} else {
+				row[field] = val
+			}
 		}
 
 		rows = append(rows, row)

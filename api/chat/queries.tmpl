@@ -1,0 +1,10 @@
+{{ define "chatconversations" }}
+SELECT 
+     recipientid, 
+     recipientlabel, 
+     userid 
+ FROM
+     chatconversations 
+WHERE 
+     userid = {{ bindValue "8229a760-fc3a-4efa-b850-6d19e9114963" }}
+{{end}}

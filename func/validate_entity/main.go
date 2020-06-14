@@ -40,7 +40,6 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 
 	var newEntity map[string]interface{}
 	if payload.EntityName == "ad" {
-		log.Printf("validate an ad")
 		newEntity, err = ValidateAd(jsonData, payload)
 	} else if payload.EntityName == "vocabulary" {
 		newEntity, err = ValidateVocabulary(jsonData, payload)
@@ -48,6 +47,10 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateProfile(jsonData, payload)
 	} else if payload.EntityName == "chatconnection" {
 		newEntity, err = ValidateChatConnection(jsonData, payload)
+	} else if payload.EntityName == "chatconversation" {
+		newEntity, err = ValidateChatConversation(jsonData, payload)
+	} else if payload.EntityName == "chatmessage" {
+		newEntity, err = ValidateChatMessage(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -150,20 +153,14 @@ func ValidateProfile(jsonData []byte, payload *entity.ValidateEntityRequest) (ma
 func ValidateChatConnection(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
 	var deadObject map[string]interface{}
 
-	log.Print("here 1")
-
 	var obj chat.ChatConnection
 	err := json.Unmarshal(jsonData, &obj)
 	if err != nil {
 		return deadObject, err
 	}
 
-	log.Print("here 2")
-
 	obj.CreatedAt = time.Now()
 	obj.UserId = payload.UserId
-
-	log.Print("here 3")
 
 	validate := validator.New()
 	err = validate.Struct(obj)
@@ -171,10 +168,50 @@ func ValidateChatConnection(jsonData []byte, payload *entity.ValidateEntityReque
 		return deadObject, err.(validator.ValidationErrors)
 	}
 
-	log.Print("here 4")
-
 	newEntity, _ := chat.ToConnectionEntity(&obj)
-	log.Print("here 5")
+	return newEntity, nil
+}
+
+func ValidateChatConversation(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	var obj chat.ChatConversation
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	obj.UserId = payload.UserId
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+	if err != nil {
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	newEntity, _ := chat.ToConversationEntity(&obj)
+	return newEntity, nil
+}
+
+func ValidateChatMessage(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	var obj chat.ChatMessage
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	obj.SenderId = payload.UserId
+	obj.CreatedAt = time.Now()
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+	if err != nil {
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	newEntity, _ := chat.ToMessageEntity(&obj)
 	return newEntity, nil
 }
 

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
+	"text/template"
 
 	"goclassifieds/lib/entity"
 
@@ -13,17 +15,55 @@ import (
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gocql/gocql"
+	"github.com/tangzero/inflector"
 )
 
 var handler Handler
 
 type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
+type TemplateBindValueFunc func(value interface{}) string
 
 type ActionContext struct {
-	Session       *gocql.Session
-	Lambda        *lambda2.Lambda
-	EntityManager entity.EntityManager
-	UserId        string
+	Session        *gocql.Session
+	Lambda         *lambda2.Lambda
+	Template       *template.Template
+	EntityManager  entity.EntityManager
+	UserId         string
+	EntityName     string
+	TemplateName   string
+	Implementation string
+	Bindings       *entity.VariableBindings
+}
+
+func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	var res events.APIGatewayProxyResponse
+	pathPieces := strings.Split(req.Path, "/")
+
+	query := inflector.Pluralize(ac.EntityName)
+	if len(pathPieces) == 3 && pathPieces[2] != "" {
+		query = pathPieces[2]
+	} else if ac.TemplateName != "" {
+		query = ac.TemplateName
+	}
+
+	log.Printf("entity: %s | query: %s", ac.EntityName, query)
+
+	allAttributes := make([]entity.EntityAttribute, 0)
+	data := entity.EntityFinderDataBag{
+		Req:        req,
+		Attributes: allAttributes,
+	}
+	entities := ac.EntityManager.Find(ac.Implementation, query, &data)
+	body, err := json.Marshal(entities)
+	if err != nil {
+		return res, err
+	}
+	res.StatusCode = 200
+	res.Headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	res.Body = string(body[:])
+	return res, nil
 }
 
 func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -50,25 +90,56 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 		ac := RequestActionContext(c)
+
+		pathPieces := strings.Split(req.Path, "/")
+		entityName := pathPieces[1]
+
+		pluralName := inflector.Pluralize(entityName)
+		singularName := inflector.Singularize(entityName)
+		ac.EntityName = singularName
 		ac.UserId = GetUserId(req)
 		ac.EntityManager = NewManager(ac)
-		return CreateEntity(req, ac)
-		//return events.APIGatewayProxyResponse{StatusCode: 200}, nil
+
+		if entityName == singularName && req.HTTPMethod == "POST" {
+			return CreateEntity(req, ac)
+		} else if entityName == pluralName && req.HTTPMethod == "GET" {
+			return GetEntities(req, ac)
+		}
+
+		return events.APIGatewayProxyResponse{StatusCode: 500}, nil
 	}
 }
 
-func RequestActionContext(ac *ActionContext) *ActionContext {
-	return &ActionContext{
-		Session: ac.Session,
-		Lambda:  ac.Lambda,
+func RequestActionContext(c *ActionContext) *ActionContext {
+
+	ac := &ActionContext{
+		Session:        c.Session,
+		Lambda:         c.Lambda,
+		Implementation: "default",
+		Bindings:       &entity.VariableBindings{Values: make([]interface{}, 0)},
 	}
+
+	funcMap := template.FuncMap{
+		"bindValue": TemplateBindValue(ac),
+	}
+
+	t, err := template.New("").Funcs(funcMap).ParseFiles("api/chat/queries.tmpl")
+
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+	}
+
+	ac.Template = t
+
+	return ac
+
 }
 
 func NewManager(ac *ActionContext) entity.EntityManager {
 	return entity.EntityManager{
 		Config: entity.EntityConfig{
-			SingularName: "chatconnection",
-			PluralName:   "chatconnections",
+			SingularName: ac.EntityName,
+			PluralName:   inflector.Pluralize(ac.EntityName),
 			IdKey:        "id",
 		},
 		Creator: entity.DefaultCreatorAdaptor{
@@ -82,7 +153,17 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 			"default": entity.CqlStorageAdaptor{
 				Config: entity.CqlAdaptorConfig{
 					Session: ac.Session,
-					Table:   "chatconnections",
+					Table:   inflector.Pluralize(ac.EntityName),
+				},
+			},
+		},
+		Finders: map[string]entity.Finder{
+			"default": entity.CqlTemplateFinder{
+				Config: entity.CqlTemplateFinderConfig{
+					Session:  ac.Session,
+					Template: ac.Template,
+					Table:    inflector.Pluralize(ac.EntityName),
+					Bindings: ac.Bindings,
 				},
 			},
 		},
@@ -98,6 +179,13 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 		}
 	}
 	return userId
+}
+
+func TemplateBindValue(ac *ActionContext) TemplateBindValueFunc {
+	return func(value interface{}) string {
+		ac.Bindings.Values = append(ac.Bindings.Values, value)
+		return "?"
+	}
 }
 
 func init() {

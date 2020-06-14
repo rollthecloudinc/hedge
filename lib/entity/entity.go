@@ -65,6 +65,10 @@ type ValidateEntityResponse struct {
 	Unauthorized bool
 }
 
+type VariableBindings struct {
+	Values []interface{}
+}
+
 type EntityDataResponse struct {
 	Data []map[string]interface{}
 }
@@ -146,6 +150,13 @@ type ElasticTemplateFinderConfig struct {
 	ObjectKey     string
 }
 
+type CqlTemplateFinderConfig struct {
+	Session  *gocql.Session
+	Table    string
+	Template *template.Template
+	Bindings *VariableBindings
+}
+
 type OwnerAuthorizationConfig struct {
 	UserId string
 }
@@ -182,6 +193,10 @@ type CqlStorageAdaptor struct {
 
 type ElasticTemplateFinder struct {
 	Config ElasticTemplateFinderConfig
+}
+
+type CqlTemplateFinder struct {
+	Config CqlTemplateFinderConfig
 }
 
 type OwnerAuthorizationAdaptor struct {
@@ -523,6 +538,37 @@ func (f DefaultEntityTypeFinder) Find(query string, data *EntityFinderDataBag) [
 
 	return filteredTypes
 
+}
+
+func (f CqlTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
+
+	f.Config.Bindings.Values = make([]interface{}, 0)
+
+	var tb bytes.Buffer
+	err := f.Config.Template.ExecuteTemplate(&tb, query, data)
+	if err != nil {
+		log.Printf("Build CQL Query Error: %s", err.Error())
+	}
+
+	log.Printf("cql query: ", tb.String())
+	for _, value := range f.Config.Bindings.Values {
+		log.Printf("binding: %v", value)
+	}
+
+	rows := make([]map[string]interface{}, 0)
+	iter := f.Config.Session.Query(tb.String(), f.Config.Bindings.Values...).Iter()
+	for {
+		row := make(map[string]interface{})
+
+		if !iter.MapScan(row) {
+			break
+		}
+
+		rows = append(rows, row)
+
+	}
+
+	return rows
 }
 
 func TypeToEntity(entityType *EntityType) (map[string]interface{}, error) {

@@ -47,3 +47,14 @@ SELECT
  WHERE
       userid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
 {{ end }}
+
+{{ define "_chatconnections_inverse" }}
+SELECT
+      connid,
+      userid,
+      createdat
+  FROM
+      chatconnections
+ WHERE
+      userid = {{ bindValue (index .Metadata "recipientId" ) }}
+{{ end }}

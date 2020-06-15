@@ -224,6 +224,22 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 						entity.FilterEntities(func(ent map[string]interface{}) bool {
 							return ent["createdAt"].(time.Time).After(time.Now().Add(-1 * time.Hour))
 						}),
+						entity.MergeEntities(func(m *entity.EntityManager) []map[string]interface{} {
+							allAttributes := make([]entity.EntityAttribute, 0)
+							data := entity.EntityFinderDataBag{
+								Req:        req,
+								Attributes: allAttributes,
+								Metadata: map[string]interface{}{
+									"recipientId": ent["recipientId"],
+								},
+							}
+							return m.Find("default", "_chatconnections_inverse", &data)
+						}),
+					),
+					"default/_chatconnections_inverse": entity.PipeCollectionHooks(
+						entity.FilterEntities(func(ent map[string]interface{}) bool {
+							return ent["createdAt"].(time.Time).After(time.Now().Add(-1 * time.Hour))
+						}),
 					),
 				},
 			}

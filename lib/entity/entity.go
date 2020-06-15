@@ -77,6 +77,7 @@ type EntityDataRequest struct {
 type EntityFinderDataBag struct {
 	Req        *events.APIGatewayProxyRequest
 	Attributes []EntityAttribute
+	Metadata   map[string]interface{}
 }
 
 type ValidateEntityResponse struct {

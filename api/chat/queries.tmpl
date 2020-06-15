@@ -22,3 +22,17 @@ WHERE
   AND
      recipientid = {{ bindValue (index .Req.QueryStringParameters "recipientId") }}
 {{end}}
+
+{{ define "_chatmessages_inverse" }}
+SELECT 
+     senderid,
+     recipientid,
+     createdat,
+     message
+ FROM
+     chatmessages
+WHERE 
+     recipientid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
+  AND
+     senderid = {{ bindValue (index .Req.QueryStringParameters "recipientId") }}
+{{end}}

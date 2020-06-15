@@ -98,7 +98,7 @@ func InitializeHandler(c *ActionContext) Handler {
 		singularName := inflector.Singularize(entityName)
 		ac.EntityName = singularName
 		ac.UserId = GetUserId(req)
-		ac.EntityManager = NewManager(ac)
+		ac.EntityManager = NewManager(ac, req)
 
 		if entityName == singularName && req.HTTPMethod == "POST" {
 			return CreateEntity(req, ac)
@@ -135,7 +135,7 @@ func RequestActionContext(c *ActionContext) *ActionContext {
 
 }
 
-func NewManager(ac *ActionContext) entity.EntityManager {
+func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.EntityManager {
 	return entity.EntityManager{
 		Config: entity.EntityConfig{
 			SingularName: ac.EntityName,
@@ -174,11 +174,17 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 				},
 			},
 		},
-		CollectionHooks: map[entity.Hooks]entity.EntityCollectionHook{
-			entity.AfterFind: func(entities []map[string]interface{}, m *entity.EntityManager) ([]map[string]interface{}, error) {
-				log.Print("After Find")
-				return entities, nil
-			},
+		CollectionHooks: map[string]entity.EntityCollectionHook{
+			"default/chatmessages": entity.PipeCollectionHooks(
+				entity.MergeEntities(func(m *entity.EntityManager) []map[string]interface{} {
+					allAttributes := make([]entity.EntityAttribute, 0)
+					data := entity.EntityFinderDataBag{
+						Req:        req,
+						Attributes: allAttributes,
+					}
+					return m.Find("default", "_chatmessages_inverse", &data)
+				},
+				)),
 		},
 	}
 }

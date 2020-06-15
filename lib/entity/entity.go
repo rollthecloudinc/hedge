@@ -41,8 +41,16 @@ const (
 	AfterFind
 )
 
+type HookSignals int32
+
+const (
+	HookContinue HookSignals = iota
+	HookBreak
+	HookSkip
+)
+
 type EntityHook func(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
-type EntityCollectionHook func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error)
+type EntityCollectionHook func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error, HookSignals)
 type CognitoTransformation func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error)
 
 type EntityConfig struct {
@@ -96,8 +104,8 @@ type DefaultManagerConfig struct {
 	Index        string
 	BeforeSave   EntityHook
 	AfterSave    EntityHook
-	BeforeFind EntityCollectionHook
-	AfterFind EntityCollectionHook
+	BeforeFind   EntityCollectionHook
+	AfterFind    EntityCollectionHook
 }
 
 type EntityManager struct {
@@ -108,7 +116,7 @@ type EntityManager struct {
 	Storages        map[string]Storage
 	Authorizers     map[string]Authorization
 	Hooks           map[Hooks]EntityHook
-	CollectionHooks map[Hooks]EntityCollectionHook
+	CollectionHooks map[string]EntityCollectionHook
 }
 
 type Manager interface {
@@ -121,7 +129,7 @@ type Manager interface {
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 	AddFinder(name string, finder Finder)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
-	ExecuteCollectionHook(hook Hooks, entities []map[string]interface{}) ([]map[string]interface{}, error)
+	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
 }
 
 type Storage interface {
@@ -305,7 +313,7 @@ func (m EntityManager) Find(finder string, query string, data *EntityFinderDataB
 
 	entities := make([]map[string]interface{}, 0)
 
-	entities, err := m.ExecuteCollectionHook(BeforeFind, entities)
+	entities, err := m.ExecuteCollectionHook(finder+"/"+query, entities)
 	if err != nil {
 		log.Print(err)
 	}
@@ -314,7 +322,7 @@ func (m EntityManager) Find(finder string, query string, data *EntityFinderDataB
 		entities = append(entities, entity)
 	}
 
-	entities, err = m.ExecuteCollectionHook(AfterFind, entities)
+	entities, err = m.ExecuteCollectionHook(finder+"/"+query, entities)
 	if err != nil {
 		log.Print(err)
 	}
@@ -341,9 +349,10 @@ func (m EntityManager) ExecuteHook(hook Hooks, entity map[string]interface{}) (m
 	return entity, nil
 }
 
-func (m EntityManager) ExecuteCollectionHook(hook Hooks, entities []map[string]interface{}) ([]map[string]interface{}, error) {
+func (m EntityManager) ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error) {
 	if hookFunc, ok := m.CollectionHooks[hook]; ok {
-		return hookFunc(entities, &m)
+		entities, err, _ := hookFunc(entities, &m)
+		return entities, err
 	}
 	return entities, nil
 }
@@ -726,6 +735,34 @@ func ExecuteEntityLambda(lam *lambda.Lambda, functionName string, request *Entit
 
 	return dataRes, nil
 
+}
+
+func PipeCollectionHooks(hooks ...EntityCollectionHook) EntityCollectionHook {
+	return func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error, HookSignals) {
+		collection := entities[:]
+		for _, hook := range hooks {
+			c, err, sig := hook(entities, m)
+			if err != nil {
+				log.Print(err)
+			}
+			if sig == HookBreak {
+				return collection, nil, HookContinue
+			} else if sig == HookSkip {
+				continue
+			}
+			collection = c
+		}
+		return collection, nil, HookContinue
+	}
+}
+
+func MergeEntities(h func(m *EntityManager) []map[string]interface{}) EntityCollectionHook {
+	return func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error, HookSignals) {
+		for _, ent := range h(m) {
+			entities = append(entities, ent)
+		}
+		return entities, nil, HookContinue
+	}
 }
 
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {

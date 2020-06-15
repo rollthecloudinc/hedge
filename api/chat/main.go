@@ -136,7 +136,7 @@ func RequestActionContext(c *ActionContext) *ActionContext {
 }
 
 func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.EntityManager {
-	return entity.EntityManager{
+	manager := entity.EntityManager{
 		Config: entity.EntityConfig{
 			SingularName: ac.EntityName,
 			PluralName:   inflector.Pluralize(ac.EntityName),
@@ -174,6 +174,7 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 				},
 			},
 		},
+		Hooks: map[entity.Hooks]entity.EntityHook{},
 		CollectionHooks: map[string]entity.EntityCollectionHook{
 			"default/chatmessages": entity.PipeCollectionHooks(
 				entity.MergeEntities(func(m *entity.EntityManager) []map[string]interface{} {
@@ -187,6 +188,15 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 				)),
 		},
 	}
+
+	if ac.EntityName == "chatmessage" {
+		manager.Hooks[entity.AfterSave] = func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
+			log.Print("After chat message save")
+			return ent, nil
+		}
+	}
+
+	return manager
 }
 
 func GetUserId(req *events.APIGatewayProxyRequest) string {

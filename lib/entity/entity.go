@@ -33,6 +33,7 @@ import (
 )
 
 type EntityHook func(enity map[string]interface{}) (bool, error)
+type CognitoTransformation func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error)
 
 type EntityConfig struct {
 	SingularName string
@@ -136,6 +137,7 @@ type S3AdaptorConfig struct {
 type CognitoAdaptorConfig struct {
 	Client     *cognitoidentityprovider.CognitoIdentityProvider
 	UserPoolId string
+	Transform  CognitoTransformation
 }
 
 type ElasticAdaptorConfig struct {
@@ -340,14 +342,18 @@ func (l CognitoLoaderAdaptor) Load(id string, m *EntityManager) map[string]inter
 	if err != nil {
 		log.Print(err)
 	}
-	jsonData, err := json.Marshal(res.Users[0])
-	if err != nil {
-		log.Print(err)
-	}
 	var obj map[string]interface{}
-	err = json.Unmarshal(jsonData, &obj)
-	if err != nil {
-		log.Print(err)
+	if l.Config.Transform != nil {
+		obj, _ = l.Config.Transform(res.Users[0])
+	} else {
+		jsonData, err := json.Marshal(res.Users[0])
+		if err != nil {
+			log.Print(err)
+		}
+		err = json.Unmarshal(jsonData, &obj)
+		if err != nil {
+			log.Print(err)
+		}
 	}
 	return obj
 }

@@ -61,6 +61,16 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 				Config: entity.CognitoAdaptorConfig{
 					Client:     ac.Client,
 					UserPoolId: "us-east-1_z8PhK3D8V",
+					Transform: func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error) {
+						ent := make(map[string]interface{})
+						ent["userName"] = user.Username
+						for _, attr := range user.Attributes {
+							if *attr.Name == "sub" {
+								ent["id"] = attr.Value
+							}
+						}
+						return ent, nil
+					},
 				},
 			},
 		},

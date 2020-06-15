@@ -259,6 +259,7 @@ functions:
     role: EntityApiRole
   Stream:
     handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
+    role: EntityApiRole
     events:
       - websocket:
           route: $connect

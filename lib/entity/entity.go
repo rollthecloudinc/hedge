@@ -32,7 +32,17 @@ import (
 	"github.com/gocql/gocql"
 )
 
-type EntityHook func(enity map[string]interface{}) (bool, error)
+type Hooks int32
+
+const (
+	BeforeSave Hooks = iota
+	AfterSave
+	BeforeFind
+	AfterFind
+)
+
+type EntityHook func(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
+type EntityCollectionHook func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error)
 type CognitoTransformation func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error)
 
 type EntityConfig struct {
@@ -86,15 +96,19 @@ type DefaultManagerConfig struct {
 	Index        string
 	BeforeSave   EntityHook
 	AfterSave    EntityHook
+	BeforeFind EntityCollectionHook
+	AfterFind EntityCollectionHook
 }
 
 type EntityManager struct {
-	Config      EntityConfig
-	Creator     Creator
-	Loaders     map[string]Loader
-	Finders     map[string]Finder
-	Storages    map[string]Storage
-	Authorizers map[string]Authorization
+	Config          EntityConfig
+	Creator         Creator
+	Loaders         map[string]Loader
+	Finders         map[string]Finder
+	Storages        map[string]Storage
+	Authorizers     map[string]Authorization
+	Hooks           map[Hooks]EntityHook
+	CollectionHooks map[Hooks]EntityCollectionHook
 }
 
 type Manager interface {
@@ -106,6 +120,8 @@ type Manager interface {
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 	AddFinder(name string, finder Finder)
+	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
+	ExecuteCollectionHook(hook Hooks, entities []map[string]interface{}) ([]map[string]interface{}, error)
 }
 
 type Storage interface {
@@ -266,8 +282,19 @@ func (m EntityManager) Delete(entity map[string]interface{}) {
 }
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
-	id := fmt.Sprint(entity[m.Config.IdKey])
-	m.Storages[storage].Store(id, entity)
+
+	ent, err := m.ExecuteHook(BeforeSave, entity)
+
+	if err != nil {
+		log.Print(err)
+	}
+
+	id := fmt.Sprint(ent[m.Config.IdKey])
+	m.Storages[storage].Store(id, ent)
+
+	if _, err := m.ExecuteHook(AfterSave, entity); err != nil {
+		log.Print(err)
+	}
 }
 
 func (m EntityManager) AddFinder(name string, finder Finder) {
@@ -275,7 +302,24 @@ func (m EntityManager) AddFinder(name string, finder Finder) {
 }
 
 func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
-	return m.Finders[finder].Find(query, data)
+
+	entities := make([]map[string]interface{}, 0)
+
+	entities, err := m.ExecuteCollectionHook(BeforeFind, entities)
+	if err != nil {
+		log.Print(err)
+	}
+
+	for _, entity := range m.Finders[finder].Find(query, data) {
+		entities = append(entities, entity)
+	}
+
+	entities, err = m.ExecuteCollectionHook(AfterFind, entities)
+	if err != nil {
+		log.Print(err)
+	}
+
+	return entities
 }
 
 func (m EntityManager) Load(id string, loader string) map[string]interface{} {
@@ -288,6 +332,20 @@ func (m EntityManager) Allow(id string, op string, loader string) (bool, map[str
 	} else {
 		return false, nil
 	}
+}
+
+func (m EntityManager) ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error) {
+	if hookFunc, ok := m.Hooks[hook]; ok {
+		return hookFunc(entity, &m)
+	}
+	return entity, nil
+}
+
+func (m EntityManager) ExecuteCollectionHook(hook Hooks, entities []map[string]interface{}) ([]map[string]interface{}, error) {
+	if hookFunc, ok := m.CollectionHooks[hook]; ok {
+		return hookFunc(entities, &m)
+	}
+	return entities, nil
 }
 
 func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {

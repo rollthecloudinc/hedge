@@ -174,6 +174,12 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 				},
 			},
 		},
+		CollectionHooks: map[entity.Hooks]entity.EntityCollectionHook{
+			entity.AfterFind: func(entities []map[string]interface{}, m *entity.EntityManager) ([]map[string]interface{}, error) {
+				log.Print("After Find")
+				return entities, nil
+			},
+		},
 	}
 }
 

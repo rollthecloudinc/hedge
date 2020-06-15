@@ -36,3 +36,14 @@ WHERE
   AND
      senderid = {{ bindValue (index .Req.QueryStringParameters "recipientId") }}
 {{end}}
+
+{{ define "_chatconnections" }}
+SELECT
+      connid,
+      userid,
+      createdat
+  FROM
+      chatconnections
+ WHERE
+      userid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
+{{ end }}

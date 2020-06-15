@@ -7,12 +7,15 @@ import (
 	"log"
 	"strings"
 	"text/template"
+	"time"
 
 	"goclassifieds/lib/entity"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/apigatewaymanagementapi"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gocql/gocql"
 	"github.com/tangzero/inflector"
@@ -26,6 +29,7 @@ type TemplateBindValueFunc func(value interface{}) string
 type ActionContext struct {
 	Session        *gocql.Session
 	Lambda         *lambda2.Lambda
+	Gateway        *apigatewaymanagementapi.ApiGatewayManagementApi
 	Template       *template.Template
 	EntityManager  entity.EntityManager
 	UserId         string
@@ -115,6 +119,7 @@ func RequestActionContext(c *ActionContext) *ActionContext {
 	ac := &ActionContext{
 		Session:        c.Session,
 		Lambda:         c.Lambda,
+		Gateway:        c.Gateway,
 		Implementation: "default",
 		Bindings:       &entity.VariableBindings{Values: make([]interface{}, 0)},
 	}
@@ -192,6 +197,52 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 	if ac.EntityName == "chatmessage" {
 		manager.Hooks[entity.AfterSave] = func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
 			log.Print("After chat message save")
+			data, _ := json.Marshal(ent)
+			connManager := entity.EntityManager{
+				Config: entity.EntityConfig{
+					SingularName: "chatconnection",
+					PluralName:   "chatconnections",
+					IdKey:        "connId",
+				},
+				Finders: map[string]entity.Finder{
+					"default": entity.CqlTemplateFinder{
+						Config: entity.CqlTemplateFinderConfig{
+							Session:  ac.Session,
+							Template: ac.Template,
+							Table:    "chatconnections",
+							Bindings: ac.Bindings,
+							Aliases: map[string]string{
+								"connid":    "connId",
+								"userid":    "userId",
+								"createdat": "createdAt",
+							},
+						},
+					},
+				},
+				CollectionHooks: map[string]entity.EntityCollectionHook{
+					"default/_chatconnections": entity.PipeCollectionHooks(
+						entity.FilterEntities(func(ent map[string]interface{}) bool {
+							return ent["createdAt"].(time.Time).After(time.Now().Add(-1 * time.Hour))
+						}),
+					),
+				},
+			}
+			allAttributes := make([]entity.EntityAttribute, 0)
+			dataBag := entity.EntityFinderDataBag{
+				Req:        req,
+				Attributes: allAttributes,
+			}
+			connections := connManager.Find("default", "_chatconnections", &dataBag)
+			for _, conn := range connections {
+				log.Printf("chat connection = %s", conn["connId"])
+				_, err := ac.Gateway.PostToConnection(&apigatewaymanagementapi.PostToConnectionInput{
+					ConnectionId: aws.String(fmt.Sprint(conn["connId"])),
+					Data:         data,
+				})
+				if err != nil {
+					log.Print(err)
+				}
+			}
 			return ent, nil
 		}
 	}
@@ -234,10 +285,12 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
+	gateway := apigatewaymanagementapi.New(sess, aws.NewConfig().WithEndpoint("https://61rdyvvayj.execute-api.us-east-1.amazonaws.com/dev"))
 
 	actionContext := ActionContext{
 		Session: cSession,
 		Lambda:  lClient,
+		Gateway: gateway,
 	}
 
 	handler = InitializeHandler(&actionContext)

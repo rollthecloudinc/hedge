@@ -40,6 +40,9 @@ func Connect(req *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (ev
 
 func Disconnect(req *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	log.Print("disconnect")
+	obj := make(map[string]interface{})
+	obj["connId"] = req.RequestContext.ConnectionID
+	ac.ConnManager.Purge("default", obj)
 	return events.APIGatewayProxyResponse{StatusCode: 200}, nil
 }
 

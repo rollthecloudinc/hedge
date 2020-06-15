@@ -122,7 +122,7 @@ type EntityManager struct {
 type Manager interface {
 	Create(entity map[string]interface{}) (map[string]interface{}, error)
 	Update(entity map[string]interface{})
-	Delete(entity map[string]interface{})
+	Purge(storage string, entities ...map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
@@ -134,6 +134,7 @@ type Manager interface {
 
 type Storage interface {
 	Store(id string, entity map[string]interface{})
+	Purge(m *EntityManager, entities ...map[string]interface{}) error
 }
 
 type Loader interface {
@@ -286,7 +287,9 @@ func (m EntityManager) Create(entity map[string]interface{}) (map[string]interfa
 func (m EntityManager) Update(entity map[string]interface{}) {
 }
 
-func (m EntityManager) Delete(entity map[string]interface{}) {
+func (m EntityManager) Purge(storage string, entities ...map[string]interface{}) {
+	// id := fmt.Sprint(ent[m.Config.IdKey])
+	m.Storages[storage].Purge(&m, entities...)
 }
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
@@ -452,6 +455,10 @@ func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {
 	// @todo: invalidate cloudfront object.
 }
 
+func (s S3StorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
+}
+
 func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(entity); err != nil {
@@ -467,6 +474,10 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)
 	}
+}
+
+func (s ElasticStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
 }
 
 func (s CqlStorageAdaptor) Store(id string, entity map[string]interface{}) {
@@ -498,6 +509,13 @@ func (s CqlStorageAdaptor) Store(id string, entity map[string]interface{}) {
 		log.Print("after exec error")
 		log.Fatal(err)
 	}
+}
+
+func (s CqlStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	for _, ent := range entities {
+		log.Printf("Purge = %s", ent[m.Config.IdKey])
+	}
+	return nil
 }
 
 func (a OwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
@@ -762,6 +780,18 @@ func MergeEntities(h func(m *EntityManager) []map[string]interface{}) EntityColl
 			entities = append(entities, ent)
 		}
 		return entities, nil, HookContinue
+	}
+}
+
+func FilterEntities(h func(ent map[string]interface{}) bool) EntityCollectionHook {
+	return func(entities []map[string]interface{}, m *EntityManager) ([]map[string]interface{}, error, HookSignals) {
+		filtered := make([]map[string]interface{}, 0)
+		for _, ent := range entities {
+			if h(ent) {
+				filtered = append(filtered, ent)
+			}
+		}
+		return filtered, nil, HookContinue
 	}
 }
 

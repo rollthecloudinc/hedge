@@ -98,6 +98,11 @@ resources:
                   Action:
                     - "cognito-idp:ListUsers"
                   Resource: "arn:aws:cognito-idp:us-east-1:989992233821:userpool/us-east-1_z8PhK3D8V"
+                - Effect: "Allow"
+                  Action:
+                    - "execute-api:Invoke"
+                    - "execute-api:ManageConnections"
+                  Resource: "*"
 functions:
   EntityApi:
     handler: bazel-bin/api/entity/linux_amd64_pure_stripped/entity
@@ -204,20 +209,6 @@ functions:
     handler: bazel-bin/api/chat/linux_amd64_pure_stripped/chat
     role: EntityApiRole
     events:
-      - httpApi:
-          path: /chatconnection/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
-      - httpApi:
-          path: /chatconversation/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
       - httpApi:
           path: /chatmessage/{proxy+}
           method: POST

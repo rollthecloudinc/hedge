@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"goclassifieds/lib/ads"
+	"goclassifieds/lib/cc"
 	"goclassifieds/lib/chat"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/profiles"
@@ -53,6 +54,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateChatMessage(jsonData, payload)
 	} else if payload.EntityName == "lead" {
 		newEntity, err = ValidateLead(jsonData, payload)
+	} else if payload.EntityName == "page" {
+		newEntity, err = ValidatePage(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -242,6 +245,32 @@ func ValidateChatMessage(jsonData []byte, payload *entity.ValidateEntityRequest)
 	}
 
 	newEntity, _ := chat.ToMessageEntity(&obj)
+	return newEntity, nil
+}
+
+func ValidatePage(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	log.Printf("Inside ValidatePage")
+
+	var obj cc.Page
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	obj.CreatedAt = time.Now()
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+
+	if err != nil {
+		msg, _ := json.Marshal(err.(validator.ValidationErrors))
+		log.Printf("Validation Errors: %s", string(msg))
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	newEntity, _ := cc.ToPageEntity(&obj)
 	return newEntity, nil
 }
 

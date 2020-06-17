@@ -72,3 +72,17 @@ SELECT
  WHERE
      profileid = {{ bindValue (index .Req.QueryStringParameters "profileId") }}
 {{ end }}
+
+{{ define "pages" }}
+SELECT
+      site,
+      path,
+      title,
+      body,
+      published,
+      createdAt
+  FROM
+      pages
+ WHERE
+      site = {{ bindValue (index .Req.QueryStringParameters "site") }}
+{{ end }}

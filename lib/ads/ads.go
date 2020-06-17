@@ -6,6 +6,7 @@ import (
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/vocab"
 	"log"
+	"time"
 )
 
 type AdStatuses int32
@@ -47,12 +48,32 @@ type AdImage struct {
 	Weight int    `form:"weight" json:"weight" binding:"required" validate:"required"`
 }
 
+type AdLead struct {
+	ProfileId string    `form:"profileId" json:"profileId" binding:"required" validate:"required"`
+	AdId      string    `form:"adId" json:"adId" binding:"required" validate:"required"`
+	SenderId  string    `form:"senderId" json:"senderId"`
+	Email     string    `form:"email" json:"email" binding:"required" validate:"required,email"`
+	Phone     string    `form:"phone" json:"phone" binding:"required" validate:"required"`
+	Message   string    `form:"message" json:"message" binding:"required" validate:"required"`
+	CreatedAt time.Time `form:"createdAt" json:"createdAt" binding:"required" validate:"required"`
+}
+
 func ToEntity(ad *Ad) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(ad); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}
 	jsonData, err := json.Marshal(ad)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
+}
+
+func ToLeadEntity(lead *AdLead) (map[string]interface{}, error) {
+	jsonData, err := json.Marshal(lead)
 	if err != nil {
 		return nil, err
 	}

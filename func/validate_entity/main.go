@@ -27,7 +27,7 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		Unauthorized: true,
 	}
 
-	if payload.UserId == "" {
+	if payload.EntityName != "lead" && payload.UserId == "" {
 		return invalid, errors.New("Unauthorized to create entity")
 	}
 
@@ -51,6 +51,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateChatConversation(jsonData, payload)
 	} else if payload.EntityName == "chatmessage" {
 		newEntity, err = ValidateChatMessage(jsonData, payload)
+	} else if payload.EntityName == "lead" {
+		newEntity, err = ValidateLead(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -147,6 +149,34 @@ func ValidateProfile(jsonData []byte, payload *entity.ValidateEntityRequest) (ma
 	}
 
 	newEntity, _ := profiles.ToEntity(&obj)
+	return newEntity, nil
+}
+
+func ValidateLead(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	log.Printf("Inside ValidateLead")
+
+	var obj ads.AdLead
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	obj.CreatedAt = time.Now()
+	// @todo: validate profile and ad exists - perhaps create custom validator.
+	obj.SenderId = payload.UserId
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+
+	if err != nil {
+		msg, _ := json.Marshal(err.(validator.ValidationErrors))
+		log.Printf("Validation Errors: %s", string(msg))
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	newEntity, _ := ads.ToLeadEntity(&obj)
 	return newEntity, nil
 }
 

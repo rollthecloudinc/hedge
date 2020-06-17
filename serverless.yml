@@ -230,6 +230,17 @@ functions:
             name: cognito
             scopes:
               - chat/chat
+      - httpApi:
+          path: /lead/{proxy+}
+          method: POST
+      - httpApi:
+          path: /leads/{proxy+}
+          method: GET
+          authorizer:
+            name: cognito
+            scopes:
+              - ads_api/ads_api
+              - profiles_api/profiles_api
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     role: EntityApiRole

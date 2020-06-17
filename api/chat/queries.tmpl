@@ -58,3 +58,17 @@ SELECT
  WHERE
       userid = {{ bindValue (index .Metadata "recipientId" ) }}
 {{ end }}
+
+{{define "leads" }}
+SELECT
+     adid,
+     profileid,
+     senderid,
+     phone,
+     email,
+     createdat
+  FROM
+     leads
+ WHERE
+     profileid = {{ bindValue (index .Req.QueryStringParameters "profileId") }}
+{{ end }}

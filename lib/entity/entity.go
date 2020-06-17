@@ -166,41 +166,41 @@ type Authorization interface {
 }
 
 type S3AdaptorConfig struct {
-	Bucket  string `json:"bucket"`
-	Prefix  string `json:"prefix"`
-	Session *session.Session
+	Bucket  string           `json:"bucket"`
+	Prefix  string           `json:"prefix"`
+	Session *session.Session `json:"-"`
 }
 
 type CognitoAdaptorConfig struct {
-	Client     *cognitoidentityprovider.CognitoIdentityProvider
-	UserPoolId string `json:"userPoolId"`
-	Transform  CognitoTransformation
+	Client     *cognitoidentityprovider.CognitoIdentityProvider `json:"-"`
+	UserPoolId string                                           `json:"userPoolId"`
+	Transform  CognitoTransformation                            `json:"-"`
 }
 
 type ElasticAdaptorConfig struct {
-	Client *elasticsearch7.Client
-	Index  string `json:"index"`
+	Client *elasticsearch7.Client `json:"-"`
+	Index  string                 `json:"index"`
 }
 
 type CqlAdaptorConfig struct {
-	Session *gocql.Session
-	Table   string `json:"table"`
+	Session *gocql.Session `json:"-"`
+	Table   string         `json:"table"`
 }
 
 type ElasticTemplateFinderConfig struct {
-	Client        *elasticsearch7.Client
-	Index         string `json:"index"`
-	Template      *template.Template
-	CollectionKey string `json:"collectionKey"`
-	ObjectKey     string `json:"objectKey"`
+	Client        *elasticsearch7.Client `json:"-"`
+	Index         string                 `json:"index"`
+	Template      *template.Template     `json:"-"`
+	CollectionKey string                 `json:"collectionKey"`
+	ObjectKey     string                 `json:"objectKey"`
 }
 
 type CqlTemplateFinderConfig struct {
-	Session  *gocql.Session
-	Table    string `json:"table"`
-	Template *template.Template
-	Bindings *VariableBindings
-	Aliases  map[string]string `json:"aliases"`
+	Session  *gocql.Session     `json:"-"`
+	Table    string             `json:"table"`
+	Template *template.Template `json:"-"`
+	Bindings *VariableBindings  `json:"-"`
+	Aliases  map[string]string  `json:"aliases"`
 }
 
 type OwnerAuthorizationConfig struct {
@@ -208,9 +208,9 @@ type OwnerAuthorizationConfig struct {
 }
 
 type DefaultCreatorConfig struct {
-	Lambda *lambda.Lambda
-	UserId string `json:"userId"`
-	Save   string `json:"save"`
+	Lambda *lambda.Lambda `json:"-"`
+	UserId string         `json:"userId"`
+	Save   string         `json:"save"`
 }
 
 type S3LoaderAdaptor struct {
@@ -262,7 +262,7 @@ type EntityTypeCreatorAdaptor struct {
 }
 
 type DefaultEntityTypeFinderConfig struct {
-	Template *template.Template
+	Template *template.Template `json:"-"`
 }
 
 type DefaultEntityTypeFinder struct {
@@ -809,79 +809,212 @@ func FilterEntities(h func(ent map[string]interface{}) bool) EntityCollectionHoo
 
 func GetAdaptor(name string, s *EntityAdaptorConfig, c map[string]interface{}) (interface{}, error) {
 
-	factory := map[string]interface{}{
-		"s3/loader": S3LoaderAdaptor{
+	var loader Loader
+	var finder Finder
+	var storage Storage
+	var authorizer Authorization
+	var creator Creator
+
+	switch name {
+	case "s3/loader":
+		loader = S3LoaderAdaptor{
 			Config: S3AdaptorConfig{
 				Session: s.Session,
 			},
-		},
-		"cognito/loader": CognitoLoaderAdaptor{
+		}
+		break
+	case "cognito/loader":
+		loader = CognitoLoaderAdaptor{
 			Config: CognitoAdaptorConfig{
 				Client: s.Cognito,
 			},
-		},
-		"finder/loader": FinderLoaderAdaptor{},
-		"elastic/templatefinder": ElasticTemplateFinder{
+		}
+		break
+	case "finder/loader":
+		loader = FinderLoaderAdaptor{}
+		break
+	case "elastic/templatefinder":
+		finder = ElasticTemplateFinder{
 			Config: ElasticTemplateFinderConfig{
 				Client:   s.Elastic,
 				Template: s.Template,
 			},
-		},
-		"entitytypefinder": DefaultEntityTypeFinder{
+		}
+		break
+	case "entitytypefinder":
+		finder = DefaultEntityTypeFinder{
 			Config: DefaultEntityTypeFinderConfig{
 				Template: s.Template,
 			},
-		},
-		"cql/templateFinder": CqlTemplateFinder{
+		}
+		break
+	case "cql/templatefinder":
+		finder = CqlTemplateFinder{
 			Config: CqlTemplateFinderConfig{
 				Session:  s.Cql,
 				Template: s.Template,
 				Bindings: s.Bindings,
 			},
-		},
-		"s3/storage": S3StorageAdaptor{
+		}
+		break
+	case "s3/storage":
+		storage = S3StorageAdaptor{
 			Config: S3AdaptorConfig{
 				Session: s.Session,
 			},
-		},
-		"elastic/storage": ElasticStorageAdaptor{
+		}
+		break
+	case "elastic/storage":
+		storage = ElasticStorageAdaptor{
 			Config: ElasticAdaptorConfig{
 				Client: s.Elastic,
 			},
-		},
-		"cql/storage": CqlStorageAdaptor{
+		}
+		break
+	case "cql/storage":
+		storage = CqlStorageAdaptor{
 			Config: CqlAdaptorConfig{
 				Session: s.Cql,
 			},
-		},
-		"owner/authorizer": OwnerAuthorizationAdaptor{},
-		"default/creator": DefaultCreatorAdaptor{
+		}
+		break
+	case "owner/authorizer":
+		authorizer = OwnerAuthorizationAdaptor{}
+		break
+	case "default/creator":
+		creator = DefaultCreatorAdaptor{
 			Config: DefaultCreatorConfig{
 				Lambda: s.Lambda,
 			},
-		},
-		"entitytype/creator": EntityTypeCreatorAdaptor{
+		}
+		break
+	case "entitytype/creator":
+		creator = EntityTypeCreatorAdaptor{
 			Config: DefaultCreatorConfig{
 				Lambda: s.Lambda,
 			},
-		},
-	}
-
-	if _, ok := factory[name]; !ok {
+		}
+		break
+	default:
 		return nil, errors.New("adaptor does not exist by that name")
 	}
 
-	jsonData, err := json.Marshal(c)
+	//factory := map[string]interface{}{
+	/*"s3/loader": S3LoaderAdaptor{
+		Config: S3AdaptorConfig{
+			Session: s.Session,
+		},
+	},*/
+	/*"cognito/loader": CognitoLoaderAdaptor{
+		Config: CognitoAdaptorConfig{
+			Client: s.Cognito,
+		},
+	},*/
+	/*"finder/loader": FinderLoaderAdaptor{},*/
+	/*"elastic/templatefinder": ElasticTemplateFinder{
+		Config: ElasticTemplateFinderConfig{
+			Client:   s.Elastic,
+			Template: s.Template,
+		},
+	},*/
+	/*"entitytypefinder": DefaultEntityTypeFinder{
+		Config: DefaultEntityTypeFinderConfig{
+			Template: s.Template,
+		},
+	},*/
+	/*"cql/templateFinder": CqlTemplateFinder{
+		Config: CqlTemplateFinderConfig{
+			Session:  s.Cql,
+			Template: s.Template,
+			Bindings: s.Bindings,
+		},
+	},*/
+	/*"s3/storage": S3StorageAdaptor{
+		Config: S3AdaptorConfig{
+			Session: s.Session,
+		},
+	},*/
+	/*"elastic/storage": ElasticStorageAdaptor{
+		Config: ElasticAdaptorConfig{
+			Client: s.Elastic,
+		},
+	},*/
+	/*"cql/storage": CqlStorageAdaptor{
+		Config: CqlAdaptorConfig{
+			Session: s.Cql,
+		},
+	},*/
+	/*"owner/authorizer": OwnerAuthorizationAdaptor{},*/
+	/*"default/creator": DefaultCreatorAdaptor{
+		Config: DefaultCreatorConfig{
+			Lambda: s.Lambda,
+		},
+	},*/
+	/*"entitytype/creator": EntityTypeCreatorAdaptor{
+		Config: DefaultCreatorConfig{
+			Lambda: s.Lambda,
+		},
+	},*/
+	//}
+
+	/*if _, ok := factory[name]; !ok {
+		return nil, errors.New("adaptor does not exist by that name")
+	}*/
+
+	/*jsonData, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
-	err = json.Unmarshal(jsonData, factory[name])
-	if err != nil {
-		return nil, err
+	if strings.Index(name, "finder") > -1 {
+		log.Print(name)
+		log.Printf("%v", finder)
+		err := mapstructure.Decode(c, finder)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+		return finder, nil
+	} else if strings.Index(name, "loader") > -1 {
+		log.Print(name)
+		log.Printf("%v", loader)
+		err := mapstructure.Decode(c, loader)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+		return loader, nil
+	} else if strings.Index(name, "storage") > -1 {
+		log.Print(name)
+		log.Printf("%v", storage)
+		err := mapstructure.Decode(c, storage)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+		return storage, nil
+	} else if strings.Index(name, "authorizer") > -1 {
+		log.Print(name)
+		log.Printf("%v", authorizer)
+		err := mapstructure.Decode(c, authorizer)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+		return authorizer, nil
+	} else if strings.Index(name, "creator") > -1 {
+		log.Print(name)
+		log.Printf("%v", creator)
+		err := mapstructure.Decode(c, creator)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+		return creator, nil
+	} else {
+		log.Print("unmatched")
+		return nil, errors.New("unmatched adaptor")
 	}
-
-	return factory[name], nil
 
 }
 
@@ -891,22 +1024,29 @@ func GetManager(entityName string, c map[string]interface{}, s *EntityAdaptorCon
 		"finders",
 		"loaders",
 		"storages",
-		"creator",
-		"authorization",
+		"authorizers",
 	}
 
-	var finders map[string]Finder
-	var loaders map[string]Loader
-	var storages map[string]Storage
-	var authorizers map[string]Authorization
+	finders := make(map[string]Finder)
+	loaders := make(map[string]Loader)
+	storages := make(map[string]Storage)
+	authorizers := make(map[string]Authorization)
 	var creator Creator
+
+	if item, ok := c["creator"]; ok {
+		instance, err := GetAdaptor(fmt.Sprint(item.(map[string]interface{})["factory"]), s, item.(map[string]interface{}))
+		if err != nil {
+			return &EntityManager{}, err
+		}
+		creator = instance.(Creator)
+	}
 
 	for _, adaptor := range adaptors {
 		if _, ok := c[adaptor]; ok {
 			for name, item := range c[adaptor].(map[string]interface{}) {
-				instance, err := GetAdaptor(fmt.Sprint(item.(map[string]string)["factory"]), s, item.(map[string]interface{}))
+				instance, err := GetAdaptor(fmt.Sprint(item.(map[string]interface{})["factory"]), s, item.(map[string]interface{}))
 				if err != nil {
-					return nil, err
+					return &EntityManager{}, err
 				}
 				switch adaptor {
 				case "finders":
@@ -921,11 +1061,8 @@ func GetManager(entityName string, c map[string]interface{}, s *EntityAdaptorCon
 				case "authorizers":
 					authorizers[name] = instance.(Authorization)
 					break
-				case "creator":
-					creator = instance.(Creator)
-					break
 				default:
-					return nil, errors.New("invalid adaptor detected")
+					return &EntityManager{}, errors.New("invalid adaptor detected")
 				}
 			}
 		}

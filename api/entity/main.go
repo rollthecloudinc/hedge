@@ -186,6 +186,63 @@ func InitializeHandler(c *ActionContext) Handler {
 				Template:     ac.Template,
 				UserId:       userId,
 			})
+			/*manager, err := entity.GetManager(
+				singularName,
+				map[string]interface{}{
+					"creator": map[string]interface{}{
+						"factory": "default/creator",
+						"config": map[string]interface{}{
+							"userId": userId,
+							"save":   "default",
+						},
+					},
+					"finders": map[string]interface{}{
+						"default": map[string]interface{}{
+							"factory": "elastic/templatefinder",
+							"config": map[string]interface{}{
+								"index":         "classifieds_" + pluralName,
+								"collectionKey": "hits.hits",
+								"objectKey":     "_source",
+							},
+						},
+					},
+					"loaders": map[string]interface{}{
+						"default": map[string]interface{}{
+							"factory": "s3/loader",
+							"config": map[string]interface{}{
+								"bucket": "classifieds-ui-dev",
+								"prefix": pluralName + "/",
+							},
+						},
+					},
+					"storages": map[string]interface{}{
+						"default": map[string]interface{}{
+							"factory": "s3/storage",
+							"config": map[string]interface{}{
+								"prefix": pluralName + "/",
+								"bucket": "classifieds-ui-dev",
+							},
+						},
+						"elastic": map[string]interface{}{
+							"factory": "elastic/storage",
+							"config": map[string]interface{}{
+								"index": "classifieds_" + pluralName,
+							},
+						},
+					},
+				},
+				&entity.EntityAdaptorConfig{
+					Session:  ac.Session,
+					Template: ac.Template,
+					Lambda:   ac.Lambda,
+					Elastic:  ac.EsClient,
+				},
+			)*/
+			/*if err != nil {
+				log.Print("Error creating entity manager")
+				log.Print(err)
+			}
+			ac.EntityManager = manager*/
 		}
 
 		if singularName == "ad" {

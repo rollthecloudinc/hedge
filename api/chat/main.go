@@ -175,6 +175,8 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 						"senderid":       "senderId",
 						"recipientlabel": "recipientLabel",
 						"createdat":      "createdAt",
+						"adid":           "adId",
+						"profileid":      "profileId",
 					},
 				},
 			},

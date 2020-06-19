@@ -56,6 +56,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateLead(jsonData, payload)
 	} else if payload.EntityName == "page" {
 		newEntity, err = ValidatePage(jsonData, payload)
+	} else if payload.EntityName == "layout" {
+		newEntity, err = ValidateLayout(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -271,6 +273,32 @@ func ValidatePage(jsonData []byte, payload *entity.ValidateEntityRequest) (map[s
 	}
 
 	newEntity, _ := cc.ToPageEntity(&obj)
+	return newEntity, nil
+}
+
+func ValidateLayout(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	log.Printf("Inside ValidateLayout")
+
+	var obj cc.Layout
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	obj.Id = utils.GenerateId()
+
+	validate := validator.New()
+	err = validate.Struct(obj)
+
+	if err != nil {
+		msg, _ := json.Marshal(err.(validator.ValidationErrors))
+		log.Printf("Validation Errors: %s", string(msg))
+		return deadObject, err.(validator.ValidationErrors)
+	}
+
+	newEntity, _ := cc.ToLayoutEntity(&obj)
 	return newEntity, nil
 }
 

@@ -685,13 +685,13 @@ func (f CqlTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[s
 		log.Printf("Build CQL Query Error: %s", err.Error())
 	}
 
-	log.Printf("cql query: ", tb.String())
+	log.Printf("cql query: %s", tb.String())
 	for _, value := range f.Config.Bindings.Values {
 		log.Printf("binding: %v", value)
 	}
 
 	rows := make([]map[string]interface{}, 0)
-	iter := f.Config.Session.Query(tb.String(), f.Config.Bindings.Values...).Iter()
+	iter := f.Config.Session.Query(tb.String(), f.Config.Bindings.Values...).Consistency(gocql.LocalQuorum).Iter()
 	for {
 		rawRow := make(map[string]interface{})
 		row := make(map[string]interface{})

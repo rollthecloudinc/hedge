@@ -6,5 +6,6 @@ go_library(
     importpath = "goclassifieds/lib/cc",
     visibility = ["//visibility:public"],
     deps = [
+        "//lib/attr"
     ],
 )

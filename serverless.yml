@@ -177,6 +177,11 @@ functions:
             name: cognito
             scopes:
               - profiles_api/profiles_api
+      - httpApi:
+          path: /layout/{proxy+}
+          method: POST
+          authorizer:
+            name: cognito
   MediaApi:
     handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
     role: EntityApiRole
@@ -246,6 +251,9 @@ functions:
           method: POST
           authorizer:
             name: cognito
+      - httpApi:
+          path: /pages/{proxy+}
+          method: GET
   IndexEntity:
     handler: bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     role: EntityApiRole

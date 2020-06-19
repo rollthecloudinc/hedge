@@ -54,6 +54,11 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 	contentType := header.Header.Get("Content-Type")
 	ext, _ := mime.ExtensionsByType(contentType)
 	id := utils.GenerateId()
+
+	if contentType == "text/markdown" {
+		ext = []string{".md"}
+	}
+
 	data := map[string]string{
 		"id":                 id,
 		"path":               "media/" + id + ext[0],
@@ -105,6 +110,10 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 
 	ext := strings.Split(pathPieces[len(pathPieces)-1], ".")
 	contentType := mime.TypeByExtension(ext[len(ext)-1])
+
+	if ext[len(ext)-1] == "md" {
+		contentType = "text/markdown"
+	}
 
 	res.StatusCode = 200
 	res.Headers = map[string]string{

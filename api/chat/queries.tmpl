@@ -86,3 +86,18 @@ SELECT
  WHERE
       site = {{ bindValue (index .Req.QueryStringParameters "site") }}
 {{ end }}
+
+{{ define "gridlayouts"}}
+SELECT
+    id,
+    site,
+    weight,
+    cols,
+    rows,
+    x,
+    y
+ FROM
+    gridlayouts
+WHERE
+    site = {{ bindValue (index .Req.QueryStringParameters "site") }}
+{{ end }}

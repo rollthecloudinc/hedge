@@ -193,6 +193,32 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 					return m.Find("default", "_chatmessages_inverse", &data)
 				},
 				)),
+			"default/gridlayouts": func(entities []map[string]interface{}, m *entity.EntityManager) ([]map[string]interface{}, error, entity.HookSignals) {
+				items := make(map[string]interface{})
+				for _, ent := range entities {
+					gridItem := map[string]interface{}{
+						"cols":   ent["cols"],
+						"rows":   ent["rows"],
+						"x":      ent["x"],
+						"y":      ent["y"],
+						"weight": ent["weight"],
+					}
+					id := fmt.Sprint(ent["id"])
+					if _, ok := items[id]; !ok {
+						items[id] = map[string]interface{}{
+							"id":        ent["id"],
+							"site":      ent["site"],
+							"gridItems": make([]map[string]interface{}, 0),
+						}
+					}
+					items[id].(map[string]interface{})["gridItems"] = append(items[id].(map[string]interface{})["gridItems"].([]map[string]interface{}), gridItem)
+				}
+				rows := make([]map[string]interface{}, 0)
+				for _, ent := range items {
+					rows = append(rows, ent.(map[string]interface{}))
+				}
+				return rows, nil, entity.HookContinue
+			},
 		},
 	}
 
@@ -269,7 +295,7 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 		manager.Storages["expansion"] = entity.CqlAutoDiscoveryExpansionStorageAdaptor{
 			Config: entity.CqlAdaptorConfig{
 				Session: ac.Session,
-				Table:   "grids",
+				Table:   "gridlayouts",
 			},
 		}
 		manager.Creator = entity.DefaultCreatorAdaptor{

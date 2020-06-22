@@ -241,6 +241,10 @@ type CqlStorageAdaptor struct {
 	Config CqlAdaptorConfig `json:"config"`
 }
 
+type CqlAutoDiscoveryExpansionStorageAdaptor struct {
+	Config CqlAdaptorConfig `json:"config"`
+}
+
 type ElasticTemplateFinder struct {
 	Config ElasticTemplateFinderConfig `json:"config"`
 }
@@ -527,6 +531,96 @@ func (s CqlStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interf
 	for _, ent := range entities {
 		log.Printf("Purge = %s", ent[m.Config.IdKey])
 	}
+	return nil
+}
+
+func (s CqlAutoDiscoveryExpansionStorageAdaptor) Store(id string, entity map[string]interface{}) {
+
+	log.Print("CqlAutoDiscoveryExpansionStorageAdaptor")
+
+	targetField := ""
+
+	for key, value := range entity {
+		xType := fmt.Sprintf("%T", value)
+		if xType == "[]interface {}" {
+			targetField = key
+			break
+		}
+	}
+
+	if targetField != "" {
+
+		log.Printf("Discovered target field for entity: %s", targetField)
+
+		batch := gocql.NewBatch(gocql.UnloggedBatch)
+		batch.SetConsistency(gocql.LocalQuorum)
+
+		for _, nestedItem := range entity[targetField].([]interface{}) {
+
+			values := make([]interface{}, 0)
+			cols := make([]string, 0)
+			bind := make([]string, 0)
+
+			for field, value := range entity {
+				if field != targetField {
+					bind = append(bind, "?")
+					cols = append(cols, strings.ToLower(field))
+					xType := fmt.Sprintf("%T", value)
+					log.Printf("%s : %s", strings.ToLower(field), xType)
+					if xType == "string" {
+						t1, e := time.Parse(time.RFC3339, value.(string))
+						if e == nil {
+							log.Printf("is time: %s", value)
+							values = append(values, t1)
+						} else {
+							log.Printf("is not time: %s", value)
+							values = append(values, value)
+						}
+					} else {
+						log.Printf("is not string: %v", value)
+						values = append(values, value)
+					}
+				}
+			}
+
+			for field, value := range nestedItem.(map[string]interface{}) {
+				bind = append(bind, "?")
+				cols = append(cols, strings.ToLower(field))
+				xType := fmt.Sprintf("%T", value)
+				log.Printf("%s : %s", strings.ToLower(field), xType)
+				if xType == "string" {
+					t1, e := time.Parse(time.RFC3339, value.(string))
+					if e == nil {
+						log.Printf("is time: %s", value)
+						values = append(values, t1)
+					} else {
+						log.Printf("is not time: %s", value)
+						values = append(values, value)
+					}
+				} else {
+					log.Printf("is not string: %v", value)
+					values = append(values, value)
+				}
+			}
+
+			stmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, s.Config.Table, strings.Join(cols[:], ","), strings.Join(bind[:], ","))
+			log.Print(stmt)
+			log.Print(values...)
+			batch.Query(stmt, values...)
+
+		}
+
+		err := s.Config.Session.ExecuteBatch(batch)
+		if err != nil {
+			log.Print("Expanded CQL query failure.")
+			log.Panic(err)
+		}
+
+	}
+
+}
+
+func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
 }
 

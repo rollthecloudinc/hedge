@@ -265,6 +265,22 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 		}
 	}
 
+	if ac.EntityName == "layout" {
+		manager.Storages["expansion"] = entity.CqlAutoDiscoveryExpansionStorageAdaptor{
+			Config: entity.CqlAdaptorConfig{
+				Session: ac.Session,
+				Table:   "grids",
+			},
+		}
+		manager.Creator = entity.DefaultCreatorAdaptor{
+			Config: entity.DefaultCreatorConfig{
+				Lambda: ac.Lambda,
+				UserId: ac.UserId,
+				Save:   "expansion",
+			},
+		}
+	}
+
 	return manager
 }
 

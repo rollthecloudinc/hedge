@@ -15,7 +15,7 @@ type Page struct {
 	CreatedAt time.Time `form:"createdat" json:"createdat" binding:"required" validate:"required"`
 }
 
-type Layout struct {
+type GridLayout struct {
 	Id        string     `form:"id" json:"id" binding:"required" validate:"required"`
 	Site      string     `form:"site" json:"site" binding:"required" validate:"required"`
 	GridItems []GridItem `form:"gridItems[]" json:"gridItems" binding:"required" validate:"required,dive"`
@@ -48,7 +48,7 @@ func ToPageEntity(page *Page) (map[string]interface{}, error) {
 	return entity, nil
 }
 
-func ToLayoutEntity(layout *Layout) (map[string]interface{}, error) {
+func ToGridLayoutEntity(layout *GridLayout) (map[string]interface{}, error) {
 	jsonData, err := json.Marshal(layout)
 	if err != nil {
 		return nil, err

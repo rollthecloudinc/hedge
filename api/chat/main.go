@@ -265,7 +265,7 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 		}
 	}
 
-	if ac.EntityName == "layout" {
+	if ac.EntityName == "gridlayout" {
 		manager.Storages["expansion"] = entity.CqlAutoDiscoveryExpansionStorageAdaptor{
 			Config: entity.CqlAdaptorConfig{
 				Session: ac.Session,

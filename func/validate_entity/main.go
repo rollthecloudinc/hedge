@@ -56,8 +56,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidateLead(jsonData, payload)
 	} else if payload.EntityName == "page" {
 		newEntity, err = ValidatePage(jsonData, payload)
-	} else if payload.EntityName == "layout" {
-		newEntity, err = ValidateLayout(jsonData, payload)
+	} else if payload.EntityName == "gridlayout" {
+		newEntity, err = ValidateGridLayout(jsonData, payload)
 	} else {
 		return invalid, errors.New("Entity validation does exist")
 	}
@@ -276,12 +276,12 @@ func ValidatePage(jsonData []byte, payload *entity.ValidateEntityRequest) (map[s
 	return newEntity, nil
 }
 
-func ValidateLayout(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+func ValidateGridLayout(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
 	var deadObject map[string]interface{}
 
 	log.Printf("Inside ValidateLayout")
 
-	var obj cc.Layout
+	var obj cc.GridLayout
 	err := json.Unmarshal(jsonData, &obj)
 	if err != nil {
 		return deadObject, err
@@ -298,7 +298,7 @@ func ValidateLayout(jsonData []byte, payload *entity.ValidateEntityRequest) (map
 		return deadObject, err.(validator.ValidationErrors)
 	}
 
-	newEntity, _ := cc.ToLayoutEntity(&obj)
+	newEntity, _ := cc.ToGridLayoutEntity(&obj)
 	return newEntity, nil
 }
 

@@ -250,7 +250,7 @@ functions:
           path: /pages/{proxy+}
           method: GET
       - httpApi:
-          path: /layout/{proxy+}
+          path: /gridlayout/{proxy+}
           method: POST
           authorizer:
             name: cognito

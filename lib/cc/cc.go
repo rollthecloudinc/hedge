@@ -15,6 +15,12 @@ type Page struct {
 	CreatedAt time.Time `form:"createdat" json:"createdat" binding:"required" validate:"required"`
 }
 
+type PanelPage struct {
+	Id        string     `form:"id" json:"id" binding:"required" validate:"required"`
+	GridItems []GridItem `form:"gridItems[]" json:"gridItems" binding:"required" validate:"required,dive"`
+	Panels    []Panel    `form:"panels[]" json:"panels" binding:"required" validate:"required,dive"`
+}
+
 type GridLayout struct {
 	Id        string     `form:"id" json:"id" binding:"required" validate:"required"`
 	Site      string     `form:"site" json:"site" binding:"required" validate:"required"`
@@ -34,11 +40,21 @@ type Panel struct {
 }
 
 type Pane struct {
-	ContentProvider string                `form:"contentProvider" json:"contentProvider" binding:"required" validate:"required"`
-	Settings        []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
+	ContentPlugin string                `form:"contentPlugin" json:"contentPlugin" binding:"required" validate:"required"`
+	Settings      []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
 }
 
 func ToPageEntity(page *Page) (map[string]interface{}, error) {
+	jsonData, err := json.Marshal(page)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
+}
+
+func ToPanelPageEntity(page *PanelPage) (map[string]interface{}, error) {
 	jsonData, err := json.Marshal(page)
 	if err != nil {
 		return nil, err

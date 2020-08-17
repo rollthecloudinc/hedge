@@ -341,3 +341,32 @@
     "size": 100
 }
 {{ end }}
+
+{{ define "panelpages" }}
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {{ with .Req.MultiValueQueryStringParameters.path }}
+        {
+            "bool": {
+                "should": [
+                    {{ range $index, $value := $.Req.MultiValueQueryStringParameters.path }}{{ if ne $index 0 }},{{ end }}
+                    {
+                        "term": {
+                            "path.keyword": {
+                                "value": "{{ $value }}"
+                            }
+                        }
+                    }
+                    {{ end }}
+                ]
+            }
+        }
+        {{ end }}
+      ]
+    }
+  },
+  "size": 1000
+}
+{{end}}

@@ -129,6 +129,27 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	return res, nil
 }
 
+func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	var e map[string]interface{}
+	res := events.APIGatewayProxyResponse{StatusCode: 500}
+	body := []byte(req.Body)
+	json.Unmarshal(body, &e)
+	newEntity, err := ac.EntityManager.Update(e)
+	if err != nil {
+		return res, err
+	}
+	resBody, err := json.Marshal(newEntity)
+	if err != nil {
+		return res, err
+	}
+	res.StatusCode = 200
+	res.Headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	res.Body = string(resBody)
+	return res, nil
+}
+
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
@@ -267,6 +288,8 @@ func InitializeHandler(c *ActionContext) Handler {
 			return GetEntity(req, ac)
 		} else if entityName == singularName && req.HTTPMethod == "POST" {
 			return CreateEntity(req, ac)
+		} else if entityName == singularName && req.HTTPMethod == "PUT" {
+			return UpdateEntity(req, ac)
 		}
 
 		return events.APIGatewayProxyResponse{StatusCode: 500}, nil

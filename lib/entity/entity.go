@@ -123,6 +123,7 @@ type EntityAdaptorConfig struct {
 type EntityManager struct {
 	Config          EntityConfig
 	Creator         Creator
+	Updator         Updator
 	Loaders         map[string]Loader
 	Finders         map[string]Finder
 	Storages        map[string]Storage
@@ -133,7 +134,7 @@ type EntityManager struct {
 
 type Manager interface {
 	Create(entity map[string]interface{}) (map[string]interface{}, error)
-	Update(entity map[string]interface{})
+	Update(entity map[string]interface{}) (map[string]interface{}, error)
 	Purge(storage string, entities ...map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
@@ -155,6 +156,10 @@ type Loader interface {
 
 type Creator interface {
 	Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
+}
+
+type Updator interface {
+	Update(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
 }
 
 type Finder interface {
@@ -213,6 +218,12 @@ type DefaultCreatorConfig struct {
 	Save   string         `json:"save"`
 }
 
+type DefaultUpdatorConfig struct {
+	Lambda *lambda.Lambda `json:"-"`
+	UserId string         `json:"userId"`
+	Save   string         `json:"save"`
+}
+
 type S3LoaderAdaptor struct {
 	Config S3AdaptorConfig `json:"config"`
 }
@@ -261,6 +272,10 @@ type DefaultCreatorAdaptor struct {
 	Config DefaultCreatorConfig `json:"config"`
 }
 
+type DefaultUpdatorAdaptor struct {
+	Config DefaultUpdatorConfig `json:"config"`
+}
+
 type EntityTypeCreatorAdaptor struct {
 	Config DefaultCreatorConfig `json:"config"`
 }
@@ -300,7 +315,8 @@ func (m EntityManager) Create(entity map[string]interface{}) (map[string]interfa
 	return m.Creator.Create(entity, &m)
 }
 
-func (m EntityManager) Update(entity map[string]interface{}) {
+func (m EntityManager) Update(entity map[string]interface{}) (map[string]interface{}, error) {
+	return m.Updator.Update(entity, &m)
 }
 
 func (m EntityManager) Purge(storage string, entities ...map[string]interface{}) {
@@ -711,6 +727,43 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 	return newEntity, nil
 
+}
+
+func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+
+	request := ValidateEntityRequest{
+		EntityName: m.Config.SingularName,
+		Entity:     entity,
+		UserId:     c.Config.UserId,
+	}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("Error marshalling entity validation request: %s", err.Error())
+		return entity, errors.New("Error marshalling entity validation request")
+	}
+
+	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-dev-ValidateEntity"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking entity validation: %s", err.Error())
+		return entity, errors.New("Error invoking validation")
+	}
+
+	var validateRes ValidateEntityResponse
+	json.Unmarshal(res.Payload, &validateRes)
+
+	if validateRes.Unauthorized {
+		log.Printf("Unauthorized to update entity")
+		return entity, errors.New("Unauthorized to update entity")
+	}
+
+	if validateRes.Valid {
+		log.Printf("Lambda Response valid")
+		m.Save(validateRes.Entity, c.Config.Save)
+		return validateRes.Entity, nil
+	}
+
+	return entity, errors.New("Entity invalid")
 }
 
 func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -1188,6 +1241,13 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 		},
 		Creator: DefaultCreatorAdaptor{
 			Config: DefaultCreatorConfig{
+				Lambda: config.Lambda,
+				UserId: config.UserId,
+				Save:   "default",
+			},
+		},
+		Updator: DefaultUpdatorAdaptor{
+			Config: DefaultUpdatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
 				Save:   "default",

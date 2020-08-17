@@ -4,6 +4,7 @@ import (
 	"context"
 	"goclassifieds/lib/ads"
 	"goclassifieds/lib/attr"
+	"goclassifieds/lib/cc"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/vocab"
 	"os"
@@ -51,6 +52,8 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 
 		if singularName == "ad" {
 			ent = IndexAd(ent)
+		} else if singularName == "panelpage" {
+			ent = IndexPanelPage(ent)
 		}
 
 		entityManager.Save(ent, "elastic")
@@ -84,6 +87,20 @@ func IndexAd(obj map[string]interface{}) map[string]interface{} {
 	}
 
 	ent, _ := ads.ToEntity(&item)
+	return ent
+
+}
+
+func IndexPanelPage(obj map[string]interface{}) map[string]interface{} {
+
+	var item cc.PanelPage
+	mapstructure.Decode(obj, &item)
+
+	item.GridItems = make([]cc.GridItem, 0)
+	item.Contexts = make([]cc.InlineContext, 0)
+	item.Panels = make([]cc.Panel, 0)
+
+	ent, _ := cc.ToPanelPageEntity(&item)
 	return ent
 
 }

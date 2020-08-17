@@ -289,7 +289,9 @@ func ValidatePanelPage(jsonData []byte, payload *entity.ValidateEntityRequest) (
 		return deadObject, err
 	}
 
-	obj.Id = utils.GenerateId()
+	if obj.Id == "" {
+		obj.Id = utils.GenerateId()
+	}
 
 	validate := validator.New()
 	err = validate.Struct(obj)

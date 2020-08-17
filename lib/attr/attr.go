@@ -8,6 +8,9 @@ const (
 	Number AttributeTypes = iota
 	Text
 	Complex
+	Float
+	Array
+	Bool
 )
 
 type AttributeValue struct {
@@ -16,6 +19,7 @@ type AttributeValue struct {
 	Type          AttributeTypes   `form:"type" json:"type" binding:"required"`
 	Value         string           `form:"value" json:"value" binding:"required"`
 	IntValue      int32            `json:"intValue"`
+	FloatValue    float64          `json:"floatValue"`
 	ComputedValue string           `form:"computedValue" json:"computedValue" binding:"required"`
 	Attributes    []AttributeValue `form:"attributes[]" json:"attributes"`
 }
@@ -39,6 +43,9 @@ func FinalizeAttributeValue(value *AttributeValue) {
 	if value.Type == Number {
 		computedValue, _ := strconv.ParseInt(value.ComputedValue, 10, 32)
 		value.IntValue = int32(computedValue)
+	} else if value.Type == Float {
+		computedValue, _ := strconv.ParseFloat(value.ComputedValue, 64)
+		value.FloatValue = computedValue
 	} else {
 		value.IntValue = 0
 	}

@@ -178,8 +178,18 @@ functions:
             scopes:
               - profiles_api/profiles_api
       - httpApi:
+          path: /panelpagelistitems/{proxy+}
+          method: GET
+          authorizer:
+            name: cognito
+      - httpApi:
           path: /panelpage/{proxy+}
           method: POST
+          authorizer:
+            name: cognito
+      - httpApi:
+          path: /panelpage/{proxy+}
+          method: PUT
           authorizer:
             name: cognito
       - httpApi:

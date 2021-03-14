@@ -291,6 +291,9 @@ func ValidatePanelPage(jsonData []byte, payload *entity.ValidateEntityRequest) (
 
 	if obj.Id == "" {
 		obj.Id = utils.GenerateId()
+		obj.UserId = payload.UserId
+	} else if obj.UserId == "" {
+		obj.UserId = payload.UserId
 	}
 
 	validate := validator.New()

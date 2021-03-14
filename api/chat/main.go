@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"text/template"
 	"time"
@@ -335,7 +336,7 @@ func init() {
 	cluster.Keyspace = "ClassifiedsDev"
 	cluster.Port = 9142
 	cluster.Consistency = gocql.LocalQuorum
-	cluster.Authenticator = &gocql.PasswordAuthenticator{Username: "tzmijewski-at-989992233821", Password: "oALqeCqjS3BgyiBp2Ram8kTUbhttAYoyUoL70hmz+tY="}
+	cluster.Authenticator = &gocql.PasswordAuthenticator{Username: os.Getenv("KEYSPACE_USERNAME"), Password: os.Getenv("KEYSPACE_PASSWORD")}
 	cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "api/chat/AmazonRootCA1.pem", EnableHostVerification: true}
 	cluster.PoolConfig = gocql.PoolConfig{HostSelectionPolicy: /*gocql.TokenAwareHostPolicy(*/ gocql.DCAwareRoundRobinPolicy("us-east-1") /*)*/}
 	cSession, err := cluster.CreateSession()
@@ -345,7 +346,7 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
-	gateway := apigatewaymanagementapi.New(sess, aws.NewConfig().WithEndpoint("https://61rdyvvayj.execute-api.us-east-1.amazonaws.com/dev"))
+	gateway := apigatewaymanagementapi.New(sess, aws.NewConfig().WithEndpoint(os.Getenv("APIGATEWAY_ENDPOINT")))
 
 	actionContext := ActionContext{
 		Session: cSession,

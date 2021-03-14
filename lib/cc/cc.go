@@ -16,17 +16,18 @@ type Page struct {
 }
 
 type PanelPage struct {
-	Id           string          `form:"id" json:"id" binding:"required" validate:"required"`
-	Name         string          `form:"name" json:"name"`
-	Title        string          `form:"title" json:"title"`
-	Path         string          `form:"path" json:"path"`
-	UserId       string          `form:"userId" json:"userId" validate:"required"`
-	DisplayType  string          `form:"displayType" json:"displayType" binding:"required" validate:"required"`
-	DerivativeId string          `form:"derivativeId" json:"derivativeId"`
-	LayoutType   string          `form:"layoutType" json:"layoutType" binding:"required" validate:"required"`
-	Contexts     []InlineContext `form:"contexts[]" json:"contexts" validate:"dive"`
-	GridItems    []GridItem      `form:"gridItems[]" json:"gridItems" binding:"required" validate:"required,dive"`
-	Panels       []Panel         `form:"panels[]" json:"panels" binding:"required" validate:"required,dive"`
+	Id                string               `form:"id" json:"id" binding:"required" validate:"required"`
+	Name              string               `form:"name" json:"name"`
+	Title             string               `form:"title" json:"title"`
+	Path              string               `form:"path" json:"path"`
+	UserId            string               `form:"userId" json:"userId" validate:"required"`
+	DisplayType       string               `form:"displayType" json:"displayType" binding:"required" validate:"required"`
+	DerivativeId      string               `form:"derivativeId" json:"derivativeId"`
+	LayoutType        string               `form:"layoutType" json:"layoutType" binding:"required" validate:"required"`
+	Contexts          []InlineContext      `form:"contexts[]" json:"contexts" validate:"dive"`
+	GridItems         []GridItem           `form:"gridItems[]" json:"gridItems" binding:"required" validate:"required,dive"`
+	Panels            []Panel              `form:"panels[]" json:"panels" binding:"required" validate:"required,dive"`
+	EntityPermissions PanelPagePermissions `json:"entityPermissions" validate:"required"`
 }
 
 type GridLayout struct {
@@ -59,6 +60,12 @@ type Pane struct {
 	LinkedPageId  string                `form:"linkedPageId" json:"linkedPageId"`
 	Settings      []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
 	Rule          Rule                  `form:"rule" json:"rule" validate:"dive"`
+}
+
+type PanelPagePermissions struct {
+	ReadUserIds   []string `json:"readUserIds"`
+	WriteUserIds  []string `json:"writeUserIds"`
+	DeleteUserIds []string `json:"deleteUserIds"`
 }
 
 type Rule struct {

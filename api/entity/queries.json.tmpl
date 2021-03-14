@@ -351,10 +351,37 @@
             "bool": {
                 "must": [
                     {
-                        "term": {
-                            "userId.keyword": {
-                                "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
-                            }
+                        "bool": {
+                            "should": [
+                                {
+                                    "term": {
+                                        "entityPermissions.readUserIds.keyword": {
+                                            "value": "*"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "entityPermissions.readUserIds.keyword": {
+                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "entityPermissions.writeUserIds.keyword": {
+                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "entityPermissions.deleteUserIds.keyword": {
+                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                     {{ if $.Req.MultiValueQueryStringParameters.path }},

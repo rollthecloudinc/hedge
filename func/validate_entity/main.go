@@ -291,9 +291,21 @@ func ValidatePanelPage(jsonData []byte, payload *entity.ValidateEntityRequest) (
 
 	if obj.Id == "" {
 		obj.Id = utils.GenerateId()
-		obj.UserId = payload.UserId
-	} else if obj.UserId == "" {
-		obj.UserId = payload.UserId
+	}
+
+	obj.UserId = payload.UserId
+
+	readUserId := obj.UserId
+	for _, userId := range obj.EntityPermissions.ReadUserIds {
+		if userId == "*" {
+			readUserId = userId
+		}
+	}
+
+	obj.EntityPermissions = cc.PanelPagePermissions{
+		ReadUserIds:   []string{readUserId},
+		WriteUserIds:  []string{obj.UserId},
+		DeleteUserIds: []string{obj.UserId},
 	}
 
 	validate := validator.New()

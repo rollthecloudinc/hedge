@@ -1,6 +1,9 @@
 service: goclassifieds-api
 custom:
-  elasticUrl: https://i12sa6lx3y:v75zs8pgyd@classifieds-4537380016.us-east-1.bonsaisearch.net:443
+  elasticUrl: ${file(./private.json):elasticUrl}
+  keyspaceUsername: ${file(./private.json):keyspaceUsername}
+  keyspacePassword: ${file(./private.json):keyspacePassword}
+  apigatewayEndpoint: ${file(./private.json):apigatewayEndpoint}
 provider:
   name: aws
   runtime: go1.x
@@ -228,6 +231,10 @@ functions:
   ChatApi:
     handler: bazel-bin/api/chat/linux_amd64_pure_stripped/chat
     role: EntityApiRole
+    environment:
+      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+      APIGATEWAY_ENDPOINT: ${self:custom.apigatewayEndpoint}
     events:
       - httpApi:
           path: /chatmessage/{proxy+}
@@ -300,6 +307,9 @@ functions:
   Stream:
     handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
     role: EntityApiRole
+    environment:
+      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
     events:
       - websocket:
           route: $connect

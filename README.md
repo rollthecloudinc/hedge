@@ -84,3 +84,115 @@ type EntityManager struct {
 * authorizers - authorization of things like write and delete for an entity.
 * hooks - alter the above processes using custom code.
 
+Creators and updators are wrappers around saving an entity. They provide default operations
+like checking validity, and access.
+
+Loaders are resonsible for loading one single entity. 
+
+On the other hand, finders are responsible for loading multiple entities or partial entities.
+
+The reason loaders are separate from finders is because you might want to store the full entity
+information separate from the aggregate. For example, placing an entity in elastic which is
+a partial but loading the full entity from an s3 json file. We are breaking up the storage of the full entity
+vs. the storage of the entity that will be used in lists. The full entity can be loaded by id but in a scenario
+where you want to display a list there other criteria to consider and possibly the entity is not the full entity
+that is stored in that storage mechanism.
+
+Another difference is also that finders accept templates. Golang templates can be used used to define queries.
+
+Like this…
+
+```go
+{{ define "chatconversations" }}
+SELECT 
+     recipientid AS recipientId, 
+     recipientlabel AS recipientLabel, 
+     userid AS userId
+ FROM
+     chatconversations 
+WHERE 
+     userid = {{ bindValue .Req.RequestContext.Authorizer.claims.sub }}
+{{end}}
+```
+
+It doesn't have to be CQL. It can also be an elastic search query.
+
+```json
+{{ define "vocabularies" }}
+{
+    "query": {
+        "bool": {
+            "filter": [
+                {
+                    "bool": {
+                        "must": {
+                            "term": {
+                                "userId.keyword": {
+                                    "value": "{{ .Req.RequestContext.Authorizer.claims.sub }}"
+                                }
+                            }
+                        }   
+                    }
+                }
+            ]
+        }
+    },
+    "size": 100
+}
+{{ end }}
+```
+
+Go templates are used to define queries.
+
+Its even possible to execute a query within a template and pass the result to another lambda.
+
+Use the result of the lambda to build another query.
+
+```go
+{{ define "profilenavitems" }}
+{
+    "query": {
+        "bool": {
+            "should": [
+                {{ $profiles := (query "profile/_profiles" .) }}
+                {{ $res := (lambda "profile/ReadableProfiles" .Req.RequestContext.Authorizer.claims.sub $profiles) }}
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "terms": {
+                                    "id.keyword": [
+                                        {{ range $index, $id := $res.Data }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $id "value" }}"
+                                        {{ end }}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "bool": {
+                        "filter": [
+                            {
+                                "terms": {
+                                    "parentId.keyword": [
+                                        {{ range $index, $id := $res.Data }}
+                                            {{ if ne $index 0 }},{{ end }}"{{ index $id "value" }}"
+                                        {{ end }}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    "size": 1000
+}
+{{ end }}
+```
+
+
+

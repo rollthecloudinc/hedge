@@ -194,5 +194,17 @@ Use the result of the lambda to build another query.
 {{ end }}
 ```
 
+You can also embed templates into others.
+
+```go
+{{ define "ads" }}
+{
+    "query": {{ template "_ads" . }}
+}
+{{end}}
+```
+
+Where _ads is another define that evaluates to a json object.
+
 
 

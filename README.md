@@ -33,6 +33,8 @@ Once I had that piece working I needed a means of deployment to AWS. I needed a 
 At that point I had things working. However, there was a bunch of repetative code for persistence operatations.
 So I decided to refactor all that into a generic entity API able to facilitate nearly any data management need.
 
+## Entity API
+
 I ended up categorizing all entity management operations into an interface:
 
 ```go
@@ -86,6 +88,8 @@ type EntityManager struct {
 
 Creators and updators are wrappers around saving an entity. They provide default operations
 like checking validity, and access.
+
+## Loaders and Finders
 
 Loaders are resonsible for loading one single entity. 
 
@@ -206,6 +210,8 @@ You can also embed templates into others.
 
 Where _ads is another define that evaluates to a json object.
 
+## Saving
+
 There are so many ways to store data these days. I mean back in the old days we basically just stuffed that
 crap into some relational database like MySQL. However, in this modern age there are so many other alternative
 storage solutions. We not only have relational databases but none relational, search systems, the list goes on.
@@ -222,6 +228,8 @@ the integrity of the information being being stored. If an entity requires a tit
 the create/update should reject the entity before it ever gets to the storage persistence. If a user tries to update
 an entity but is not allowed to do so the action should be rejected before getting to the storage persistence.
 
+## Authorizers
+
 Authorizers sit in the middle of that process. Authorizers are meant to ask the question whether someone is allowed
 to carry out an action on an entity. There are many circumstances to restrict actions on access but lets discuss
 the basic case. If you create a blog entry. You are the owner. Should other people be able to change that blog
@@ -231,5 +239,54 @@ individuals blog entries. Authorizers are applied to entity create, update, and 
 your blog entry be able to be deleted by John Smith. The answer is no. The authorizer is meant to enforce those kind of rules
 and prevent that type of action by someone who should not be able to carry it out.
 
+## Hooks
 
+Hooks are used to change entities and alter collections. Standard hooks can alter an entity before and after it
+is saved. Collection hooks can completely modify collections returned using find.
+
+Collection hooks function similiar to rxjs functions. The example here demostrates building
+a complete one on one chat stream. So what we end up with is messsages the current user sent to the target and those sent by the target to the current user. Inspired by rxjs the idea is to take the result set of the function and merge it with
+the existing result set. These operators can all be combined together like rxjs operators hence the name of
+the base function "PipeCollectionHooks".
+
+```go
+		CollectionHooks: map[string]entity.EntityCollectionHook{
+			"default/chatmessages": entity.PipeCollectionHooks(
+				entity.MergeEntities(func(m *entity.EntityManager) []map[string]interface{} {
+					allAttributes := make([]entity.EntityAttribute, 0)
+					data := entity.EntityFinderDataBag{
+						Req:        req,
+						Attributes: allAttributes,
+					}
+					return m.Find("default", "_chatmessages_inverse", &data)
+				},
+			)),
+		},
+```
+
+Multiple collection hooks:
+
+```go
+				CollectionHooks: map[string]entity.EntityCollectionHook{
+					"default/_chatconnections": entity.PipeCollectionHooks(
+						entity.FilterEntities(func(ent map[string]interface{}) bool {
+							return ent["createdAt"].(time.Time).After(time.Now().Add(-1 * time.Hour))
+						}),
+						entity.MergeEntities(func(m *entity.EntityManager) []map[string]interface{} {
+							allAttributes := make([]entity.EntityAttribute, 0)
+							data := entity.EntityFinderDataBag{
+								Req:        req,
+								Attributes: allAttributes,
+								Metadata: map[string]interface{}{
+									"recipientId": ent["recipientId"],
+								},
+							}
+							return m.Find("default", "_chatconnections_inverse", &data)
+						}),
+					)
+				},
+			}
+```
+
+So in that case the idea is to filter the existing collection than merge it with a new collection.
 

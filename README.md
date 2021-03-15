@@ -12,3 +12,5 @@ No MVC framework needed when using serveless development.
 
 Not to mention the cold start time with golang surpasses any other language.
 
+This is the fastest service layer in existence using serverless technology.
+

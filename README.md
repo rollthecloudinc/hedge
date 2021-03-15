@@ -35,6 +35,7 @@ So I decided to refactor all that into a generic entity API able to facilitate n
 
 I ended up categorizing all entity management operations into an interface:
 
+```go
 type Manager interface {
 	Create(entity map[string]interface{}) (map[string]interface{}, error)
 	Update(entity map[string]interface{}) (map[string]interface{}, error)
@@ -47,18 +48,20 @@ type Manager interface {
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
 }
+```
 
-create - create new entity
-update - update existing entity
-purge - remove entity
-save - create/update tntity
-load - get one entity by id
-find - find multiple entities
-allow - allow operation like write or delete
-hooks* - augment above processes with custom code
+* create - create new entity
+* update - update existing entity
+* purge - remove entity
+* save - create/update tntity
+* load - get one entity by id
+* find - find multiple entities
+* allow - allow operation like write or delete
+* hooks* - augment above processes with custom code
 
 The configuration for any new entity being based on this framework.
 
+```go
 type EntityManager struct {
 	Config          EntityConfig
 	Creator         Creator
@@ -70,13 +73,14 @@ type EntityManager struct {
 	Hooks           map[Hooks]EntityHook
 	CollectionHooks map[string]EntityCollectionHook
 }
+```
 
-config - base entity config things like the name and id field name.
-creator - the adaptor responsible for creating a new entity.
-updator - the adaptor responsible for updating an existing entity.
-loaders - loading strategies for the entity
-finders - finder strageies for the entity
-storages - storage mechanisms for the entity.
-authorizers - authorization of things like write and delete for an entity.
-hooks - alter the above processes using custom code.
+* config - base entity config things like the name and id field name.
+* creator - the adaptor responsible for creating a new entity.
+* updator - the adaptor responsible for updating an existing entity.
+* loaders - loading strategies for the entity
+* finders - finder strageies for the entity
+* storages - storage mechanisms for the entity.
+* authorizers - authorization of things like write and delete for an entity.
+* hooks - alter the above processes using custom code.
 

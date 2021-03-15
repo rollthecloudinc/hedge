@@ -206,5 +206,30 @@ You can also embed templates into others.
 
 Where _ads is another define that evaluates to a json object.
 
+There are so many ways to store data these days. I mean back in the old days we basically just stuffed that
+crap into some relational database like MySQL. However, in this modern age there are so many other alternative
+storage solutions. We not only have relational databases but none relational, search systems, the list goes on.
+That being said the concept of persisting and finding information remains similar. Especially saving/persisting
+information to some type of storage facility. The idea of saving information hasn't changed very much. Before
+that save occurs there are things that need to be done. We need to make sure that the information being sent
+is valid, user is allowed to carry out the action. 
+
+This is where we can begin to separate storage from creating and updating. Storage is the action of persisting
+the information without any type of guards. Storage is raw data being sent and we just place 
+wherever. Save and update are the wrapper around that which provide guards against inaccurate data and data that a user
+is not allowed to change. Saving and updating are wrappers around the storage that are meant to maintain 
+the integrity of the information being being stored. If an entity requires a title and the title is not supplied
+the create/update should reject the entity before it ever gets to the storage persistence. If a user tries to update
+an entity but is not allowed to do so the action should be rejected before getting to the storage persistence.
+
+Authorizers sit in the middle of that process. Authorizers are meant to ask the question whether someone is allowed
+to carry out an action on an entity. There are many circumstances to restrict actions on access but lets discuss
+the basic case. If you create a blog entry. You are the owner. Should other people be able to change that blog
+entry which you created. I would say not. However, should you be able to change it – I would say so. So that
+represents a fairly basic case of owners are allowed to change their blog entries but others are not allowed to modify other
+individuals blog entries. Authorizers are applied to entity create, update, and delete operations. I mean… should
+your blog entry be able to be deleted by John Smith. The answer is no. The authorizer is meant to enforce those kind of rules
+and prevent that type of action by someone who should not be able to carry it out.
+
 
 

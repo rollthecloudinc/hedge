@@ -20,6 +20,7 @@ type PanelPage struct {
 	Name              string               `form:"name" json:"name"`
 	Title             string               `form:"title" json:"title"`
 	Path              string               `form:"path" json:"path"`
+	Site              string             	 `form:"site" json:"site" binding:"required" validate:"required"`
 	UserId            string               `form:"userId" json:"userId" validate:"required"`
 	DisplayType       string               `form:"displayType" json:"displayType" binding:"required" validate:"required"`
 	DerivativeId      string               `form:"derivativeId" json:"derivativeId"`

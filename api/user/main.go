@@ -22,6 +22,7 @@ type ActionContext struct {
 	Client        *cognitoidentityprovider.CognitoIdentityProvider
 	EntityManager entity.Manager
 	UserPoolId    string
+	Stage         string
 }
 
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -83,6 +84,7 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
 		Session: ac.Session,
 		Client:  ac.Client,
+		Stage:   ac.Stage,
 	}
 }
 
@@ -96,6 +98,7 @@ func init() {
 		Session:    sess,
 		Client:     client,
 		UserPoolId: os.Getenv("USER_POOL_ID"),
+		Stage:      os.Getenv("STAGE"),
 	}
 
 	handler = InitializeHandler(&actionContext)

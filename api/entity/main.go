@@ -39,6 +39,7 @@ type ActionContext struct {
 	TemplateName   string
 	Implementation string
 	BucketName     string
+	Stage          string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -194,6 +195,7 @@ func InitializeHandler(c *ActionContext) Handler {
 			Template:     ac.Template,
 			UserId:       userId,
 			BucketName:   ac.BucketName,
+			Stage:        ac.Stage,
 		})
 
 		if singularName == "type" {
@@ -209,6 +211,7 @@ func InitializeHandler(c *ActionContext) Handler {
 				Template:     ac.Template,
 				UserId:       userId,
 				BucketName:   ac.BucketName,
+				Stage:        ac.Stage,
 			})
 			/*manager, err := entity.GetManager(
 				singularName,
@@ -322,6 +325,7 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 			Template:     ac.Template,
 			UserId:       "",
 			BucketName:   ac.BucketName,
+			Stage:        ac.Stage,
 		})
 
 		/*data := entity.EntityFinderDataBag{
@@ -356,7 +360,7 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 
 		functionName := pluralName
 		if len(pieces) == 2 {
-			functionName = "goclassifieds-api-dev-" + pieces[1]
+			functionName = "goclassifieds-api-" + ac.Stage + "-" + pieces[1]
 		}
 
 		request := entity.EntityDataRequest{
@@ -382,7 +386,8 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 		Lambda:         ac.Lambda,
 		Template:       ac.Template,
 		Implementation: "default",
-		BucketName: ac.BucketName,
+		BucketName:     ac.BucketName,
+		Stage:          ac.Stage,
 	}
 }
 
@@ -417,6 +422,7 @@ func init() {
 		Session:    sess,
 		Lambda:     lClient,
 		BucketName: os.Getenv("BUCKET_NAME"),
+		Stage:      os.Getenv("STAGE"),
 	}
 
 	log.Printf("entity bucket storage: %s", actionContext.BucketName)

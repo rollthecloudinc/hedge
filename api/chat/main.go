@@ -37,6 +37,7 @@ type ActionContext struct {
 	EntityName     string
 	TemplateName   string
 	Implementation string
+	Stage          string
 	Bindings       *entity.VariableBindings
 }
 
@@ -123,6 +124,7 @@ func RequestActionContext(c *ActionContext) *ActionContext {
 		Gateway:        c.Gateway,
 		Implementation: "default",
 		Bindings:       &entity.VariableBindings{Values: make([]interface{}, 0)},
+		Stage:          c.Stage,
 	}
 
 	funcMap := template.FuncMap{
@@ -147,6 +149,7 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 			SingularName: ac.EntityName,
 			PluralName:   inflector.Pluralize(ac.EntityName),
 			IdKey:        "id",
+			Stage:        ac.Stage,
 		},
 		Creator: entity.DefaultCreatorAdaptor{
 			Config: entity.DefaultCreatorConfig{
@@ -232,6 +235,7 @@ func NewManager(ac *ActionContext, req *events.APIGatewayProxyRequest) entity.En
 					SingularName: "chatconnection",
 					PluralName:   "chatconnections",
 					IdKey:        "connId",
+					Stage:        ac.Stage,
 				},
 				Finders: map[string]entity.Finder{
 					"default": entity.CqlTemplateFinder{
@@ -352,6 +356,7 @@ func init() {
 		Session: cSession,
 		Lambda:  lClient,
 		Gateway: gateway,
+		Stage:   os.Getenv("STAGE"),
 	}
 
 	handler = InitializeHandler(&actionContext)

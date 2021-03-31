@@ -23,6 +23,7 @@ type ActionContext struct {
 	Session     *gocql.Session
 	Lambda      *lambda2.Lambda
 	UserId      string
+	Stage       string
 	ConnManager entity.EntityManager
 }
 
@@ -74,6 +75,7 @@ func CreateConnectionManager(ac *ActionContext) entity.EntityManager {
 			SingularName: "chatconnection",
 			PluralName:   "chatconnections",
 			IdKey:        "connId",
+			Stage:        ac.Stage,
 		},
 		Creator: entity.DefaultCreatorAdaptor{
 			Config: entity.DefaultCreatorConfig{
@@ -98,6 +100,7 @@ func RequestActionContext(c *ActionContext) *ActionContext {
 	return &ActionContext{
 		Session: c.Session,
 		Lambda:  c.Lambda,
+		Stage:   c.Stage,
 	}
 }
 
@@ -131,6 +134,7 @@ func init() {
 	actionContext := ActionContext{
 		Session: cSession,
 		Lambda:  lClient,
+		Stage:   os.Getenv("STAGE"),
 	}
 
 	handler = InitializeHandler(&actionContext)

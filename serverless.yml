@@ -117,6 +117,7 @@ functions:
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
       BUCKET_NAME: ${self:custom.bucketName}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /adprofileitems/{proxy+}
@@ -210,6 +211,7 @@ functions:
     role: EntityApiRole
     environment:
       BUCKET_NAME: ${self:custom.bucketName}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /media/{prefix}
@@ -226,6 +228,7 @@ functions:
     role: EntityApiRole
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /publicuserprofile/{id}
@@ -233,6 +236,8 @@ functions:
   ProxyApi:
     handler: bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
     role: EntityApiRole
+    evironment:
+      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /cities/{country}/{state}/{city}
@@ -244,6 +249,7 @@ functions:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
       APIGATEWAY_ENDPOINT: ${self:custom.apigatewayEndpoint}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /chatmessage/{proxy+}
@@ -300,9 +306,10 @@ functions:
     role: EntityApiRole
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - s3:
-          bucket: classifieds-ui-dev
+          bucket: ${self:custom.bucketName}
           event: s3:ObjectCreated:*
           rules:
             - suffix: .json.gz
@@ -310,15 +317,20 @@ functions:
   ValidateEntity:
     handler: bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     role: EntityApiRole
+    environment:
+      STAGE: ${opt:stage, 'dev'}
   ReadableProfiles:
     handler: bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
     role: EntityApiRole
+    environment:
+      STAGE: ${opt:stage, 'dev'}
   Stream:
     handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
     role: EntityApiRole
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+      STAGE: ${opt:stage, 'dev'}
     events:
       - websocket:
           route: $connect
@@ -332,3 +344,4 @@ functions:
     handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}

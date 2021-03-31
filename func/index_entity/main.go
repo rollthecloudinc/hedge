@@ -45,6 +45,7 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 			EsClient:     esClient,
 			Session:      sess,
 			UserId:       "",
+			Stage:        os.Getenv("STAGE"),
 		})
 
 		id := pieces[1][0 : len(pieces[1])-8]

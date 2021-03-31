@@ -58,6 +58,7 @@ type EntityConfig struct {
 	SingularName string
 	PluralName   string
 	IdKey        string
+	Stage        string
 }
 
 type ValidateEntityRequest struct {
@@ -105,6 +106,7 @@ type DefaultManagerConfig struct {
 	PluralName   string
 	Index        string
 	BucketName   string
+	Stage        string
 	BeforeSave   EntityHook
 	AfterSave    EntityHook
 	BeforeFind   EntityCollectionHook
@@ -667,7 +669,7 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-dev-ValidateEntity"), Payload: payload})
+	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
 	if err != nil {
 		log.Printf("error invoking entity validation: %s", err.Error())
 		return entity, errors.New("Error invoking validation")
@@ -745,7 +747,7 @@ func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-dev-ValidateEntity"), Payload: payload})
+	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
 	if err != nil {
 		log.Printf("error invoking entity validation: %s", err.Error())
 		return entity, errors.New("Error invoking validation")
@@ -1222,6 +1224,7 @@ func GetManager(entityName string, c map[string]interface{}, s *EntityAdaptorCon
 			SingularName: entityName,
 			PluralName:   inflector.Pluralize(entityName),
 			IdKey:        "id",
+			Stage:        "",
 		},
 		Finders:     finders,
 		Loaders:     loaders,
@@ -1240,6 +1243,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			SingularName: config.SingularName,
 			PluralName:   config.PluralName,
 			IdKey:        "id",
+			Stage:        config.Stage,
 		},
 		Creator: DefaultCreatorAdaptor{
 			Config: DefaultCreatorConfig{
@@ -1299,6 +1303,7 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			SingularName: "type",
 			PluralName:   "types",
 			IdKey:        "id",
+			Stage:        config.Stage,
 		},
 		Creator: EntityTypeCreatorAdaptor{
 			Config: DefaultCreatorConfig{

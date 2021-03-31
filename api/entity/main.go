@@ -38,6 +38,7 @@ type ActionContext struct {
 	Template       *template.Template
 	TemplateName   string
 	Implementation string
+	BucketName     string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -192,6 +193,7 @@ func InitializeHandler(c *ActionContext) Handler {
 			Lambda:       ac.Lambda,
 			Template:     ac.Template,
 			UserId:       userId,
+			BucketName:   ac.BucketName,
 		})
 
 		if singularName == "type" {
@@ -206,6 +208,7 @@ func InitializeHandler(c *ActionContext) Handler {
 				Lambda:       ac.Lambda,
 				Template:     ac.Template,
 				UserId:       userId,
+				BucketName:   ac.BucketName,
 			})
 			/*manager, err := entity.GetManager(
 				singularName,
@@ -318,6 +321,7 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 			Lambda:       ac.Lambda,
 			Template:     ac.Template,
 			UserId:       "",
+			BucketName:   ac.BucketName,
 		})
 
 		/*data := entity.EntityFinderDataBag{
@@ -378,6 +382,7 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 		Lambda:         ac.Lambda,
 		Template:       ac.Template,
 		Implementation: "default",
+		BucketName: ac.BucketName,
 	}
 }
 
@@ -408,10 +413,13 @@ func init() {
 	lClient := lambda2.New(sess)
 
 	actionContext := ActionContext{
-		EsClient: esClient,
-		Session:  sess,
-		Lambda:   lClient,
+		EsClient:   esClient,
+		Session:    sess,
+		Lambda:     lClient,
+		BucketName: os.Getenv("BUCKET_NAME"),
 	}
+
+	log.Printf("entity bucket storage: %s", actionContext.BucketName)
 
 	funcMap := template.FuncMap{
 		"query":  TemplateQuery(&actionContext),

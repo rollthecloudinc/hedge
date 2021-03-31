@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"goclassifieds/lib/entity"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -20,6 +21,7 @@ type ActionContext struct {
 	Session       *session.Session
 	Client        *cognitoidentityprovider.CognitoIdentityProvider
 	EntityManager entity.Manager
+	UserPoolId    string
 }
 
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -60,7 +62,7 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 			"default": entity.CognitoLoaderAdaptor{
 				Config: entity.CognitoAdaptorConfig{
 					Client:     ac.Client,
-					UserPoolId: "us-east-1_z8PhK3D8V",
+					UserPoolId: ac.UserPoolId,
 					Transform: func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error) {
 						ent := make(map[string]interface{})
 						ent["userName"] = user.Username
@@ -91,8 +93,9 @@ func init() {
 	client := cognitoidentityprovider.New(sess)
 
 	actionContext := ActionContext{
-		Session: sess,
-		Client:  client,
+		Session:    sess,
+		Client:     client,
+		UserPoolId: os.Getenv("USER_POOL_ID"),
 	}
 
 	handler = InitializeHandler(&actionContext)

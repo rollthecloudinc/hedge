@@ -7,4 +7,5 @@ bazel-goclassifieds
 bazel-out
 bazel-testlogs
 
-private.json
+private.dev.json
+private.prod.json

@@ -10,6 +10,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -26,7 +27,8 @@ var handler Handler
 type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
 
 type ActionContext struct {
-	Session *session.Session
+	Session    *session.Session
+	BucketName string
 }
 
 func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -69,7 +71,7 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 
 	uploader := s3manager.NewUploader(ac.Session)
 	_, err = uploader.Upload(&s3manager.UploadInput{
-		Bucket:      aws.String("classifieds-ui-dev"),
+		Bucket:      aws.String(ac.BucketName),
 		Key:         aws.String(data["path"]),
 		Body:        file,
 		ContentType: aws.String(data["contentType"]),
@@ -100,7 +102,7 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	downloader := s3manager.NewDownloader(ac.Session)
 
 	_, err := downloader.Download(buf, &s3.GetObjectInput{
-		Bucket: aws.String("classifieds-ui-dev"),
+		Bucket: aws.String(ac.BucketName),
 		Key:    aws.String("media/" + file),
 	})
 
@@ -138,7 +140,8 @@ func init() {
 	log.Printf("Gin cold start")
 	sess := session.Must(session.NewSession())
 	actionContext := ActionContext{
-		Session: sess,
+		Session:    sess,
+		BucketName: os.Getenv("BUCKET_NAME"),
 	}
 	handler = InitializeHandler(actionContext)
 }

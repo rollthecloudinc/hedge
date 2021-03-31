@@ -104,6 +104,7 @@ type DefaultManagerConfig struct {
 	SingularName string
 	PluralName   string
 	Index        string
+	BucketName   string
 	BeforeSave   EntityHook
 	AfterSave    EntityHook
 	BeforeFind   EntityCollectionHook
@@ -473,6 +474,7 @@ func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {
 	if err := gz.Close(); err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("store in bucket: %s", s.Config.Bucket)
 	uploader := s3manager.NewUploader(s.Config.Session)
 	_, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket:          aws.String(s.Config.Bucket),
@@ -1268,7 +1270,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			"default": S3LoaderAdaptor{
 				Config: S3AdaptorConfig{
 					Session: config.Session,
-					Bucket:  "classifieds-ui-dev",
+					Bucket:  config.BucketName,
 					Prefix:  config.PluralName + "/",
 				},
 			},
@@ -1277,7 +1279,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			"default": S3StorageAdaptor{
 				Config: S3AdaptorConfig{
 					Session: config.Session,
-					Bucket:  "classifieds-ui-dev",
+					Bucket:  config.BucketName,
 					Prefix:  config.PluralName + "/",
 				},
 			},

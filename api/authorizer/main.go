@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -9,12 +10,20 @@ import (
 	"github.com/lestrrat-go/jwx/jwk"
 )
 
+var handler Handler
+
+type Handler func(req *events.APIGatewayWebsocketProxyRequest) (events.APIGatewayCustomAuthorizerResponse, error)
+
+type ActionContext struct {
+	UserPoolId string
+}
+
 // Authorizer custom api authorizer
-func Authorizer(request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayCustomAuthorizerResponse, error) {
+func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.QueryStringParameters["token"]
 
 	// Fetch all keys
-	jwkSet, err := jwk.Fetch("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_z8PhK3D8V/.well-known/jwks.json")
+	jwkSet, err := jwk.Fetch("https://cognito-idp.us-east-1.amazonaws.com/" + ac.UserPoolId + "/.well-known/jwks.json")
 	if err != nil {
 		log.Fatalln("Unable to fetch keys")
 	}
@@ -53,6 +62,20 @@ func Authorizer(request events.APIGatewayWebsocketProxyRequest) (events.APIGatew
 	}, nil
 }
 
+func InitializeHandler(ac ActionContext) Handler {
+	return func(req *events.APIGatewayWebsocketProxyRequest) (events.APIGatewayCustomAuthorizerResponse, error) {
+		return Authorizer(req, &ac)
+	}
+}
+
+func init() {
+	log.Printf("Gin cold start")
+	actionContext := ActionContext{
+		UserPoolId: os.Getenv("USER_POOL_ID"),
+	}
+	handler = InitializeHandler(actionContext)
+}
+
 func main() {
-	lambda.Start(Authorizer)
+	lambda.Start(handler)
 }

@@ -1,9 +1,13 @@
 service: goclassifieds-api
 custom:
-  elasticUrl: ${file(./private.json):elasticUrl}
-  keyspaceUsername: ${file(./private.json):keyspaceUsername}
-  keyspacePassword: ${file(./private.json):keyspacePassword}
-  apigatewayEndpoint: ${file(./private.json):apigatewayEndpoint}
+  elasticUrl: ${file(./private.${opt:stage, 'dev'}.json):elasticUrl}
+  keyspaceUsername: ${file(./private.${opt:stage, 'dev'}.json):keyspaceUsername}
+  keyspacePassword: ${file(./private.${opt:stage, 'dev'}.json):keyspacePassword}
+  apigatewayEndpoint: ${file(./private.${opt:stage, 'dev'}.json):apigatewayEndpoint}
+  userPoolId: ${file(./private.${opt:stage, 'dev'}.json):userPoolId}
+  userPoolArn: ${file(./private.${opt:stage, 'dev'}.json):userPoolArn}
+  cognitoAppClientId: ${file(./private.${opt:stage, 'dev'}.json):cognitoAppClientId}
+  bucketName: ${file(./private.${opt:stage, 'dev'}.json):bucketName}
 provider:
   name: aws
   runtime: go1.x
@@ -17,9 +21,9 @@ provider:
     authorizers:
       cognito:
         identitySource: $request.header.Authorization
-        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_z8PhK3D8V
+        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/${self:custom.userPoolId}
         audience:
-          - 3lkidn79q4jq8nahkecsguleij
+          - ${self:custom.cognitoAppClientId}
 package:
   individually: false
   include:
@@ -92,7 +96,7 @@ resources:
                   Action:
                     - "s3:PutObject"
                     - "s3:GetObject"
-                  Resource: "arn:aws:s3:::classifieds-ui-dev/*/*"
+                  Resource: "arn:aws:s3:::${self:custom.bucketName}/*/*"
                 - Effect: "Allow"
                   Action:
                     - "lambda:InvokeFunction"
@@ -100,7 +104,7 @@ resources:
                 - Effect: "Allow"
                   Action:
                     - "cognito-idp:ListUsers"
-                  Resource: "arn:aws:cognito-idp:us-east-1:989992233821:userpool/us-east-1_z8PhK3D8V"
+                  Resource: ${self:custom.userPoolArn}
                 - Effect: "Allow"
                   Action:
                     - "execute-api:Invoke"
@@ -112,6 +116,7 @@ functions:
     role: EntityApiRole
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
+      BUCKET_NAME: ${self:custom.bucketName}
     events:
       - httpApi:
           path: /adprofileitems/{proxy+}
@@ -203,6 +208,8 @@ functions:
   MediaApi:
     handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
     role: EntityApiRole
+    environment:
+      BUCKET_NAME: ${self:custom.bucketName}
     events:
       - httpApi:
           path: /media/{prefix}
@@ -217,6 +224,8 @@ functions:
   UserApi:
     handler: bazel-bin/api/user/linux_amd64_pure_stripped/user
     role: EntityApiRole
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}
     events:
       - httpApi:
           path: /publicuserprofile/{id}
@@ -321,3 +330,5 @@ functions:
           route: $disconnect
   Authorize:
     handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}

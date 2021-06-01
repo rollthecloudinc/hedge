@@ -8,6 +8,8 @@ custom:
   userPoolArn: ${file(./private.${opt:stage, 'dev'}.json):userPoolArn}
   cognitoAppClientId: ${file(./private.${opt:stage, 'dev'}.json):cognitoAppClientId}
   bucketName: ${file(./private.${opt:stage, 'dev'}.json):bucketName}
+  proxyAveDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyAveDomain}
+  aveApikey: ${file(./private.${opt:stage, 'dev'}.json):aveApikey}
 provider:
   name: aws
   runtime: go1.x
@@ -236,11 +238,18 @@ functions:
   ProxyApi:
     handler: bazel-bin/api/proxy/linux_amd64_pure_stripped/proxy
     role: EntityApiRole
+    environment:
+      PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
+      PROXY_AVE_APIKEY: ${self:custom.aveApikey}
+      STAGE: ${opt:stage, 'dev'}
     evironment:
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /cities/{country}/{state}/{city}
+          method: GET
+      - httpApi:
+          path: /ave
           method: GET
   ChatApi:
     handler: bazel-bin/api/chat/linux_amd64_pure_stripped/chat

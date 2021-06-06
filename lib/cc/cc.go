@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+type LayoutSetting struct {
+	Settings []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
+}
+
 type Page struct {
 	Site      string    `form:"site" json:"site" binding:"required" validate:"required"`
 	Path      string    `form:"path" json:"path" binding:"required" validate:"required"`
@@ -20,7 +24,7 @@ type PanelPage struct {
 	Name              string               `form:"name" json:"name"`
 	Title             string               `form:"title" json:"title"`
 	Path              string               `form:"path" json:"path"`
-	Site              string             	 `form:"site" json:"site" binding:"required" validate:"required"`
+	Site              string               `form:"site" json:"site" binding:"required" validate:"required"`
 	UserId            string               `form:"userId" json:"userId" validate:"required"`
 	DisplayType       string               `form:"displayType" json:"displayType" binding:"required" validate:"required"`
 	DerivativeId      string               `form:"derivativeId" json:"derivativeId"`
@@ -29,6 +33,8 @@ type PanelPage struct {
 	GridItems         []GridItem           `form:"gridItems[]" json:"gridItems" binding:"required" validate:"required,dive"`
 	Panels            []Panel              `form:"panels[]" json:"panels" binding:"required" validate:"required,dive"`
 	EntityPermissions PanelPagePermissions `json:"entityPermissions" validate:"required"`
+	LayoutSetting     *LayoutSetting       `form:"layoutSetting" json:"layoutSetting" binding:"omitempty" validate:"omitempty"`
+	RowSettings       []LayoutSetting      `form:"rowSettings[]" json:"rowSettings" validate:"dive"`
 }
 
 type GridLayout struct {
@@ -46,11 +52,12 @@ type GridItem struct {
 }
 
 type Panel struct {
-	Name        string                `form:"name" json:"name"`
-	Label       string                `form:"label" json:"label"`
-	StylePlugin string                `form:"stylePlugin" json:"stylePlugin"`
-	Settings    []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
-	Panes       []Pane                `form:"panes[]" json:"panes" validate:"dive"`
+	Name          string                `form:"name" json:"name"`
+	Label         string                `form:"label" json:"label"`
+	StylePlugin   string                `form:"stylePlugin" json:"stylePlugin"`
+	Settings      []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
+	ColumnSetting *LayoutSetting        `form:"columnSetting" json:"columnSetting" binding:"omitempty" validate:"omitempty"`
+	Panes         []Pane                `form:"panes[]" json:"panes" validate:"dive"`
 }
 
 type Pane struct {

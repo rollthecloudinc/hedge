@@ -1,5 +1,6 @@
 var cssparser = require("cssparser");
 
-exports.handler = function() {
+module.exports.handler = function(event, context, callback) {
   console.log('hello world');
+  callback();
 }

@@ -7,12 +7,7 @@ esbuild(
     deps = [
       "@npm//cssparser",
     ],
-    external = [
-      "fs",
-      "path",
-      "util",
-      "os"
-    ],
+    platform = "node",
     tool = select({
         "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
         "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",

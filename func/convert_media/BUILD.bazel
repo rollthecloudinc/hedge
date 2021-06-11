@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "convert_media",
+    embed = [":go_default_library"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/func/convert_media",
+    visibility = ["//visibility:public"]
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/convert_media",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/ads",
+        "//lib/vocab",
+        "//lib/entity",
+        "//lib/attr",
+        "//lib/cc",
+        "@com_github_aws_aws_lambda_go//events:go_default_library",
+        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
+        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
+        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
+        "@com_github_mitchellh_mapstructure//:go_default_library",
+        "@com_github_tangzero_inflector//:go_default_library",
+    ],
+)

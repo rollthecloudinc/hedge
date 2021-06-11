@@ -3,6 +3,16 @@ load("@npm//@bazel/esbuild:index.bzl", "esbuild")
 esbuild(
     name = "css_to_json",
     entry_point = "index.js",
+    target = "node10",
+    deps = [
+      "@npm//cssparser",
+    ],
+    external = [
+      "fs",
+      "path",
+      "util",
+      "os"
+    ],
     tool = select({
         "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
         "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",

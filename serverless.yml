@@ -39,6 +39,7 @@ package:
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
+    - bazel-bin/func/convert_media/linux_amd64_pure_stripped/convert_media
     - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
@@ -56,6 +57,7 @@ package:
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**
+    - bazel-bin/func/convert_media/linux_amd64_pure_stripped/**
     - bazel-bin/func/css_to_json/**
 resources:
   Resources:

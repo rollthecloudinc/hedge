@@ -15,8 +15,10 @@ go_library(
     importpath = "goclassifieds/func/convert_media",
     visibility = ["//visibility:private"],
     deps = [
+        "@com_github_aws_aws_sdk_go//aws:go_default_library",
         "@com_github_aws_aws_lambda_go//events:go_default_library",
         "@com_github_aws_aws_lambda_go//lambda:go_default_library",
         "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
+        "@com_github_aws_aws_sdk_go//service/lambda:go_default_library",
     ],
 )

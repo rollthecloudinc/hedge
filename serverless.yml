@@ -39,6 +39,7 @@ package:
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
+    - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
@@ -55,6 +56,7 @@ package:
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**
+    - bazel-bin/func/css_to_json/**
 resources:
   Resources:
     EntityApiRole:
@@ -242,8 +244,6 @@ functions:
       PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
       PROXY_AVE_APIKEY: ${self:custom.aveApikey}
       STAGE: ${opt:stage, 'dev'}
-    evironment:
-      STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /cities/{country}/{state}/{city}
@@ -349,6 +349,12 @@ functions:
               - 'route.request.querystring.token'
       - websocket:
           route: $disconnect
+  CssToJson:
+    handler: bazel-bin/func/css_to_json/css_to_json.handler
+    role: EntityApiRole
+    runtime: nodejs10.x
+    environment:
+      STAGE: ${opt:stage, 'dev'}
   Authorize:
     handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
     environment:

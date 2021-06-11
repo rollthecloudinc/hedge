@@ -323,6 +323,18 @@ functions:
           rules:
             - suffix: .json.gz
           existing: true
+  ConvertMedia:
+    handler: bazel-bin/func/convert_media/linux_amd64_pure_stripped/convert_media
+    role: EntityApiRole
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - s3:
+          bucket: ${self:custom.bucketName}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .css
+          existing: true
   ValidateEntity:
     handler: bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     role: EntityApiRole

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,6 +43,9 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 			log.Printf("response: %s", res)
 		}
 
+		log.Printf("json: %s", res.Payload)
+		write(sess, res.Payload, &record)
+
 	}
 }
 
@@ -77,6 +81,22 @@ func download(sess *session.Session, record *events.S3EventRecord) ([]byte, erro
 
 	return buf.Bytes(), nil
 
+}
+
+func write(sess *session.Session, content []byte, record *events.S3EventRecord) error {
+
+	uploader := s3manager.NewUploader(sess)
+
+	_, err := uploader.Upload(&s3manager.UploadInput{
+		Bucket:      aws.String(record.S3.Bucket.Name),
+		Key:         aws.String(record.S3.Object.Key + ".json"),
+		Body:        bytes.NewReader(content),
+		ContentType: aws.String("text/json"),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {

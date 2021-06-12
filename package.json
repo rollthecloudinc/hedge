@@ -4,6 +4,6 @@
     "@bazel/bazelisk": "^1.9.0",
     "@bazel/esbuild": "^3.6.0",
     "@bazel/ibazel": "^0.15.10",
-    "cssparser": "^0.9.4"
+    "cssjson": "^2.1.3"
   }
 }

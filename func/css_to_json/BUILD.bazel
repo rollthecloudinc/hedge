@@ -5,7 +5,7 @@ esbuild(
     entry_point = "index.js",
     target = "node10",
     deps = [
-      "@npm//cssparser",
+      "@npm//cssjson",
     ],
     platform = "node",
     tool = select({

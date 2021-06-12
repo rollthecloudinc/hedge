@@ -91,7 +91,7 @@ func write(sess *session.Session, content []byte, record *events.S3EventRecord) 
 		Bucket:      aws.String(record.S3.Bucket.Name),
 		Key:         aws.String(record.S3.Object.Key + ".json"),
 		Body:        bytes.NewReader(content),
-		ContentType: aws.String("text/json"),
+		ContentType: aws.String("application/json"),
 	})
 	if err != nil {
 		return err

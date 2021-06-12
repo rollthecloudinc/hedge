@@ -69,12 +69,15 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		"length":             fmt.Sprint(header.Size),
 	}
 
+	userId := GetUserId(req)
+
 	uploader := s3manager.NewUploader(ac.Session)
 	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket:      aws.String(ac.BucketName),
 		Key:         aws.String(data["path"]),
 		Body:        file,
 		ContentType: aws.String(data["contentType"]),
+		Metadata:    map[string]*string{"userId": &userId},
 	})
 	if err != nil {
 		return res, err
@@ -134,6 +137,17 @@ func InitializeHandler(ac ActionContext) Handler {
 			return GetMediaFile(req, &ac)
 		}
 	}
+}
+
+func GetUserId(req *events.APIGatewayProxyRequest) string {
+	userId := ""
+	if req.RequestContext.Authorizer["claims"] != nil {
+		userId = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["sub"])
+		if userId == "<nil>" {
+			userId = ""
+		}
+	}
+	return userId
 }
 
 func init() {

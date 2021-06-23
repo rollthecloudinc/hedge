@@ -272,6 +272,13 @@ func InitializeHandler(c *ActionContext) Handler {
 			ac.EntityManager = manager*/
 		}
 
+		// Default to using owner authoization fo all entities.
+		ac.EntityManager.AddAuthorizer("default", entity.OwnerAuthorizationAdaptor{
+			Config: entity.OwnerAuthorizationConfig{
+				UserId: userId,
+			},
+		})
+
 		if singularName == "ad" {
 			collectionKey := "aggregations.features.features_filtered.feature_names.buckets"
 			if req.QueryStringParameters["featureSearchString"] == "" {

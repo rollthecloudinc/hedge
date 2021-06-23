@@ -144,6 +144,7 @@ type Manager interface {
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 	AddFinder(name string, finder Finder)
+	AddAuthorizer(name string, authorizer Authorization)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
 }
@@ -345,6 +346,10 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 
 func (m EntityManager) AddFinder(name string, finder Finder) {
 	m.Finders[name] = finder
+}
+
+func (m EntityManager) AddAuthorizer(name string, authorizer Authorization) {
+	m.Authorizers[name] = authorizer
 }
 
 func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -1294,6 +1299,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 				},
 			},
 		},
+		Authorizers: map[string]Authorization{},
 	}
 }
 
@@ -1332,5 +1338,6 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 				},
 			},
 		},
+		Authorizers: map[string]Authorization{},
 	}
 }

@@ -318,6 +318,7 @@ functions:
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
       STAGE: ${opt:stage, 'dev'}
+      BUCKET_NAME: ${self:custom.bucketName}
     events:
       - s3:
           bucket: ${self:custom.bucketName}

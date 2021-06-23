@@ -46,6 +46,7 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 			Session:      sess,
 			UserId:       "",
 			Stage:        os.Getenv("STAGE"),
+			BucketName:   os.Getenv("BUCKET_NAME"),
 		})
 
 		id := pieces[1][0 : len(pieces[1])-8]
@@ -100,6 +101,7 @@ func IndexPanelPage(obj map[string]interface{}) map[string]interface{} {
 	item.GridItems = make([]cc.GridItem, 0)
 	item.Contexts = make([]cc.InlineContext, 0)
 	item.Panels = make([]cc.Panel, 0)
+	item.RowSettings = make([]cc.LayoutSetting, 0)
 
 	ent, _ := cc.ToPanelPageEntity(&item)
 	return ent

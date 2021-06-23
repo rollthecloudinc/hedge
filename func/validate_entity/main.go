@@ -290,9 +290,10 @@ func ValidatePanelPage(jsonData []byte, payload *entity.ValidateEntityRequest) (
 	}
 
 	if obj.Id == "" {
-		obj.UserId = payload.UserId
 		obj.Id = utils.GenerateId()
 	}
+
+	obj.UserId = payload.UserId
 
 	readUserId := obj.UserId
 	for _, userId := range obj.EntityPermissions.ReadUserIds {

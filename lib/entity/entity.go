@@ -746,6 +746,12 @@ func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityMa
 		UserId:     c.Config.UserId,
 	}
 
+	write, _ := m.Allow(entity[m.Config.IdKey].(string), "write", "default")
+	if !write {
+		log.Printf("not allowed to write to entity %s", entity[m.Config.IdKey].(string))
+		return entity, errors.New("unauthorized to write to entity.")
+	}
+
 	payload, err := json.Marshal(request)
 	if err != nil {
 		log.Printf("Error marshalling entity validation request: %s", err.Error())

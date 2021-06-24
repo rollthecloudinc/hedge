@@ -27,11 +27,8 @@ provider:
         audience:
           - ${self:custom.cognitoAppClientId}
       authorizer2:
-        name: Authorize2
-        identitySource: $request.header.Authorization
-        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/${self:custom.userPoolId}
-        audience:
-          - ${self:custom.cognitoAppClientId}
+        type: request
+        functionName: Authorize2
 package:
   individually: false
   include:
@@ -219,7 +216,7 @@ functions:
           path: /panelpage/{id}
           method: GET
           authorizer:
-            name: cognito
+            name: authorizer2
   MediaApi:
     handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
     role: EntityApiRole

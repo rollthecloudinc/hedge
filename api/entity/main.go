@@ -27,6 +27,7 @@ type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 
 type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
 type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
+type TemplateUserIdFunc func(req *events.APIGatewayProxyRequest) string
 
 type ActionContext struct {
 	EsClient       *elasticsearch7.Client
@@ -386,6 +387,12 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 	}
 }
 
+func TemplateUserId(ac *ActionContext) TemplateUserIdFunc {
+	return func(req *events.APIGatewayProxyRequest) string {
+		return GetUserId(req)
+	}
+}
+
 func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
 		EsClient:       ac.EsClient,
@@ -400,11 +407,14 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 
 func GetUserId(req *events.APIGatewayProxyRequest) string {
 	userId := ""
+	log.Printf("claims are %v", req.RequestContext.Authorizer["claims"])
 	if req.RequestContext.Authorizer["claims"] != nil {
 		userId = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["sub"])
 		if userId == "<nil>" {
 			userId = ""
 		}
+	} else if req.RequestContext.Authorizer["sub"] != nil {
+		userId = req.RequestContext.Authorizer["sub"].(string)
 	}
 	return userId
 }
@@ -437,6 +447,7 @@ func init() {
 	funcMap := template.FuncMap{
 		"query":  TemplateQuery(&actionContext),
 		"lambda": TemplateLambda(&actionContext),
+		"userId": TemplateUserId(&actionContext),
 	}
 
 	t, err := template.New("").Funcs(funcMap).ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")

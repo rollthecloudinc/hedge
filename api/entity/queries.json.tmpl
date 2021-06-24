@@ -359,31 +359,28 @@
                                             "value": "*"
                                         }
                                     }
-                                }
-                                {{ with $.Req.RequestContext.Authorizer.claims }}
-                                ,
+                                },
                                 {
                                     "term": {
                                         "entityPermissions.readUserIds.keyword": {
-                                            "value": "{{ .sub }}"
+                                            "value": "{{ userId .Req }}"
                                         }
                                     }
                                 },
                                 {
                                     "term": {
                                         "entityPermissions.writeUserIds.keyword": {
-                                            "value": "{{ .sub }}"
+                                            "value": "{{ userId .Req }}"
                                         }
                                     }
                                 },
                                 {
                                     "term": {
                                         "entityPermissions.deleteUserIds.keyword": {
-                                            "value": "{{ .sub }}"
+                                            "value": "{{ userId .Req }}"
                                         }
                                     }
                                 }
-                                {{ end }}
                             ]
                         }
                     }

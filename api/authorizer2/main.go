@@ -20,11 +20,12 @@ type ActionContext struct {
 
 // Authorizer custom api authorizer
 func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
-	token := request.Headers["Authorization"]
+	token1 := request.Headers["authorization"]
 
-	log.Printf("token is %s", token)
+	log.Printf("%v", request)
+	log.Printf("token is %s", token1)
 
-	if token == "" {
+	if token1 == "" {
 		log.Print("unauthorized request pass thru")
 		return events.APIGatewayCustomAuthorizerResponse{
 			PrincipalID: "me",
@@ -41,6 +42,9 @@ func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (even
 			},
 		}, nil
 	}
+
+	token := token1[7:]
+	log.Printf("token after is %s", token)
 
 	// Fetch all keys
 	jwkSet, err := jwk.Fetch("https://cognito-idp.us-east-1.amazonaws.com/" + ac.UserPoolId + "/.well-known/jwks.json")
@@ -64,6 +68,10 @@ func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (even
 	}
 
 	claims := t.Claims.(jwt.MapClaims)
+	// claimsMap := make(map[string]interface{})
+	// claimsMap["claims"] = claims
+
+	log.Printf("users claims %v", claims)
 
 	return events.APIGatewayCustomAuthorizerResponse{
 		PrincipalID: "me",

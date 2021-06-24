@@ -359,28 +359,31 @@
                                             "value": "*"
                                         }
                                     }
-                                },
+                                }
+                                {{ with $.Req.RequestContext.Authorizer.claims }}
+                                ,
                                 {
                                     "term": {
                                         "entityPermissions.readUserIds.keyword": {
-                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                            "value": "{{ .sub }}"
                                         }
                                     }
                                 },
                                 {
                                     "term": {
                                         "entityPermissions.writeUserIds.keyword": {
-                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                            "value": "{{ .sub }}"
                                         }
                                     }
                                 },
                                 {
                                     "term": {
                                         "entityPermissions.deleteUserIds.keyword": {
-                                            "value": "{{ $.Req.RequestContext.Authorizer.claims.sub }}"
+                                            "value": "{{ .sub }}"
                                         }
                                     }
                                 }
+                                {{ end }}
                             ]
                         }
                     }

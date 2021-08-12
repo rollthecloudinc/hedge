@@ -1,5 +1,9 @@
 # Verti-go
 
+Vertigo is a modern, back-end api for publishing content. The primary goal of vertigo is to provide a modern, fast, scalable API to publish content to the web or any other digital medium. This is achieved by abandoning long lived practices. Practices that work but require a whole a bunch of work-arounds to make efficient. Vertigo flips the traditional upside down. This project uses lesser known technology. It uses lesser known languages. Everything here works together to achieve common business goals within the digital realm.
+
+# Extra
+
 Serverless backend api built with golang using bazel.
 
 Associated front-end:

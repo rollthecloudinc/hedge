@@ -18,6 +18,8 @@ s3 is a critical part of the infrastructure to manage data. No only binary data 
 
 Elastic is used as the primary search mechanism.
 
+Instead of distrubuting data between multiple storages that could be used to store the all entity / document data and search / filter that data things are done different. s3 is used to store the full entity / document. Elastic is used for searching documents not s3. s3 is onky used to pull down a specific document.
+
 # Extra
 
 Serverless backend api built with golang using bazel.

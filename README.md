@@ -1,5 +1,9 @@
 # Verti-go
 
+Vertigo is inspired by all the legacy projects out there that people still use. It is one persons vision to take everything that has been learned and create a modern API. It is to stop listening to to people who say things can;t be done or thigs are good enough the way they are.
+
+# Summary
+
 Vertigo is a modern, back-end api for publishing content. The primary goal of vertigo is to provide a modern, fast, scalable API to publish content to the web or any other digital medium. This is achieved by abandoning long lived practices. Practices that work but require a whole a bunch of work-arounds to make efficient. Vertigo flips the traditional upside down. This project uses lesser known technology. It uses lesser known languages. Everything here works together to achieve common business goals within the digital realm.
 
 ## Go

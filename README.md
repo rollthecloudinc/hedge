@@ -20,6 +20,10 @@ Elastic is used as the primary search mechanism.
 
 Instead of distrubuting data between multiple storages that could be used to store the full entity / document data and search / filter that data things are done different. s3 is used to store the full entity / document. Elastic is used for searching documents not s3. s3 is only used to pull down a specific document.
 
+## Cassandra
+
+Keyspaces is being used to store some data as well. Chat messages are stored in cassandra. Cassandra is a jkiddle ground between s3/elastic.
+
 # Extra
 
 Serverless backend api built with golang using bazel.

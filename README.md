@@ -1,6 +1,6 @@
 # Verti-go
 
-Vertigo is inspired by all the legacy projects out there that people still use. It is one persons vision to take everything that has been learned and create a modern API. It is to stop listening to people who say things can't be done or thigs are good enough the way they are. It is to innovate, inspire, and make people fall in love with programming again.
+Vertigo is inspired by all the legacy projects out there that people still use. It is one persons vision to take everything that has been learned and create a modern API. It is to stop listening to people who say things can't be done or thigs are good enough the way they are. It is to innovate, inspire, and make people fall in love with programming again. It is to flip it all upside down and reevaluate. 
 
 # Summary
 

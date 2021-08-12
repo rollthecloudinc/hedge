@@ -6,6 +6,10 @@ Vertigo is a modern, back-end api for publishing content. The primary goal of ve
 
 Go is the fastest language on serverless infrastructure. Not to mention its clear, concise and doesn't take a whole lot to learn. Most of the apis, functions, and libraries here are built with go.
 
+## Serverless
+
+Severless is the backbone of this project. Everything serverless. Go APIs are deployed as lambda that are hooked up with aws gateways. Independent functions are also also hooked up with aws service actions. Everything is based on creating small, concrete, focused units that accomplish one goal.
+
 # Extra
 
 Serverless backend api built with golang using bazel.

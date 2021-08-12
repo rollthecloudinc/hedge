@@ -22,7 +22,7 @@ Instead of distrubuting data between multiple storages that could be used to sto
 
 ## Cassandra
 
-Keyspaces is being used to store some data as well. Chat messages are stored in cassandra. Cassandra is a jkiddle ground between s3/elastic.
+Keyspaces is being used to store some data as well. Chat messages are stored in cassandra. Cassandra is a middle ground between s3/elastic.
 
 # Extra
 

@@ -10,6 +10,10 @@ Go is the fastest language on serverless infrastructure. Not to mention its clea
 
 Severless is the backbone of this project. Everything serverless. Go APIs are deployed as lambda that are hooked up with aws gateways. Independent functions are also also hooked up with aws service actions. Everything is based on creating small, concrete, focused units that accomplish one goal.
 
+## s3
+
+s3 is a critical part of the infrastructure to manage data. No only binary data such as images. s3 is also used to store json documents. s3 acts as the master for entity storage. s3 owns most entities. Entities might be stored partially in other places but s3 maintains the complete entity as a json document. Instead of using a NoSQL solution like Mongo completre, master entities are mostly stored as flat files on s3.
+
 # Extra
 
 Serverless backend api built with golang using bazel.

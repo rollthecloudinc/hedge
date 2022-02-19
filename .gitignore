@@ -6,6 +6,7 @@ bazel-bin
 bazel-goclassifieds
 bazel-out
 bazel-testlogs
+bazel-vertigo
 
 private.dev.json
 private.prod.json

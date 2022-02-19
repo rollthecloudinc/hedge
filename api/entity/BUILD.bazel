@@ -2,11 +2,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "entity",
-    embed = [":go_default_library"],
+    embed = [":entity_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/api/entity",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 #go_test(
 #    name = "mainTest",
@@ -14,22 +14,18 @@ go_binary(
 #)
 
 go_library(
-    name = "go_default_library",
+    name = "entity_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/api/entity",
     visibility = ["//visibility:private"],
     deps = [
-        "//lib/utils",
         "//lib/entity",
-        "//lib/es",
-        "//lib/attr",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
-        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/lambda:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
-        "@com_github_mitchellh_mapstructure//:go_default_library",
-        "@com_github_tangzero_inflector//:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_sdk_go//aws/session",
+        "@com_github_aws_aws_sdk_go//service/lambda",
+        "@com_github_elastic_go_elasticsearch_v7//:go-elasticsearch",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_tangzero_inflector//:inflector",
     ],
 )

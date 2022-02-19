@@ -2,11 +2,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "proxy",
-    embed = [":go_default_library"],
+    embed = [":proxy_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/api/proxy",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 #go_test(
 #    name = "mainTest",
@@ -14,12 +14,12 @@ go_binary(
 #)
 
 go_library(
-    name = "go_default_library",
+    name = "proxy_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/api/proxy",
     visibility = ["//visibility:private"],
     deps = [
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
     ],
 )

@@ -5,6 +5,4 @@ go_library(
     srcs = ["user.go"],
     importpath = "goclassifieds/lib/user",
     visibility = ["//visibility:public"],
-    deps = [
-    ],
 )

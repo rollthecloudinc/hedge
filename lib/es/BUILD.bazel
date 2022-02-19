@@ -6,6 +6,6 @@ go_library(
     importpath = "goclassifieds/lib/es",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
+        "@com_github_elastic_go_elasticsearch_v7//:go-elasticsearch",
     ],
 )

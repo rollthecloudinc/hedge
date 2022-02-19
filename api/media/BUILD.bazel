@@ -2,11 +2,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "media",
-    embed = [":go_default_library"],
+    embed = [":media_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/api/media",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 #go_test(
 #    name = "mainTest",
@@ -14,17 +14,17 @@ go_binary(
 #)
 
 go_library(
-    name = "go_default_library",
+    name = "media_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/api/media",
     visibility = ["//visibility:private"],
     deps = [
         "//lib/utils",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/s3/s3manager:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/s3:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_aws_aws_sdk_go//aws/session",
+        "@com_github_aws_aws_sdk_go//service/s3",
+        "@com_github_aws_aws_sdk_go//service/s3/s3manager",
     ],
 )

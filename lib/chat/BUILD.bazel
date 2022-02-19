@@ -5,6 +5,4 @@ go_library(
     srcs = ["chat.go"],
     importpath = "goclassifieds/lib/chat",
     visibility = ["//visibility:public"],
-    deps = [
-    ],
 )

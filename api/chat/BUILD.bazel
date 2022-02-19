@@ -2,11 +2,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "chat",
-    embed = [":go_default_library"],
+    embed = [":chat_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/api/chat",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 #go_test(
 #    name = "mainTest",
@@ -14,19 +14,19 @@ go_binary(
 #)
 
 go_library(
-    name = "go_default_library",
+    name = "chat_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/api/chat",
     visibility = ["//visibility:private"],
     deps = [
         "//lib/entity",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
-        "@com_github_gocql_gocql//:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/lambda:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws:go_default_library",
-        "@com_github_tangzero_inflector//:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/apigatewaymanagementapi:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_aws_aws_sdk_go//aws/session",
+        "@com_github_aws_aws_sdk_go//service/apigatewaymanagementapi",
+        "@com_github_aws_aws_sdk_go//service/lambda",
+        "@com_github_gocql_gocql//:gocql",
+        "@com_github_tangzero_inflector//:inflector",
     ],
 )

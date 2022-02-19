@@ -2,27 +2,27 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "validate_entity",
-    embed = [":go_default_library"],
+    embed = [":validate_entity_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/func/validate_entity",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 
 go_library(
-    name = "go_default_library",
+    name = "validate_entity_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/func/validate_entity",
     visibility = ["//visibility:private"],
     deps = [
-        "//lib/entity",
-        "//lib/utils",
         "//lib/ads",
-        "//lib/vocab",
-        "//lib/profiles",
-        "//lib/chat",
         "//lib/cc",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
-        "@com_github_go_playground_validator_v10//:go_default_library",
+        "//lib/chat",
+        "//lib/entity",
+        "//lib/profiles",
+        "//lib/utils",
+        "//lib/vocab",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_go_playground_validator_v10//:validator",
     ],
 )

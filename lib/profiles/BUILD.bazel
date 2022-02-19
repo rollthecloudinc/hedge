@@ -4,5 +4,5 @@ go_library(
     name = "profiles",
     srcs = ["profiles.go"],
     importpath = "goclassifieds/lib/profiles",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )

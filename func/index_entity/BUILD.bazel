@@ -2,29 +2,29 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
     name = "index_entity",
-    embed = [":go_default_library"],
+    embed = [":index_entity_lib"],
     goarch = "amd64",
     goos = "linux",
     importpath = "goclassifieds/func/index_entity",
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 
 go_library(
-    name = "go_default_library",
+    name = "index_entity_lib",
     srcs = ["main.go"],
     importpath = "goclassifieds/func/index_entity",
     visibility = ["//visibility:private"],
     deps = [
         "//lib/ads",
-        "//lib/vocab",
-        "//lib/entity",
         "//lib/attr",
         "//lib/cc",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/session:go_default_library",
-        "@com_github_elastic_go_elasticsearch_v7//:go_default_library",
-        "@com_github_mitchellh_mapstructure//:go_default_library",
-        "@com_github_tangzero_inflector//:go_default_library",
+        "//lib/entity",
+        "//lib/vocab",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_sdk_go//aws/session",
+        "@com_github_elastic_go_elasticsearch_v7//:go-elasticsearch",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_tangzero_inflector//:inflector",
     ],
 )

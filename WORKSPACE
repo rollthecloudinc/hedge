@@ -27,8 +27,8 @@ http_archive(
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "4a5d654a4ccd4a4c24eca5d319d85a88a650edf119601550c95bf400c8cc897e",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.5.1/rules_nodejs-3.5.1.tar.gz"],
+    sha256 = "e79c08a488cc5ac40981987d862c7320cee8741122a2649e9b08e850b6f20442",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.8.0/rules_nodejs-3.8.0.tar.gz"],
 )
 
 http_archive(
@@ -843,7 +843,10 @@ gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
 
-node_repositories(package_json = ["//:package.json"])
+node_repositories(
+    package_json = ["//:package.json"],
+    node_version = "16.6.2",
+)
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
 

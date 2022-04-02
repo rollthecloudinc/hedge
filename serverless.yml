@@ -26,9 +26,9 @@ provider:
         issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/${self:custom.userPoolId}
         audience:
           - ${self:custom.cognitoAppClientId}
-      authorizer2:
-        type: request
-        functionName: Authorize2
+      #authorizer2:
+      #  type: request
+      #  functionName: Authorize2
 package:
   individually: false
   include:
@@ -38,13 +38,13 @@ package:
     - bazel-bin/api/chat/linux_amd64_pure_stripped/chat
     - bazel-bin/api/user/linux_amd64_pure_stripped/user
     - bazel-bin/api/stream/linux_amd64_pure_stripped/stream
-    - bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
-    - bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
+    #- bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
+    #- bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/index_entity
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/validate_entity
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/readable_profiles
     - bazel-bin/func/convert_media/linux_amd64_pure_stripped/convert_media
-    - bazel-bin/func/css_to_json/css_to_json.js
+    #- bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
@@ -57,13 +57,13 @@ package:
     - bazel-bin/api/chat/linux_amd64_pure_stripped/**
     - bazel-bin/api/user/linux_amd64_pure_stripped/**
     - bazel-bin/api/stream/linux_amd64_pure_stripped/**
-    - bazel-bin/api/authorizer/linux_amd64_pure_stripped/**
-    - bazel-bin/api/authorizer2/linux_amd64_pure_stripped/**
+    # - bazel-bin/api/authorizer/linux_amd64_pure_stripped/**
+    #- bazel-bin/api/authorizer2/linux_amd64_pure_stripped/**
     - bazel-bin/func/index_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/validate_entity/linux_amd64_pure_stripped/**
     - bazel-bin/func/readable_profiles/linux_amd64_pure_stripped/**
     - bazel-bin/func/convert_media/linux_amd64_pure_stripped/**
-    - bazel-bin/func/css_to_json/**
+    #- bazel-bin/func/css_to_json/**
 resources:
   Resources:
     EntityApiRole:
@@ -197,11 +197,11 @@ functions:
             name: cognito
             scopes:
               - profiles_api/profiles_api
-      - httpApi:
-          path: /panelpagelistitems/{proxy+}
-          method: GET
-          authorizer:
-            name: authorizer2
+      #- httpApi:
+         #path: /panelpagelistitems/{proxy+}
+          #method: GET
+          #authorizer:
+            #name: authorizer2
       - httpApi:
           path: /panelpage/{proxy+}
           method: POST
@@ -212,11 +212,11 @@ functions:
           method: PUT
           authorizer:
             name: cognito
-      - httpApi:
-          path: /panelpage/{id}
-          method: GET
-          authorizer:
-            name: authorizer2
+      #- httpApi:
+          #path: /panelpage/{id}
+          #method: GET
+          #authorizer:
+            #name: authorizer2
   MediaApi:
     handler: bazel-bin/api/media/linux_amd64_pure_stripped/media
     role: EntityApiRole
@@ -355,35 +355,35 @@ functions:
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
-  Stream:
-    handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
-    role: EntityApiRole
-    environment:
-      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
-      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
-      STAGE: ${opt:stage, 'dev'}
-    events:
-      - websocket:
-          route: $connect
-          authorizer:
-            name: Authorize
-            identitySource:
-              - 'route.request.querystring.token'
-      - websocket:
-          route: $disconnect
+  #Stream:
+    #handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
+    #role: EntityApiRole
+    #environment:
+      #KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      #KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+      #STAGE: ${opt:stage, 'dev'}
+    #events:
+      #- websocket:
+          #route: $connect
+          #authorizer:
+            #name: Authorize
+            #identitySource:
+              #- 'route.request.querystring.token'
+      #- websocket:
+          #route: $disconnect
   CssToJson:
     handler: bazel-bin/func/css_to_json/css_to_json.handler
     role: EntityApiRole
-    runtime: nodejs10.x
+    runtime: nodejs14.x
     environment:
       STAGE: ${opt:stage, 'dev'}
-  Authorize:
-    handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
-    environment:
-      USER_POOL_ID: ${self:custom.userPoolId}
-      STAGE: ${opt:stage, 'dev'}
-  Authorize2:
-    handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
-    environment:
-      USER_POOL_ID: ${self:custom.userPoolId}
-      STAGE: ${opt:stage, 'dev'}
+  #Authorize:
+    #handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
+    #environment:
+      #USER_POOL_ID: ${self:custom.userPoolId}
+      #STAGE: ${opt:stage, 'dev'}
+  #Authorize2:
+    #handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
+    #environment:
+      #USER_POOL_ID: ${self:custom.userPoolId}
+      #STAGE: ${opt:stage, 'dev'}

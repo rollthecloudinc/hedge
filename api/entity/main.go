@@ -17,6 +17,7 @@ import (
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/mitchellh/mapstructure"
+	opensearch "github.com/opensearch-project/opensearch-go"
 	"github.com/tangzero/inflector"
 )
 
@@ -31,6 +32,7 @@ type TemplateUserIdFunc func(req *events.APIGatewayProxyRequest) string
 
 type ActionContext struct {
 	EsClient       *elasticsearch7.Client
+	OsClient       *opensearch.Client
 	Session        *session.Session
 	Lambda         *lambda2.Lambda
 	TypeManager    entity.Manager
@@ -191,6 +193,7 @@ func InitializeHandler(c *ActionContext) Handler {
 			PluralName:   "types",
 			Index:        "classified_types",
 			EsClient:     ac.EsClient,
+			OsClient:     ac.OsClient,
 			Session:      ac.Session,
 			Lambda:       ac.Lambda,
 			Template:     ac.Template,
@@ -207,6 +210,7 @@ func InitializeHandler(c *ActionContext) Handler {
 				PluralName:   pluralName,
 				Index:        "classified_" + pluralName,
 				EsClient:     ac.EsClient,
+				OsClient:     ac.OsClient,
 				Session:      ac.Session,
 				Lambda:       ac.Lambda,
 				Template:     ac.Template,
@@ -285,10 +289,10 @@ func InitializeHandler(c *ActionContext) Handler {
 			if req.QueryStringParameters["featureSearchString"] == "" {
 				collectionKey = "aggregations.features.feature_names.buckets"
 			}
-			ac.EntityManager.AddFinder("features", entity.ElasticTemplateFinder{
-				Config: entity.ElasticTemplateFinderConfig{
+			ac.EntityManager.AddFinder("features", entity.OpensearchTemplateFinder{
+				Config: entity.OpensearchTemplateFinderConfig{
 					Index:         "classified_" + pluralName,
-					Client:        ac.EsClient,
+					Client:        ac.OsClient,
 					Template:      ac.Template,
 					CollectionKey: collectionKey,
 					ObjectKey:     "",
@@ -426,7 +430,16 @@ func init() {
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
 	}
 
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+	}
+
 	esClient, err := elasticsearch7.NewClient(elasticCfg)
+	if err != nil {
+
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
 	if err != nil {
 
 	}
@@ -436,6 +449,7 @@ func init() {
 
 	actionContext := ActionContext{
 		EsClient:   esClient,
+		OsClient:   osClient,
 		Session:    sess,
 		Lambda:     lClient,
 		BucketName: os.Getenv("BUCKET_NAME"),

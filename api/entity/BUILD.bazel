@@ -25,6 +25,7 @@ go_library(
         "@com_github_aws_aws_sdk_go//aws/session",
         "@com_github_aws_aws_sdk_go//service/lambda",
         "@com_github_elastic_go_elasticsearch_v7//:go-elasticsearch",
+        "@com_github_opensearch_project_opensearch_go//:opensearch-go",
         "@com_github_mitchellh_mapstructure//:mapstructure",
         "@com_github_tangzero_inflector//:inflector",
     ],

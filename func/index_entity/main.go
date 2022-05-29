@@ -14,6 +14,8 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	opensearch "github.com/opensearch-project/opensearch-go"
+
 	"github.com/mitchellh/mapstructure"
 	"github.com/tangzero/inflector"
 )
@@ -25,6 +27,15 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 	}
 
 	esClient, err := elasticsearch7.NewClient(elasticCfg)
+	if err != nil {
+
+	}
+
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
 	if err != nil {
 
 	}
@@ -43,6 +54,7 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 			PluralName:   pluralName,
 			Index:        "classified_" + pluralName,
 			EsClient:     esClient,
+			OsClient:     osClient,
 			Session:      sess,
 			UserId:       "",
 			Stage:        os.Getenv("STAGE"),

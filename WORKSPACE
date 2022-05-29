@@ -839,13 +839,20 @@ go_repository(
     version = "v0.0.0",
 )
 
+go_repository(
+    name = "com_github_opensearch_project_opensearch_go",
+    importpath = "github.com/opensearch-project/opensearch-go",
+    sum = "h1:eG5sh3843bbU1itPRjA9QXbxcg8LaZ+DjEzQH9aLN3M=",
+    version = "v1.1.0",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
 
 node_repositories(
-    package_json = ["//:package.json"],
     node_version = "16.6.2",
+    package_json = ["//:package.json"],
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
@@ -1398,8 +1405,8 @@ go_repository(
 go_repository(
     name = "org_golang_x_net",
     importpath = "golang.org/x/net",
-    sum = "h1:XpT3nA5TvE525Ne3hInMh6+GETgn27Zfm9dxsThnX2Q=",
-    version = "v0.0.0-20210614182718-04defd469f4e",
+    sum = "h1:hEYJvxw1lSnWIl8X9ofsYMklzaDs90JI2az5YMd4fPM=",
+    version = "v0.0.0-20211216030914-fe4d6282115f",
 )
 
 go_repository(
@@ -1440,8 +1447,8 @@ go_repository(
 go_repository(
     name = "com_github_aws_aws_sdk_go",
     importpath = "github.com/aws/aws-sdk-go",
-    sum = "h1:v/Y4bB8+wHCONtKV+fuHTzLiqC08lk8e9HqYhRB9PBQ=",
-    version = "v1.40.41",
+    sum = "h1:kxsBXQg3ee6LLbqjp5/oUeDgG7TENFrWYDmEVnd7spU=",
+    version = "v1.42.27",
 )
 
 go_repository(

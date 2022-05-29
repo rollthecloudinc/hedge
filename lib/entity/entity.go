@@ -15,6 +15,7 @@ import (
 
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/es"
+	"goclassifieds/lib/os"
 	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -31,6 +32,8 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-playground/validator/v10"
 	"github.com/gocql/gocql"
+	opensearch "github.com/opensearch-project/opensearch-go"
+	opensearchapi "github.com/opensearch-project/opensearch-go/opensearchapi"
 )
 
 type Hooks int32
@@ -98,6 +101,7 @@ type EntityDataResponse struct {
 
 type DefaultManagerConfig struct {
 	EsClient     *elasticsearch7.Client
+	OsClient     *opensearch.Client
 	Session      *session.Session
 	Lambda       *lambda.Lambda
 	Template     *template.Template
@@ -114,13 +118,14 @@ type DefaultManagerConfig struct {
 }
 
 type EntityAdaptorConfig struct {
-	Session  *session.Session
-	Lambda   *lambda.Lambda
-	Cognito  *cognitoidentityprovider.CognitoIdentityProvider
-	Elastic  *elasticsearch7.Client
-	Template *template.Template
-	Cql      *gocql.Session
-	Bindings *VariableBindings
+	Session    *session.Session
+	Lambda     *lambda.Lambda
+	Cognito    *cognitoidentityprovider.CognitoIdentityProvider
+	Elastic    *elasticsearch7.Client
+	Opensearch *opensearch.Client
+	Template   *template.Template
+	Cql        *gocql.Session
+	Bindings   *VariableBindings
 }
 
 type EntityManager struct {
@@ -191,6 +196,11 @@ type ElasticAdaptorConfig struct {
 	Index  string                 `json:"index"`
 }
 
+type OpensearchAdaptorConfig struct {
+	Client *opensearch.Client `json:"-"`
+	Index  string             `json:"index"`
+}
+
 type CqlAdaptorConfig struct {
 	Session *gocql.Session `json:"-"`
 	Table   string         `json:"table"`
@@ -202,6 +212,14 @@ type ElasticTemplateFinderConfig struct {
 	Template      *template.Template     `json:"-"`
 	CollectionKey string                 `json:"collectionKey"`
 	ObjectKey     string                 `json:"objectKey"`
+}
+
+type OpensearchTemplateFinderConfig struct {
+	Client        *opensearch.Client `json:"-"`
+	Index         string             `json:"index"`
+	Template      *template.Template `json:"-"`
+	CollectionKey string             `json:"collectionKey"`
+	ObjectKey     string             `json:"objectKey"`
 }
 
 type CqlTemplateFinderConfig struct {
@@ -252,6 +270,10 @@ type ElasticStorageAdaptor struct {
 	Config ElasticAdaptorConfig `json:"config"`
 }
 
+type OpensearchStorageAdaptor struct {
+	Config OpensearchAdaptorConfig `json:"config"`
+}
+
 type CqlStorageAdaptor struct {
 	Config CqlAdaptorConfig `json:"config"`
 }
@@ -262,6 +284,10 @@ type CqlAutoDiscoveryExpansionStorageAdaptor struct {
 
 type ElasticTemplateFinder struct {
 	Config ElasticTemplateFinderConfig `json:"config"`
+}
+
+type OpensearchTemplateFinder struct {
+	Config OpensearchTemplateFinderConfig `json:"config"`
 }
 
 type CqlTemplateFinder struct {
@@ -517,7 +543,28 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 	}
 }
 
+func (s OpensearchStorageAdaptor) Store(id string, entity map[string]interface{}) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(entity); err != nil {
+		log.Fatalf("Error encoding body: %s", err)
+	}
+	req := opensearchapi.IndexRequest{
+		Index:      s.Config.Index,
+		DocumentID: id,
+		Body:       &buf,
+		Refresh:    "true",
+	}
+	_, err := req.Do(context.Background(), s.Config.Client)
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+}
+
 func (s ElasticStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
+}
+
+func (s OpensearchStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
 }
 
@@ -790,6 +837,35 @@ func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []m
 	log.Printf("template data: %s", b.String())
 
 	hits := es.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
+		Index:         f.Config.Index,
+		Name:          query,
+		Template:      f.Config.Template,
+		Data:          data,
+		CollectionKey: f.Config.CollectionKey,
+	})
+
+	docs := make([]map[string]interface{}, len(hits))
+	for index, hit := range hits {
+		if f.Config.ObjectKey != "" {
+			mapstructure.Decode(hit.(map[string]interface{})[f.Config.ObjectKey], &docs[index])
+		} else {
+			docs[index] = hit.(map[string]interface{})
+		}
+	}
+
+	return docs
+
+}
+
+func (f OpensearchTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
+
+	var b bytes.Buffer
+	if err := json.NewEncoder(&b).Encode(data); err != nil {
+		log.Fatalf("Error encoding search query: %s", err)
+	}
+	log.Printf("template data: %s", b.String())
+
+	hits := os.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
 		Index:         f.Config.Index,
 		Name:          query,
 		Template:      f.Config.Template,
@@ -1298,10 +1374,10 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 					Prefix:  config.PluralName + "/",
 				},
 			},
-			"elastic": ElasticStorageAdaptor{
-				Config: ElasticAdaptorConfig{
+			"opensearch": OpensearchStorageAdaptor{
+				Config: OpensearchAdaptorConfig{
 					Index:  config.Index,
-					Client: config.EsClient,
+					Client: config.OsClient,
 				},
 			},
 		},
@@ -1337,10 +1413,10 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Storages: map[string]Storage{
-			"default": ElasticStorageAdaptor{
-				Config: ElasticAdaptorConfig{
+			"default": OpensearchStorageAdaptor{
+				Config: OpensearchAdaptorConfig{
 					Index:  "classified_types",
-					Client: config.EsClient,
+					Client: config.OsClient,
 				},
 			},
 		},

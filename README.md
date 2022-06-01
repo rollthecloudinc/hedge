@@ -35,3 +35,4 @@ These APIs fill gaps when direct communication with AWS is not possible in the b
 * security vulnerability
 * sdk incompatibility
 * event bridge handler
+* secure communication w/ vendors outside of AWS

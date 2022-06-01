@@ -21,6 +21,7 @@ This is a [bazel monorepo](https://bazel.build/) using [serverless framework](ht
 # Cloud
 
 * AWS
+  * Cognito
   * API Gateway
   * Lambda
   * Open Search

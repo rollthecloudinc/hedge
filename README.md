@@ -7,7 +7,7 @@ Cloud optimized back-end services following principles of green software enignee
 This is a [bazel monorepo](https://bazel.build/) using [serverless framework](https://www.serverless.com/).
 
 * api
-  * Public APIs part of api gateway.
+  * Public lambdas exposed as part of API gateway.
 * func
   * Independent lambdas execuated manually or via events.
 * lib

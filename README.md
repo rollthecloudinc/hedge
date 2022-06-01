@@ -27,3 +27,11 @@ This is a [bazel monorepo](https://bazel.build/) using [serverless framework](ht
   * Open Search
   * s3
   * Key Spaces (cassandra)
+
+# Purpose
+
+These APIs fill gaps when direct communication with AWS is not possible in the browser.
+
+* security vulnerability
+* sdk incompatibility
+* event bridge handler

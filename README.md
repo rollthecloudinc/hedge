@@ -2,7 +2,7 @@
 
 Cloud optimized back-end services following principles of green software enigneering for [Roll the Cloud Inc](https://github.com/rollthecloudinc).
 
-# Architecture
+# Organization
 
 This is a [bazel monorepo](https://bazel.build/) using [serverless framework](https://www.serverless.com/).
 

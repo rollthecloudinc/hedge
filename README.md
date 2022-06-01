@@ -12,3 +12,8 @@ This is a [bazel monorepo](https://bazel.build/) using [serverless framework](ht
   * Independent lambdas execuated manually or via events.
 * lib
   * Internal libraries shared accross entire organization.
+
+# Languages
+
+* golang
+* nodejs

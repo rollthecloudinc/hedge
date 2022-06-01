@@ -38,3 +38,7 @@ Intended to be used internally for satisfying specific domain requirements of Ro
 * sdk incompatibility
 * event bridge handler
 * secure communication w/ vendors outside of AWS
+
+# Considerations
+
+New and existing APIs should be created and repurporsed / repalced with maximum reusability in mind across the corporation.

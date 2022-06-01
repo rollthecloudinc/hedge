@@ -1,6 +1,6 @@
 # Summary
 
-Hybrid green, eco-friendly mono-repo for [Roll the Cloud Inc.](https://github.com/rollthecloudinc) back-end services.
+Cloud optimized back-end services following principles of green software enigneering for [Roll the Cloud Inc.](https://github.com/rollthecloudinc).
 
 # Architecture
 

@@ -30,7 +30,7 @@ This is a [bazel monorepo](https://bazel.build/) using [serverless framework](ht
 
 # Purpose
 
-These APIs fill gaps when direct communication with AWS is not possible in the browser for [druids](https://github.com/ng-druid/platform). At the moment this APIs are meant to be used internally for specific domain requirements of Roll the Cloud Initiatives.
+These APIs fill gaps when direct communication with AWS is not possible in the browser for [druids](https://github.com/ng-druid/platform). At the moment this APIs are meant to be used internally for specific domain requirements of Roll the Cloud initiatives.
 
 * security vulnerability
 * sdk incompatibility

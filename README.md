@@ -4,4 +4,4 @@ Hybrid green, eco-friendly mono-repo for [Roll the Cloud Inc.](https://github.co
 
 # Architecture
 
-This is a bazel monorepo using multiple languages with serverless framework. APIs are serverless hosted as golang, node, and python lambdas on aws.
+This is a bazel monorepo using multiple languages with serverless framework. APIs are serverless hosted as golang, node, and python lambdas on aws. APIs created should be built for cross application usage.

@@ -17,3 +17,12 @@ This is a [bazel monorepo](https://bazel.build/) using [serverless framework](ht
 
 * golang
 * nodejs
+
+# Cloud
+
+* AWS
+  * API Gateway
+  * Lambda
+  * Open Search
+  * s3
+  * Key Spaces (cassandra)

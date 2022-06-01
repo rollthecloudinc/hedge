@@ -41,4 +41,4 @@ Intended to be used internally for satisfying specific domain requirements of Ro
 
 # Considerations
 
-New and existing APIs should be created and repurporsed / repalced with maximum reusability in mind across the corporation.
+New and existing APIs should be created and repurporsed / repalced with maximum reusability in mind across the corporation. An example of this is the internal entity API. The entity API is intented to manage persistence and search of entities accross any number of source destinations and/or origins.

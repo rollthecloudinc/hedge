@@ -105,6 +105,10 @@ resources:
                     - "execute-api:Invoke"
                     - "execute-api:ManageConnections"
                   Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "es:*"
+                  Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
 functions:
   EntityApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/entity/entity_/entity

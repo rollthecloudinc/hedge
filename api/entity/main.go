@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/sign"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -332,6 +333,7 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 			PluralName:   pluralName,
 			Index:        "classified_" + pluralName,
 			EsClient:     ac.EsClient,
+			OsClient:     ac.OsClient,
 			Session:      ac.Session,
 			Lambda:       ac.Lambda,
 			Template:     ac.Template,
@@ -400,6 +402,7 @@ func TemplateUserId(ac *ActionContext) TemplateUserIdFunc {
 func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
 		EsClient:       ac.EsClient,
+		OsClient:       ac.OsClient,
 		Session:        ac.Session,
 		Lambda:         ac.Lambda,
 		Template:       ac.Template,
@@ -430,8 +433,14 @@ func init() {
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
 	}
 
+	awsSigner := sign.AwsSigner{
+		Service: "es",
+		Region:  "us-east-1",
+	}
+
 	opensearchCfg := opensearch.Config{
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    awsSigner,
 	}
 
 	esClient, err := elasticsearch7.NewClient(elasticCfg)
@@ -441,7 +450,7 @@ func init() {
 
 	osClient, err := opensearch.NewClient(opensearchCfg)
 	if err != nil {
-
+		log.Printf("Opensearch Error: %s", err.Error())
 	}
 
 	sess := session.Must(session.NewSession())

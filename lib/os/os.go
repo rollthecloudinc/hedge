@@ -79,9 +79,18 @@ func ExecuteSearch(esClient *opensearch.Client, query *map[string]interface{}, i
 	if res.IsError() {
 		var e map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(res.Body)
+			newStr := buf.String()
+			log.Printf("Response: %s", newStr)
 			log.Fatalf("Error parsing the response body: %s", err)
 		} else {
 			// Print the response status and error information.
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(res.Body)
+			msg := buf.String()
+			log.Printf("open search request failure statuc: %s", res.Status())
+			log.Printf("open search request failure message: %s", msg)
 			log.Fatalf("[%s] %s: %s",
 				res.Status(),
 				e["error"].(map[string]interface{})["type"],
@@ -92,6 +101,10 @@ func ExecuteSearch(esClient *opensearch.Client, query *map[string]interface{}, i
 	defer res.Body.Close()
 	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(res.Body)
+		newStr := buf.String()
+		log.Printf("Response: %s", newStr)
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
 	pieces := strings.Split(collectionKey, ".")

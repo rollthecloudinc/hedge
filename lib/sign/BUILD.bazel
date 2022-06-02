@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sign",
+    srcs = ["sign.go"],
+    importpath = "goclassifieds/lib/sign",
+    visibility = ["//visibility:public"],
+    deps = [
+      "@com_github_aws_aws_sdk_go//aws/credentials",
+      "@com_github_aws_aws_sdk_go//aws/signer/v4:go_default_library",
+    ],
+)

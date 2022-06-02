@@ -865,7 +865,7 @@ func (f OpensearchTemplateFinder) Find(query string, data *EntityFinderDataBag) 
 	}
 	log.Printf("template data: %s", b.String())
 
-	hits := os.ExecuteQuery(f.Config.Client, es.TemplateBuilder{
+	hits := os.ExecuteQuery(f.Config.Client, os.TemplateBuilder{
 		Index:         f.Config.Index,
 		Name:          query,
 		Template:      f.Config.Template,
@@ -1347,10 +1347,10 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Finders: map[string]Finder{
-			"default": ElasticTemplateFinder{
-				Config: ElasticTemplateFinderConfig{
+			"default": OpensearchTemplateFinder{
+				Config: OpensearchTemplateFinderConfig{
 					Index:         config.Index,
-					Client:        config.EsClient,
+					Client:        config.OsClient,
 					Template:      config.Template,
 					CollectionKey: "hits.hits",
 					ObjectKey:     "_source",

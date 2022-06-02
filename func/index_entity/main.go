@@ -6,6 +6,7 @@ import (
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/cc"
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/sign"
 	"goclassifieds/lib/vocab"
 	"os"
 	"strings"
@@ -31,8 +32,14 @@ func handler(ctx context.Context, s3Event events.S3Event) {
 
 	}
 
+	awsSigner := sign.AwsSigner{
+		Service: "es",
+		Region:  "us-east-1",
+	}
+
 	opensearchCfg := opensearch.Config{
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    awsSigner,
 	}
 
 	osClient, err := opensearch.NewClient(opensearchCfg)

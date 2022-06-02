@@ -20,10 +20,13 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//lib/entity",
+        "//lib/sign",
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_aws_aws_sdk_go//aws/session",
         "@com_github_aws_aws_sdk_go//service/lambda",
+        "@com_github_aws_aws_sdk_go//aws/credentials",
+        "@com_github_aws_aws_sdk_go//aws/signer/v4:go_default_library",
         "@com_github_elastic_go_elasticsearch_v7//:go-elasticsearch",
         "@com_github_opensearch_project_opensearch_go//:opensearch-go",
         "@com_github_mitchellh_mapstructure//:mapstructure",

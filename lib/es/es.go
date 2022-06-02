@@ -79,6 +79,7 @@ func ExecuteSearch(esClient *elasticsearch7.Client, query *map[string]interface{
 	if res.IsError() {
 		var e map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			log.Printf("Response: %s", res.Body)
 			log.Fatalf("Error parsing the response body: %s", err)
 		} else {
 			// Print the response status and error information.
@@ -92,6 +93,7 @@ func ExecuteSearch(esClient *elasticsearch7.Client, query *map[string]interface{
 	defer res.Body.Close()
 	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		log.Printf("Response: %s", res.Body)
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
 	pieces := strings.Split(collectionKey, ".")

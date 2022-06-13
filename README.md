@@ -1,3 +1,6 @@
+<img width="146" alt="Screen Shot 2022-06-13 at 1 43 16 AM" src="https://user-images.githubusercontent.com/73197190/173287441-8ce440b1-2833-4950-8a75-c75f28304c3c.png">
+
+
 # Summary
 
 Cloud optimized back-end services following [principles of green software engineering](https://principles.green/) for [Roll the Cloud Inc](https://github.com/rollthecloudinc).

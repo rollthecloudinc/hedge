@@ -846,6 +846,13 @@ go_repository(
     version = "v1.1.0",
 )
 
+go_repository(
+    name = "com_github_shurcool_githubv4",
+    importpath = "github.com/shurcooL/githubv4",
+    sum = "h1:fiFvD4lT0aWjuuAb64LlZ/67v87m+Kc9Qsu5cMFNK0w=",
+    version = "v0.0.0-20220520033151-0b4e3294ff00",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")

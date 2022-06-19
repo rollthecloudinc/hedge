@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,7 +20,9 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/mitchellh/mapstructure"
 	opensearch "github.com/opensearch-project/opensearch-go"
+	"github.com/shurcooL/githubv4"
 	"github.com/tangzero/inflector"
+	"golang.org/x/oauth2"
 )
 
 // var ginLambda *ginadapter.GinLambda
@@ -34,6 +37,7 @@ type TemplateUserIdFunc func(req *events.APIGatewayProxyRequest) string
 type ActionContext struct {
 	EsClient       *elasticsearch7.Client
 	OsClient       *opensearch.Client
+	GithubV4Client *githubv4.Client
 	Session        *session.Session
 	Lambda         *lambda2.Lambda
 	TypeManager    entity.Manager
@@ -190,34 +194,36 @@ func InitializeHandler(c *ActionContext) Handler {
 		log.Printf("entity singular name: %s", singularName)
 
 		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
-			SingularName: "type",
-			PluralName:   "types",
-			Index:        "classified_types",
-			EsClient:     ac.EsClient,
-			OsClient:     ac.OsClient,
-			Session:      ac.Session,
-			Lambda:       ac.Lambda,
-			Template:     ac.Template,
-			UserId:       userId,
-			BucketName:   ac.BucketName,
-			Stage:        ac.Stage,
+			SingularName:   "type",
+			PluralName:     "types",
+			Index:          "classified_types",
+			EsClient:       ac.EsClient,
+			OsClient:       ac.OsClient,
+			GithubV4Client: ac.GithubV4Client,
+			Session:        ac.Session,
+			Lambda:         ac.Lambda,
+			Template:       ac.Template,
+			UserId:         userId,
+			BucketName:     ac.BucketName,
+			Stage:          ac.Stage,
 		})
 
 		if singularName == "type" {
 			ac.EntityManager = ac.TypeManager
 		} else {
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
-				SingularName: singularName,
-				PluralName:   pluralName,
-				Index:        "classified_" + pluralName,
-				EsClient:     ac.EsClient,
-				OsClient:     ac.OsClient,
-				Session:      ac.Session,
-				Lambda:       ac.Lambda,
-				Template:     ac.Template,
-				UserId:       userId,
-				BucketName:   ac.BucketName,
-				Stage:        ac.Stage,
+				SingularName:   singularName,
+				PluralName:     pluralName,
+				Index:          "classified_" + pluralName,
+				EsClient:       ac.EsClient,
+				OsClient:       ac.OsClient,
+				GithubV4Client: ac.GithubV4Client,
+				Session:        ac.Session,
+				Lambda:         ac.Lambda,
+				Template:       ac.Template,
+				UserId:         userId,
+				BucketName:     ac.BucketName,
+				Stage:          ac.Stage,
 			})
 			/*manager, err := entity.GetManager(
 				singularName,
@@ -297,6 +303,17 @@ func InitializeHandler(c *ActionContext) Handler {
 					Template:      ac.Template,
 					CollectionKey: collectionKey,
 					ObjectKey:     "",
+				},
+			})
+		}
+
+		if singularName == "panelpage" {
+			ac.EntityManager.AddStorage("default", entity.GithubFileUploadAdaptor{
+				Config: entity.GithubFileUploadConfig{
+					Client: ac.GithubV4Client,
+					Repo:   "rollthecloudinc/ipe",       // @todo: Hard coded to test integration for now.
+					Branch: "dev",                       // This will cone env vars from inside json file passed via serverless.
+					Path:   "projects/spear/src/assets", // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 		}
@@ -453,16 +470,24 @@ func init() {
 		log.Printf("Opensearch Error: %s", err.Error())
 	}
 
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+	)
+	httpClient := oauth2.NewClient(context.Background(), src)
+
+	githubV4Client := githubv4.NewClient(httpClient)
+
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
 
 	actionContext := ActionContext{
-		EsClient:   esClient,
-		OsClient:   osClient,
-		Session:    sess,
-		Lambda:     lClient,
-		BucketName: os.Getenv("BUCKET_NAME"),
-		Stage:      os.Getenv("STAGE"),
+		EsClient:       esClient,
+		OsClient:       osClient,
+		GithubV4Client: githubV4Client,
+		Session:        sess,
+		Lambda:         lClient,
+		BucketName:     os.Getenv("BUCKET_NAME"),
+		Stage:          os.Getenv("STAGE"),
 	}
 
 	log.Printf("entity bucket storage: %s", actionContext.BucketName)

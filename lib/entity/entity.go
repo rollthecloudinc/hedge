@@ -24,6 +24,7 @@ import (
 	lambda "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/mitchellh/mapstructure"
+	"github.com/shurcooL/githubv4"
 	"github.com/tangzero/inflector"
 
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
@@ -100,21 +101,22 @@ type EntityDataResponse struct {
 }
 
 type DefaultManagerConfig struct {
-	EsClient     *elasticsearch7.Client
-	OsClient     *opensearch.Client
-	Session      *session.Session
-	Lambda       *lambda.Lambda
-	Template     *template.Template
-	UserId       string
-	SingularName string
-	PluralName   string
-	Index        string
-	BucketName   string
-	Stage        string
-	BeforeSave   EntityHook
-	AfterSave    EntityHook
-	BeforeFind   EntityCollectionHook
-	AfterFind    EntityCollectionHook
+	EsClient       *elasticsearch7.Client
+	OsClient       *opensearch.Client
+	GithubV4Client *githubv4.Client
+	Session        *session.Session
+	Lambda         *lambda.Lambda
+	Template       *template.Template
+	UserId         string
+	SingularName   string
+	PluralName     string
+	Index          string
+	BucketName     string
+	Stage          string
+	BeforeSave     EntityHook
+	AfterSave      EntityHook
+	BeforeFind     EntityCollectionHook
+	AfterFind      EntityCollectionHook
 }
 
 type EntityAdaptorConfig struct {
@@ -149,6 +151,7 @@ type Manager interface {
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 	AddFinder(name string, finder Finder)
+	AddStorage(name string, storage Storage)
 	AddAuthorizer(name string, authorizer Authorization)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
@@ -204,6 +207,13 @@ type OpensearchAdaptorConfig struct {
 type CqlAdaptorConfig struct {
 	Session *gocql.Session `json:"-"`
 	Table   string         `json:"table"`
+}
+
+type GithubFileUploadConfig struct {
+	Client *githubv4.Client `json:"-"`
+	Repo   string           `json:"repo"`
+	Branch string           `json:"branch"`
+	Path   string           `json:"path"`
 }
 
 type ElasticTemplateFinderConfig struct {
@@ -280,6 +290,10 @@ type CqlStorageAdaptor struct {
 
 type CqlAutoDiscoveryExpansionStorageAdaptor struct {
 	Config CqlAdaptorConfig `json:"config"`
+}
+
+type GithubFileUploadAdaptor struct {
+	Config GithubFileUploadConfig `json:"config"`
 }
 
 type ElasticTemplateFinder struct {
@@ -368,6 +382,10 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	if _, err := m.ExecuteHook(AfterSave, entity); err != nil {
 		log.Print(err)
 	}
+}
+
+func (m EntityManager) AddStorage(name string, storage Storage) {
+	m.Storages[name] = storage
 }
 
 func (m EntityManager) AddFinder(name string, finder Finder) {
@@ -693,6 +711,14 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Store(id string, entity map[str
 }
 
 func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
+}
+
+func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
+
+}
+
+func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
 }
 

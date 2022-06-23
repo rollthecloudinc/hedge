@@ -717,6 +717,27 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entitie
 
 func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
 	log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", id)
+	var q struct {
+		Repository struct {
+			Object struct {
+				Commit struct {
+					History struct {
+						Edges []struct {
+							Node struct {
+								Oid githubv4.GitObjectID
+							}
+						}
+					} `graphql:"history(first:1)"`
+				} `graphql:"... on Commit"`
+			} `graphql:"object(expression: \"dev\")"`
+		} `graphql:"repository(owner: \"rollthecloudinc\", name: \"ipe\")"`
+	}
+	err := s.Config.Client.Query(context.Background(), &q, nil)
+	if err != nil {
+		log.Print("Github latest commit failure.")
+		log.Panic(err)
+	}
+	log.Printf("latest commit %s", q.Repository.Object.Commit.History.Edges[0].Node.Oid)
 	var m struct {
 		CreateCommitOnBranch struct {
 			Commit struct {
@@ -725,12 +746,14 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 		} `graphql:"createCommitOnBranch(input: $input)"`
 	}
 	buf := bytes.Buffer{}
+	dataBuffer := bytes.Buffer{}
+	json.NewEncoder(&dataBuffer).Encode(entity)
 	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
-	encoder.Write([]byte("Hello World!"))
+	encoder.Write([]byte(dataBuffer.String()))
 	encoder.Close()
 	additions := make([]githubv4.FileAddition, 1)
 	additions[0] = githubv4.FileAddition{
-		Path:     githubv4.String(s.Config.Path + "/" + "GraphQL.md"),
+		Path:     githubv4.String(s.Config.Path + "/" + id + ".json"),
 		Contents: githubv4.Base64String(buf.String()),
 	}
 	input := githubv4.CreateCommitOnBranchInput{
@@ -741,15 +764,15 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 		Message: githubv4.CommitMessage{
 			Headline: "add file",
 		},
-		ExpectedHeadOid: *githubv4.NewGitObjectID("ce7a63584776e43f9ad4f423c235535ab9e65b9c"),
+		ExpectedHeadOid: *githubv4.NewGitObjectID(q.Repository.Object.Commit.History.Edges[0].Node.Oid),
 		FileChanges: &githubv4.FileChanges{
 			Additions: &additions,
 		},
 	}
-	err := s.Config.Client.Mutate(context.Background(), &m, input, nil)
-	if err != nil {
+	err2 := s.Config.Client.Mutate(context.Background(), &m, input, nil)
+	if err2 != nil {
 		log.Print("Github file upload failure.")
-		log.Panic(err)
+		log.Panic(err2)
 	}
 	log.Printf("END GithubFileUploadAdaptor::Store %s", id)
 }

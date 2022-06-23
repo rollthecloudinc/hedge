@@ -420,6 +420,7 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
 		EsClient:       ac.EsClient,
 		OsClient:       ac.OsClient,
+		GithubV4Client: ac.GithubV4Client,
 		Session:        ac.Session,
 		Lambda:         ac.Lambda,
 		Template:       ac.Template,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -715,7 +716,42 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entitie
 }
 
 func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
-
+	log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", id)
+	var m struct {
+		CreateCommitOnBranch struct {
+			Commit struct {
+				Url githubv4.String
+			}
+		} `graphql:"createCommitOnBranch(input: $input)"`
+	}
+	buf := bytes.Buffer{}
+	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
+	encoder.Write([]byte("Hello World!"))
+	encoder.Close()
+	additions := make([]githubv4.FileAddition, 1)
+	additions[0] = githubv4.FileAddition{
+		Path:     githubv4.String(s.Config.Path + "/" + "GraphQL.md"),
+		Contents: githubv4.Base64String(buf.String()),
+	}
+	input := githubv4.CreateCommitOnBranchInput{
+		Branch: githubv4.CommittableBranch{
+			RepositoryNameWithOwner: (*githubv4.String)(&s.Config.Repo),
+			BranchName:              (*githubv4.String)(&s.Config.Branch),
+		},
+		Message: githubv4.CommitMessage{
+			Headline: "add file",
+		},
+		ExpectedHeadOid: *githubv4.NewGitObjectID("ce7a63584776e43f9ad4f423c235535ab9e65b9c"),
+		FileChanges: &githubv4.FileChanges{
+			Additions: &additions,
+		},
+	}
+	err := s.Config.Client.Mutate(context.Background(), &m, input, nil)
+	if err != nil {
+		log.Print("Github file upload failure.")
+		log.Panic(err)
+	}
+	log.Printf("END GithubFileUploadAdaptor::Store %s", id)
 }
 
 func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {

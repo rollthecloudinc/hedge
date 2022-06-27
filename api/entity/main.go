@@ -311,9 +311,9 @@ func InitializeHandler(c *ActionContext) Handler {
 			ac.EntityManager.AddStorage("default", entity.GithubFileUploadAdaptor{
 				Config: entity.GithubFileUploadConfig{
 					Client: ac.GithubV4Client,
-					Repo:   "rollthecloudinc/ipe",       // @todo: Hard coded to test integration for now.
-					Branch: "dev",                       // This will cone env vars from inside json file passed via serverless.
-					Path:   "projects/spear/src/assets", // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+					Repo:   "rollthecloudinc/ipe-objects", // @todo: Hard coded to test integration for now.
+					Branch: os.Getenv("GITHUB_BRANCH"),    // This will cone env vars from inside json file passed via serverless.
+					Path:   "panelpage",                   // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 		}

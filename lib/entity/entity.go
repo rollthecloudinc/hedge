@@ -717,6 +717,7 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entitie
 
 func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
 	log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", id)
+	pieces := strings.Split(s.Config.Repo, "/")
 	var q struct {
 		Repository struct {
 			Object struct {
@@ -729,10 +730,15 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 						}
 					} `graphql:"history(first:1)"`
 				} `graphql:"... on Commit"`
-			} `graphql:"object(expression: \"dev\")"`
-		} `graphql:"repository(owner: \"rollthecloudinc\", name: \"ipe\")"`
+			} `graphql:"object(expression: $branch)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
-	err := s.Config.Client.Query(context.Background(), &q, nil)
+	qVars := map[string]interface{}{
+		"branch": githubv4.String(s.Config.Branch),
+		"owner":  githubv4.String(pieces[0]),
+		"name":   githubv4.String(pieces[1]),
+	}
+	err := s.Config.Client.Query(context.Background(), &q, qVars)
 	if err != nil {
 		log.Print("Github latest commit failure.")
 		log.Panic(err)

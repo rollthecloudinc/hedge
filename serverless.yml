@@ -12,6 +12,7 @@ custom:
   proxyAveDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyAveDomain}
   aveApikey: ${file(./private.${opt:stage, 'dev'}.json):aveApikey}
   githubToken: ${file(./private.${opt:stage, 'dev'}.json):githubToken}
+  githubBranch: ${file(./private.${opt:stage, 'dev'}.json):githubBranch}
 provider:
   name: aws
   runtime: go1.x
@@ -118,6 +119,7 @@ functions:
       ELASTIC_URL: ${self:custom.elasticUrl}
       BUCKET_NAME: ${self:custom.bucketName}
       GITHUB_TOKEN: ${self:custom.githubToken}
+      GITHUB_BRANCH: ${self:custom.githubBranch}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:

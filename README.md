@@ -3,7 +3,7 @@
 
 # Summary
 
-Druid cloud sustainaible serverless functions and RESTful APIs. Follows the [principles of green software engineering](https://principles.green/) to distribute resources accross organizations to significantly reduce energy consumption and run on sustainable cloud infrastructure.
+Druid cloud sustainaible serverless functions and RESTful APIs. Follows the [principles of green software engineering](https://principles.green/) to distribute resources accross organizations to significantly reduce energy consumption hosted on sustainable cloud infrastructure.
 
 # Organization
 

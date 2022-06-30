@@ -3,7 +3,7 @@
 
 # Summary
 
-Druid sustainaible serverless function gounded in [principles of green software engineering](https://principles.green/) for [Roll the Cloud Inc](https://github.com/rollthecloudinc).
+Druid cloud sustainaible serverless functions and RESTful APIs. Follows the [principles of green software engineering](https://principles.green/) and suatainaible webdev best proactices to reduce energy and distribute resources accross organizations.
 
 # Organization
 

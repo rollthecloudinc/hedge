@@ -152,6 +152,7 @@ type Manager interface {
 	Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{}
 	Allow(id string, op string, loader string) (bool, map[string]interface{})
 	AddFinder(name string, finder Finder)
+	AddLoader(name string, loader Loader)
 	AddStorage(name string, storage Storage)
 	AddAuthorizer(name string, authorizer Authorization)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
@@ -267,6 +268,10 @@ type S3MediaLoaderAdaptor struct {
 
 type CognitoLoaderAdaptor struct {
 	Config CognitoAdaptorConfig `json:"config"`
+}
+
+type GithubFileLoaderAdaptor struct {
+	Config GithubFileUploadConfig `json:"config"`
 }
 
 type FinderLoaderAdaptor struct {
@@ -393,6 +398,10 @@ func (m EntityManager) AddFinder(name string, finder Finder) {
 	m.Finders[name] = finder
 }
 
+func (m EntityManager) AddLoader(name string, loader Loader) {
+	m.Loaders[name] = loader
+}
+
 func (m EntityManager) AddAuthorizer(name string, authorizer Authorization) {
 	m.Authorizers[name] = authorizer
 }
@@ -510,6 +519,35 @@ func (l CognitoLoaderAdaptor) Load(id string, m *EntityManager) map[string]inter
 			log.Print(err)
 		}
 	}
+	return obj
+}
+
+func (s GithubFileLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
+	log.Printf("BEGIN GithubFileUploadAdaptor::LOAD %s", id)
+	var obj map[string]interface{}
+	pieces := strings.Split(s.Config.Repo, "/")
+	var q struct {
+		Repository struct {
+			Object struct {
+				ObjectFragment struct {
+					Text string
+				} `graphql:"... on Blob"`
+			} `graphql:"object(expression: $exp)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	qVars := map[string]interface{}{
+		"exp":   githubv4.String(s.Config.Branch + ":" + s.Config.Path + "/" + id + ".json"),
+		"owner": githubv4.String(pieces[0]),
+		"name":  githubv4.String(pieces[1]),
+	}
+	err := s.Config.Client.Query(context.Background(), &q, qVars)
+	if err != nil {
+		log.Print("Github latest file failure.")
+		log.Panic(err)
+	}
+	log.Printf(q.Repository.Object.ObjectFragment.Text)
+	json.Unmarshal([]byte(q.Repository.Object.ObjectFragment.Text), &obj)
+	log.Printf("END GithubFileUploadAdaptor::LOAD %s", id)
 	return obj
 }
 

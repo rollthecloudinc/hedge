@@ -35,6 +35,8 @@ type PanelPage struct {
 	EntityPermissions PanelPagePermissions `json:"entityPermissions" validate:"required"`
 	LayoutSetting     *LayoutSetting       `form:"layoutSetting" json:"layoutSetting" binding:"omitempty" validate:"omitempty"`
 	RowSettings       []LayoutSetting      `form:"rowSettings[]" json:"rowSettings" validate:"dive"`
+	Persistence       *Persistence         `form:"persistence" json:"persistence" binding:"omitempty" validate:"omitempty,dive"`
+	CssFile           string               `form:"cssFile" json:"cssFile"`
 }
 
 type GridLayout struct {
@@ -85,19 +87,49 @@ type Rule struct {
 }
 
 type InlineContext struct {
-	Name    string                  `form:"name" json:"name" binding:"required" validate:"required"`
-	Adaptor string                  `form:"adaptor" json:"adaptor" binding:"required" validate:"required"`
-	Plugin  string                  `form:"plugin" json:"plugin" binding:"required" validate:"required"`
-	Rest    *Rest                   `form:"rest" json:"rest" binding:"omitempty" validate:"omitempty"`
-	Snippet *Snippet                `form:"snippet" json:"snippet" binding:"omitempty" validate:"omitempty"`
-	Data    *interface{}            `form:"data" json:"data" binding:"omitempty" validate:"omitempty"`
-	Tokens  *map[string]interface{} `form:"tokens" json:"tokens" binding:"omitempty" validate:"omitempty"`
+	Name       string                  `form:"name" json:"name" binding:"required" validate:"required"`
+	Adaptor    string                  `form:"adaptor" json:"adaptor" binding:"required" validate:"required"`
+	Plugin     string                  `form:"plugin" json:"plugin" binding:"required" validate:"required"`
+	Rest       *Rest                   `form:"rest" json:"rest" binding:"omitempty" validate:"omitempty"`
+	Snippet    *Snippet                `form:"snippet" json:"snippet" binding:"omitempty" validate:"omitempty"`
+	Data       *interface{}            `form:"data" json:"data" binding:"omitempty" validate:"omitempty"`
+	Tokens     *map[string]interface{} `form:"tokens" json:"tokens" binding:"omitempty" validate:"omitempty"`
+	Datasource *Datasource             `form:"datasource" json:"datasource" binding:"omitempty" validate:"omitempty,dive"`
+}
+
+type Persistence struct {
+	Dataduct *Dataduct `form:"dataduct" json:"dataduct" binding:"omitempty" validate:"omitempty,dive"`
+}
+
+type Dataduct struct {
+	Plugin   string                `form:"plugin" json:"plugin"`
+	Settings []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
+}
+
+type Datasource struct {
+	Plugin   string                `form:"plugin" json:"plugin" binding:"required" validate:"required"`
+	Renderer *Renderer             `form:"renderer" json:"renderer" binding:"omitempty" validate:"omitempty,dive"`
+	Settings []attr.AttributeValue `form:"settings[]" json:"settings" validate:"dive"`
+	Params   []Param               `form:"params[]" json:"params" validate:"dive"`
+}
+
+type Renderer struct {
+	Type     string           `form:"type" json:"type" binding:"required" validate:"required"`
+	Data     *Snippet         `form:"data" json:"data" binding:"omitempty" validate:"omitempty,dive"`
+	Query    string           `form:"query" json:"query"`
+	TrackBy  string           `form:"trackBy" json:"trackBy"`
+	Bindings []ContentBinding `form:"bindings[]" json:"bindings" validate:"dive"`
+}
+
+type ContentBinding struct {
+	Type string `form:"type" json:"type" binding:"required" validate:"required"`
+	Id   string `form:"id" json:"id" binding:"required" validate:"required"`
 }
 
 type Rest struct {
 	Url string `form:"url" json:"url" binding:"required" validate:"required"`
 	// Renderer RestRenderer `form:"renderer" json:"renderer" binding:"required" validate:"required"`
-	Params []RestParam `form:"params[]" json:"params" binding:"required" validate:"required,dive"`
+	Params []Param `form:"params[]" json:"params" binding:"required" validate:"required,dive"`
 }
 
 /*type RestRenderer struct {
@@ -105,26 +137,26 @@ type Rest struct {
 	Data Snippet `form:"data" json:"data" validate:"dive"`
 }*/
 
-type RestParam struct {
-	Mapping RestMapping `form:"mapping" json:"mapping" binding:"required" validate:"required,dive"`
-	Flags   []RestFlag  `form:"flags[]" json:"flags" validate:"dive"`
+type Param struct {
+	Mapping ParamMapping `form:"mapping" json:"mapping" binding:"required" validate:"required,dive"`
+	Flags   []ParamFlag  `form:"flags[]" json:"flags" validate:"dive"`
 }
 
-type RestMapping struct {
+type ParamMapping struct {
 	Type      string `form:"type" json:"type" binding:"required" validate:"required"`
 	Value     string `form:"value" json:"value" binding:"required" validate:"required"`
 	Context   string `form:"context" json:"context"`
 	TestValue string `form:"testValue" json:"testValue"`
 }
 
-type RestFlag struct {
+type ParamFlag struct {
 	Name    string `form:"name" json:"name" binding:"required" validate:"required"`
 	Enabled *bool  `form:"enabled" json:"enabled" binding:"required" validate:"required"`
 }
 
 type Snippet struct {
-	ContentType string `form:"contentType" json:"contentType" binding:"required" validate:"required"`
-	Content     string `form:"content" json:"content" binding:"required" validate:"required"`
+	ContentType string `form:"contentType" json:"contentType"`
+	Content     string `form:"content" json:"content"`
 }
 
 func ToPageEntity(page *Page) (map[string]interface{}, error) {

@@ -204,10 +204,11 @@ functions:
           method: PUT
           authorizer:
             name: cognito
-      #- httpApi:
-          #path: /panelpage/{id}
-          #method: GET
-          #authorizer:
+      - httpApi:
+          path: /panelpage/{id}
+          method: GET
+          authorizer:
+            name: cognito
             #name: authorizer2
   MediaApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media

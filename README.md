@@ -3,7 +3,7 @@
 
 # Summary
 
-Cloud optimized back-end services following [principles of green software engineering](https://principles.green/) for [Roll the Cloud Inc](https://github.com/rollthecloudinc).
+Druid cloud sustainaible serverless functions and RESTful APIs. Follows the [principles of green software engineering](https://principles.green/) to distribute resources accross organizations to significantly reduce energy consumption hosted on sustainable cloud infrastructure.
 
 # Organization
 

@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"goclassifieds/lib/utils"
+	"goclassifieds/lib/repo"
+	"io"
 	"io/ioutil"
 	"log"
 	"mime"
@@ -19,6 +21,8 @@ import (
 	session "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 // var ginLambda *ginadapter.GinLambda
@@ -27,8 +31,9 @@ var handler Handler
 type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
 
 type ActionContext struct {
-	Session    *session.Session
-	BucketName string
+	Session        *session.Session
+	BucketName     string
+	GithubV4Client *githubv4.Client
 }
 
 func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -49,28 +54,46 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 	}
 
 	file, header, err := r.FormFile("File")
+	defer file.Close()
 	if err != nil {
 		return res, err
 	}
 
 	contentType := header.Header.Get("Content-Type")
 	ext, _ := mime.ExtensionsByType(contentType)
-	id := utils.GenerateId()
+	id := header.Filename
+	if pos := strings.LastIndexByte(header.Filename, '.'); pos != -1 {
+		id = header.Filename[:pos]
+	}
 
 	if contentType == "text/markdown" {
 		ext = []string{".md"}
 	}
 
-	data := map[string]string{
-		"id":                 id,
-		"path":               "media/" + id + ext[0],
-		"contentType":        contentType,
-		"contentDisposition": header.Header.Get("Content-Disposition"),
-		"length":             fmt.Sprint(header.Size),
+	// Necessary to commit to github but not for s3
+	dataBuffer := bytes.NewBuffer(nil)
+	if _, err := io.Copy(dataBuffer, file); err != nil {
+		return res, err
 	}
 
-	userId := GetUserId(req)
+	d := []byte(dataBuffer.String())
+	suffix := ""
+	if os.Getenv("GITHUB_BRANCH") == "master" {
+		suffix = "-prod"
+	}
+	params := repo.CommitParams{
+		Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix,
+		Branch: os.Getenv("GITHUB_BRANCH"),
+		Path:   "media/" + id + ext[0],
+		Data:   &d,
+	}
 
+	repo.Commit(
+		ac.GithubV4Client,
+		&params,
+	)
+
+	/*userId := GetUserId(req)
 	uploader := s3manager.NewUploader(ac.Session)
 	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket:      aws.String(ac.BucketName),
@@ -81,6 +104,14 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 	})
 	if err != nil {
 		return res, err
+	}*/
+
+	data := map[string]string{
+		"id":                 id,
+		"path":               "media/" + id + ext[0],
+		"contentType":        contentType,
+		"contentDisposition": header.Header.Get("Content-Disposition"),
+		"length":             fmt.Sprint(header.Size),
 	}
 
 	res.StatusCode = 200
@@ -153,9 +184,18 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 func init() {
 	log.Printf("Gin cold start")
 	sess := session.Must(session.NewSession())
+
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+	)
+	httpClient := oauth2.NewClient(context.Background(), src)
+
+	githubV4Client := githubv4.NewClient(httpClient)
+
 	actionContext := ActionContext{
-		Session:    sess,
-		BucketName: os.Getenv("BUCKET_NAME"),
+		Session:        sess,
+		BucketName:     os.Getenv("BUCKET_NAME"),
+		GithubV4Client: githubV4Client,
 	}
 	handler = InitializeHandler(actionContext)
 }

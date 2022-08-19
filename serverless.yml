@@ -195,17 +195,17 @@ functions:
           #authorizer:
             #name: authorizer2
       - httpApi:
-          path: /panelpage/{proxy+}
+          path: /{site}/panelpage/{proxy+}
           method: POST
           authorizer:
             name: cognito
       - httpApi:
-          path: /panelpage/{proxy+}
+          path: /{site}/panelpage/{proxy+}
           method: PUT
           authorizer:
             name: cognito
       - httpApi:
-          path: /panelpage/{id}
+          path: /{site}/panelpage/{id}
           method: GET
           authorizer:
             name: cognito
@@ -216,12 +216,14 @@ functions:
     environment:
       BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
+      GITHUB_TOKEN: ${self:custom.githubToken}
+      GITHUB_BRANCH: ${self:custom.githubBranch}
     events:
       - httpApi:
-          path: /media/{prefix}
+          path: /{site}/media/{prefix}
           method: GET
       - httpApi:
-          path: /media
+          path: /{site}/media
           method: POST
           authorizer:
             name: cognito
@@ -250,6 +252,9 @@ functions:
           method: GET
       - httpApi:
           path: /ave
+          method: GET
+      - httpApi:
+          path: /marvel/{proxy+}
           method: GET
   ChatApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/api/func/chat/chat_/chat

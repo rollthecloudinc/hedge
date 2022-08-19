@@ -55,8 +55,8 @@ func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.
 	pathPieces := strings.Split(req.Path, "/")
 
 	query := inflector.Pluralize(ac.EntityName)
-	if len(pathPieces) == 3 && pathPieces[2] != "" {
-		query = pathPieces[2]
+	if len(pathPieces) == 4 && pathPieces[3] != "" {
+		query = pathPieces[3]
 	} else if ac.TemplateName != "" {
 		query = ac.TemplateName
 	}
@@ -103,7 +103,7 @@ func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var res events.APIGatewayProxyResponse
 	pathPieces := strings.Split(req.Path, "/")
-	id := pathPieces[2]
+	id := pathPieces[3]
 	log.Printf("entity by id: %s", id)
 	ent := ac.EntityManager.Load(id, ac.Implementation)
 	body, err := json.Marshal(ent)
@@ -165,8 +165,11 @@ func InitializeHandler(c *ActionContext) Handler {
 
 		ac := RequestActionContext(c)
 
+		b, _ := json.Marshal(req)
+		log.Print(string(b))
+
 		pathPieces := strings.Split(req.Path, "/")
-		entityName := pathPieces[1]
+		entityName := pathPieces[2]
 
 		if index := strings.Index(entityName, "list"); index > -1 {
 			entityName = inflector.Pluralize(entityName[0:index])
@@ -311,17 +314,17 @@ func InitializeHandler(c *ActionContext) Handler {
 			ac.EntityManager.AddLoader("default", entity.GithubFileLoaderAdaptor{
 				Config: entity.GithubFileUploadConfig{
 					Client: ac.GithubV4Client,
-					Repo:   "rollthecloudinc/ipe-objects", // @todo: Hard coded to test integration for now.
-					Branch: os.Getenv("GITHUB_BRANCH"),    // This will cone env vars from inside json file passed via serverless.
-					Path:   "panelpage",                   // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+					Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
+					Branch: os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
+					Path:   "panelpage",                                                  // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 			ac.EntityManager.AddStorage("default", entity.GithubFileUploadAdaptor{
 				Config: entity.GithubFileUploadConfig{
 					Client: ac.GithubV4Client,
-					Repo:   "rollthecloudinc/ipe-objects", // @todo: Hard coded to test integration for now.
-					Branch: os.Getenv("GITHUB_BRANCH"),    // This will cone env vars from inside json file passed via serverless.
-					Path:   "panelpage",                   // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+					Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
+					Branch: os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
+					Path:   "panelpage",                                                  // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 		}

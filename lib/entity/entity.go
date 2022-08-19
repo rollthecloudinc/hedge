@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/es"
 	"goclassifieds/lib/os"
+	repo "goclassifieds/lib/repo"
 	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -754,7 +754,23 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entitie
 }
 
 func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
-	log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", id)
+
+	dataBuffer := bytes.Buffer{}
+	json.NewEncoder(&dataBuffer).Encode(entity)
+	data := []byte(dataBuffer.String())
+	params := repo.CommitParams{
+		Repo:   s.Config.Repo,
+		Branch: s.Config.Branch,
+		Path:   s.Config.Path + "/" + id + ".json",
+		Data:   &data,
+	}
+
+	repo.Commit(
+		s.Config.Client,
+		&params,
+	)
+
+	/*log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", id)
 	pieces := strings.Split(s.Config.Repo, "/")
 	var q struct {
 		Repository struct {
@@ -818,7 +834,7 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 		log.Print("Github file upload failure.")
 		log.Panic(err2)
 	}
-	log.Printf("END GithubFileUploadAdaptor::Store %s", id)
+	log.Printf("END GithubFileUploadAdaptor::Store %s", id)*/
 }
 
 func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {

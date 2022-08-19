@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "repo",
+    srcs = ["repo.go"],
+    importpath = "goclassifieds/lib/repo",
+    visibility = ["//visibility:public"],
+      deps = [
+        "@com_github_shurcool_githubv4//:go_default_library",
+    ],
+)

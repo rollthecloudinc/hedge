@@ -5,6 +5,8 @@
 
 Druid cloud sustainaible serverless functions and RESTful APIs. Follows the [principles of green software engineering](https://principles.green/) to distribute resources accross organizations to significantly reduce energy consumption hosted on sustainable cloud infrastructure.
 
+This project also acts as a secure wrapper around the Github graph api enabling easy read and write operations of json files, images, etc. to github repositories. This is meant to take the place of a traditional relational datastore to one that automatically maintains historical changes, scales automatically, and doubles as a CDN by having the write repos as pages sites.
+
 # Organization
 
 This is a [bazel monorepo](https://bazel.build/) using [serverless framework](https://www.serverless.com/).

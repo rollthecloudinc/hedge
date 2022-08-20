@@ -12,15 +12,14 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/google/go-github/v46/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -31,9 +30,10 @@ var handler Handler
 type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
 
 type ActionContext struct {
-	Session        *session.Session
-	BucketName     string
-	GithubV4Client *githubv4.Client
+	Session          *session.Session
+	BucketName       string
+	GithubV4Client   *githubv4.Client
+	GithubRestClient *github.Client
 }
 
 func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -129,20 +129,24 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 
 	pathPieces := strings.Split(req.Path, "/")
-	file := pathPieces[2]
+	siteName := pathPieces[1]
+	file, _ := url.QueryUnescape(pathPieces[3]) // pathPieces[2]
 
-	buf := aws.NewWriteAtBuffer([]byte{})
+	log.Print("requested media site: " + siteName)
+	log.Print("requested media file: " + file)
 
-	downloader := s3manager.NewDownloader(ac.Session)
+	// buf := aws.NewWriteAtBuffer([]byte{})
 
-	_, err := downloader.Download(buf, &s3.GetObjectInput{
+	// downloader := s3manager.NewDownloader(ac.Session)
+
+	/*_, err := downloader.Download(buf, &s3.GetObjectInput{
 		Bucket: aws.String(ac.BucketName),
 		Key:    aws.String("media/" + file),
 	})
 
 	if err != nil {
 		return res, err
-	}
+	}*/
 
 	ext := strings.Split(pathPieces[len(pathPieces)-1], ".")
 	contentType := mime.TypeByExtension(ext[len(ext)-1])
@@ -151,11 +155,49 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		contentType = "text/markdown"
 	}
 
+	suffix := ""
+	if os.Getenv("GITHUB_BRANCH") == "master" {
+		suffix = "-prod"
+	}
+
+	owner := "rollthecloudinc"
+	repo := siteName + "-objects" + suffix
+
+	var q struct {
+		Repository struct {
+			Object struct {
+				ObjectFragment struct {
+					Oid githubv4.GitObjectID
+				} `graphql:"... on Blob"`
+			} `graphql:"object(expression: $exp)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	qVars := map[string]interface{}{
+		"exp":   githubv4.String(os.Getenv("GITHUB_BRANCH") + ":media/" + file),
+		"owner": githubv4.String(owner),
+		"name":  githubv4.String(repo),
+	}
+
+	err := ac.GithubV4Client.Query(context.Background(), &q, qVars)
+	if err != nil {
+		log.Print("Github latest file failure.")
+		log.Panic(err)
+	}
+
+	oid := q.Repository.Object.ObjectFragment.Oid
+	log.Print("Github file object id " + oid)
+
+	blob, _, err := ac.GithubRestClient.Git.GetBlob(context.Background(), owner, repo, string(oid))
+	if err != nil {
+		log.Print("Github get blob failure.")
+		log.Panic(err)
+	}
+
 	res.StatusCode = 200
 	res.Headers = map[string]string{
 		"Content-Type": contentType,
 	}
-	res.Body = base64.StdEncoding.EncodeToString(buf.Bytes())
+	res.Body = blob.GetContent()
 	res.IsBase64Encoded = true
 	return res, nil
 }
@@ -191,11 +233,13 @@ func init() {
 	httpClient := oauth2.NewClient(context.Background(), src)
 
 	githubV4Client := githubv4.NewClient(httpClient)
+	githubRestClient := github.NewClient(httpClient)
 
 	actionContext := ActionContext{
-		Session:        sess,
-		BucketName:     os.Getenv("BUCKET_NAME"),
-		GithubV4Client: githubV4Client,
+		Session:          sess,
+		BucketName:       os.Getenv("BUCKET_NAME"),
+		GithubV4Client:   githubV4Client,
+		GithubRestClient: githubRestClient,
 	}
 	handler = InitializeHandler(actionContext)
 }

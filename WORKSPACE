@@ -331,8 +331,8 @@ go_repository(
 go_repository(
     name = "com_github_google_go_querystring",
     importpath = "github.com/google/go-querystring",
-    sum = "h1:Xkwi/a1rcvNg1PPYe5vI8GbeBY/jrVuDX5ASuANWTrk=",
-    version = "v1.0.0",
+    sum = "h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD/fhyJ8=",
+    version = "v1.1.0",
 )
 
 go_repository(
@@ -786,8 +786,8 @@ go_repository(
 go_repository(
     name = "org_golang_google_appengine",
     importpath = "google.golang.org/appengine",
-    sum = "h1:lMO5rYAqUxkmaj76jAkRUvt5JZgFymx/+Q5Mzfivuhc=",
-    version = "v1.6.6",
+    sum = "h1:FZR1q0exgwxzPzp/aF+VccGrSfxfPpkBqjIIEq3ru6c=",
+    version = "v1.6.7",
 )
 
 go_repository(
@@ -1077,6 +1077,13 @@ go_repository(
     version = "v0.0.0-20191024005414-555d28b269f0",
 )
 
+go_repository(
+    name = "com_github_google_go_github_v46",
+    importpath = "github.com/google/go-github/v46",
+    sum = "h1:5TZiEw0Is5D9CPld0TSLPjShGr42L7PoyhUSl6KPMKM=",
+    version = "v46.0.0",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
@@ -1244,8 +1251,8 @@ go_repository(
 go_repository(
     name = "com_github_google_go_cmp",
     importpath = "github.com/google/go-cmp",
-    sum = "h1:BKbKCqvP6I+rmFHt06ZmyQtvB8xAkWdhFyr0ZUNZcxQ=",
-    version = "v0.5.6",
+    sum = "h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=",
+    version = "v0.5.8",
 )
 
 go_repository(
@@ -1629,8 +1636,8 @@ go_repository(
 go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
-    sum = "h1:/UOmuWzQfxxo9UtlXMwuQU8CMgg1eZXqTRwkSQJWKOI=",
-    version = "v0.0.0-20210711020723-a769d52b0f97",
+    sum = "h1:HWj/xjIHfjYU5nVXpTM0s39J9CbLn7Cc5a7IC5rwsMQ=",
+    version = "v0.0.0-20210817164053-32db794688a5",
 )
 
 go_repository(

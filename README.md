@@ -3,7 +3,7 @@
 
 # Summary
 
-Serverless highly available, auto scaling, low latency, performant app services distributed across clouds devoted to making the web a greener place.
+Serverless highly available, auto scaling, low latency, performant app services distributed across clouds leading the way to reduce carbon on the web.
 
 # Organization
 

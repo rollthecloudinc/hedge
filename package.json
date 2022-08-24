@@ -4,7 +4,7 @@
     "@bazel/bazelisk": "^1.9.0",
     "@bazel/esbuild": "^3.6.0",
     "@bazel/ibazel": "^0.15.10",
-    "cssjson": "^2.1.3"
-  },
-  "dependencies": {}
+    "cssjson": "^2.1.3",
+    "serverless-prune-plugin": "^2.0.1"
+  }
 }

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "gov",
+    embed = [":gov_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/gov",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "gov_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/gov",
+    visibility = ["//visibility:private"],
+    deps = [
+      "//lib/gov",
+      "@com_github_aws_aws_lambda_go//events",
+      "@com_github_aws_aws_lambda_go//lambda",
+      "@com_github_aws_aws_sdk_go//aws",
+      "@com_github_aws_aws_sdk_go//aws/session",
+      "@com_github_aws_aws_sdk_go//service/lambda",
+    ],
+)

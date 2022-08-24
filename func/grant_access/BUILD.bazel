@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "grant_access",
+    embed = [":grant_access_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/func/grant_access",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "grant_access_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/grant_access",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/gov",
+        "//lib/entity",
+        "@com_github_gocql_gocql//:gocql",
+        "@com_github_tangzero_inflector//:inflector",
+        "@com_github_aws_aws_lambda_go//lambda",
+    ],
+)

@@ -1,5 +1,7 @@
 service: goclassifieds-api
 frameworkVersion: '3'
+plugins:
+  - serverless-prune-plugin
 custom:
   elasticUrl: ${file(./private.${opt:stage, 'dev'}.json):elasticUrl}
   keyspaceUsername: ${file(./private.${opt:stage, 'dev'}.json):keyspaceUsername}
@@ -41,10 +43,12 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/readable_profiles/readable_profiles_/readable_profiles
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
     - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
@@ -207,8 +211,8 @@ functions:
       - httpApi:
           path: /{site}/panelpage/{id}
           method: GET
-          authorizer:
-            name: cognito
+          #authorizer:
+            #name: cognito
             #name: authorizer2
   MediaApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
@@ -317,6 +321,15 @@ functions:
           method: GET
           authorizer:
             name: cognito
+  GovApi:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
+    role: EntityApiRole
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - httpApi:
+          path: /grant/{type}/{user}/{resource}/{op}/{proxy+}
+          method: GET
   IndexEntity:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
     role: EntityApiRole
@@ -353,6 +366,13 @@ functions:
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
+  GrantAccess:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
+    role: EntityApiRole
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
   #Stream:
     #handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
     #role: EntityApiRole

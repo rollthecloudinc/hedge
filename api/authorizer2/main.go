@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -47,16 +48,16 @@ func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (even
 	log.Printf("token after is %s", token)
 
 	// Fetch all keys
-	jwkSet, err := jwk.Fetch("https://cognito-idp.us-east-1.amazonaws.com/" + ac.UserPoolId + "/.well-known/jwks.json")
+	jwkSet, err := jwk.Fetch(context.Background(), "https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json")
 	if err != nil {
 		log.Fatalln("Unable to fetch keys")
 	}
 
 	// Verify
 	t, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		keys := jwkSet.LookupKeyID(t.Header["kid"].(string))
+		key, _ := jwkSet.LookupKeyID(t.Header["kid"].(string))
 		var k interface{}
-		err = keys[0].Raw(&k)
+		err = key.Raw(&k)
 		if err != nil {
 			return nil, err
 		}

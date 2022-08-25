@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
-	"fmt"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/gov"
 	"log"
@@ -19,10 +17,10 @@ import (
 type TemplateBindValueFunc func(value interface{}) string
 
 type ResourceManagerParams struct {
-	Session   *gocql.Session
-	Request   *gov.GrantAccessRequest
-	Resource  string
-	Operation string
+	Session *gocql.Session
+	Request *gov.GrantAccessRequest
+	// Resource  string
+	// Operation string
 }
 
 func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAccessResponse, error) {
@@ -40,10 +38,10 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 	}
 
 	resourceParams := &ResourceManagerParams{
-		Session:   cSession,
-		Request:   payload,
-		Resource:  fmt.Sprint(payload.Resource),
-		Operation: fmt.Sprint(payload.Operation),
+		Session: cSession,
+		Request: payload,
+		// Resource:  fmt.Sprint(payload.Resource),
+		// Operation: fmt.Sprint(payload.Operation),
 	}
 
 	resourceManager, _ := ResourceManager(resourceParams)
@@ -51,10 +49,11 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 	data := &entity.EntityFinderDataBag{
 		Attributes: allAttributes,
 		Metadata: map[string]interface{}{
-			"user":       payload.User,
-			"type":       payload.Type,
-			"resources":  gov.ResourceTypeMap,
-			"operations": gov.OperationMap,
+			"user":     payload.User,
+			"type":     payload.Type,
+			"resource": payload.Resource,
+			"asset":    payload.Asset,
+			"op":       payload.Operation,
 		},
 	}
 	results := resourceManager.Find("default", "default", data)
@@ -95,28 +94,28 @@ func ResourceManager(params *ResourceManagerParams) (entity.EntityManager, error
 				Config: entity.CqlTemplateFinderConfig{
 					Session:  params.Session,
 					Template: t,
-					Table:    inflector.Pluralize(entityName),
+					Table:    inflector.Pluralize(entityName) + "2",
 					Bindings: bindings,
 					Aliases:  map[string]string{},
 				},
 			},
 		},
-		Hooks: map[entity.Hooks]entity.EntityHook{},
+		Hooks:           map[entity.Hooks]entity.EntityHook{},
 		CollectionHooks: map[string]entity.EntityCollectionHook{
-			"default/default": entity.PipeCollectionHooks(
-				entity.FilterEntities(func(ent map[string]interface{}) bool {
-					resource := fmt.Sprint(ent["resource"])
-					op := fmt.Sprint(ent["op"])
-					b, _ := json.Marshal(ent)
-					log.Print(string(b))
-					b2, _ := json.Marshal(params.Request)
-					log.Print(string(b2))
-					log.Print(resource == params.Resource)
-					log.Print(ent["asset"] == params.Request.Asset)
-					log.Print(op == params.Operation)
-					return resource == params.Resource && ent["asset"] == params.Request.Asset && op == params.Operation
+			/*"default/default": entity.PipeCollectionHooks(
+			entity.FilterEntities(func(ent map[string]interface{}) bool {
+				resource := fmt.Sprint(ent["resource"])
+				op := fmt.Sprint(ent["op"])*/
+			/*b, _ := json.Marshal(ent)
+			log.Print(string(b))
+			b2, _ := json.Marshal(params.Request)
+			log.Print(string(b2))
+			log.Print(resource == params.Resource)
+			log.Print(ent["asset"] == params.Request.Asset)
+			log.Print(op == params.Operation)*/
+			/*return resource == params.Resource && ent["asset"] == params.Request.Asset && op == params.Operation
 				}),
-			),
+			),*/
 		},
 	}
 
@@ -134,15 +133,19 @@ func Query() string {
 	return `
 	{{ define "default" }}
 	SELECT
-       resource,
-			 asset,
-		   op
+       op
 	 FROM
-			 resources
+			 resources2
 	WHERE 
 			 user = {{ bindValue (index .Metadata "user" ) }}
 		 AND
 		   type = {{ bindValue (index .Metadata "type" ) }}
+		 AND
+		   resource = {{ bindValue (index .Metadata "resource" ) }}
+		 AND
+		   asset = {{ bindValue (index .Metadata "asset" ) }}
+		 AND
+		   op = {{ bindValue (index .Metadata "op" ) }}
 	{{end}}
 	`
 }

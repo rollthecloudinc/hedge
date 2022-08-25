@@ -45,7 +45,7 @@ require (
 	github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00
 	github.com/ugorji/go/codec v1.1.7 // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
-	// golang.org/x/crypto/curve25519 v0.0.0-20210817164053-32db794688a5 // indirect
+	//golang.org/x/crypto/curve25519 v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/gov"
 	"goclassifieds/lib/sign"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -48,6 +49,7 @@ type ActionContext struct {
 	Implementation string
 	BucketName     string
 	Stage          string
+	Site           string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -125,7 +127,11 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	json.Unmarshal(body, &e)
 	newEntity, err := ac.EntityManager.Create(e)
 	if err != nil {
-		return res, err
+		if strings.Contains(err.Error(), "unauthorized") {
+			res.StatusCode = 403
+			res.Body = err.Error()
+		}
+		return res, nil
 	}
 	resBody, err := json.Marshal(newEntity)
 	if err != nil {
@@ -163,7 +169,7 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
-		ac := RequestActionContext(c)
+		ac := RequestActionContext(c, req)
 
 		b, _ := json.Marshal(req)
 		log.Print(string(b))
@@ -227,6 +233,7 @@ func InitializeHandler(c *ActionContext) Handler {
 				UserId:         userId,
 				BucketName:     ac.BucketName,
 				Stage:          ac.Stage,
+				Site:           ac.Site,
 			})
 			/*manager, err := entity.GetManager(
 				singularName,
@@ -288,11 +295,28 @@ func InitializeHandler(c *ActionContext) Handler {
 		}
 
 		// Default to using owner authoization fo all entities.
-		ac.EntityManager.AddAuthorizer("default", entity.OwnerAuthorizationAdaptor{
-			Config: entity.OwnerAuthorizationConfig{
-				UserId: userId,
-			},
-		})
+		if singularName == "panelpage" {
+			suffix := ""
+			if os.Getenv("STAGE") == "prod" {
+				suffix = "-prod"
+			}
+			ac.EntityManager.AddAuthorizer("default", entity.ResourceOrOwnerAuthorizationAdaptor{
+				Config: entity.ResourceOrOwnerAuthorizationConfig{
+					UserId:   userId,
+					Site:     ac.Site,
+					Resource: gov.GithubRepo,
+					Asset:    "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix,
+					Lambda:   ac.Lambda,
+				},
+			})
+		} else {
+			ac.EntityManager.AddAuthorizer("default", entity.OwnerAuthorizationAdaptor{
+				Config: entity.OwnerAuthorizationConfig{
+					UserId: userId,
+					Site:   ac.Site,
+				},
+			})
+		}
 
 		if singularName == "ad" {
 			collectionKey := "aggregations.features.features_filtered.feature_names.buckets"
@@ -427,7 +451,7 @@ func TemplateUserId(ac *ActionContext) TemplateUserIdFunc {
 	}
 }
 
-func RequestActionContext(ac *ActionContext) *ActionContext {
+func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest) *ActionContext {
 	return &ActionContext{
 		EsClient:       ac.EsClient,
 		OsClient:       ac.OsClient,
@@ -438,6 +462,7 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 		Implementation: "default",
 		BucketName:     ac.BucketName,
 		Stage:          ac.Stage,
+		Site:           req.PathParameters["site"],
 	}
 }
 

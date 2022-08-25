@@ -11,6 +11,7 @@ go_library(
         "//lib/os",
         "//lib/utils",
         "//lib/repo",
+        "//lib/gov",
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_aws_aws_sdk_go//aws/session",

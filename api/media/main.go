@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"goclassifieds/lib/gov"
 	"goclassifieds/lib/repo"
 	"io"
 	"io/ioutil"
@@ -18,7 +19,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
+	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/google/go-github/v46/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
@@ -34,11 +37,50 @@ type ActionContext struct {
 	BucketName       string
 	GithubV4Client   *githubv4.Client
 	GithubRestClient *github.Client
+	Lambda           *lambda2.Lambda
+	Stage            string
 }
 
 func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 
 	res := events.APIGatewayProxyResponse{StatusCode: 403}
+
+	suffix := ""
+	if os.Getenv("GITHUB_BRANCH") == "master" {
+		suffix = "-prod"
+	}
+
+	asset := "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix
+	grantAccessRequest := gov.GrantAccessRequest{
+		User:      GetUserId(req),
+		Type:      gov.User,
+		Resource:  gov.GithubRepo,
+		Operation: gov.Write,
+		Asset:     asset,
+	}
+
+	payload, err := json.Marshal(grantAccessRequest)
+	if err != nil {
+		log.Printf("Error marshalling grant access request: %s", err.Error())
+		res.StatusCode = 500
+		return res, err
+	}
+
+	lambdaRes, err := ac.Lambda.Invoke(&lambda2.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + ac.Stage + "-GrantAccess"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking grant_access: %s", err.Error())
+		res.StatusCode = 500
+		return res, err
+	}
+
+	var grantRes gov.GrantAccessResponse
+	json.Unmarshal(lambdaRes.Payload, &grantRes)
+
+	if !grantRes.Grant {
+		res.StatusCode = 403
+		res.Body = "Unauthorized to write files."
+		return res, nil
+	}
 
 	body, err := base64.StdEncoding.DecodeString(req.Body)
 	if err != nil {
@@ -59,15 +101,20 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		return res, err
 	}
 
-	contentType := header.Header.Get("Content-Type")
-	ext, _ := mime.ExtensionsByType(contentType)
+	// contentType := header.Header.Get("Content-Type")
+	//ext, _ := mime.ExtensionsByType(contentType)
 	id := header.Filename
+	ext := ""
+	contentType := ""
 	if pos := strings.LastIndexByte(header.Filename, '.'); pos != -1 {
 		id = header.Filename[:pos]
+		extIndex := pos + 1
+		ext = header.Filename[extIndex:]
+		contentType = mime.TypeByExtension(ext)
 	}
 
 	if contentType == "text/markdown" {
-		ext = []string{".md"}
+		ext = "md"
 	}
 
 	// Necessary to commit to github but not for s3
@@ -77,14 +124,10 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 	}
 
 	d := []byte(dataBuffer.String())
-	suffix := ""
-	if os.Getenv("GITHUB_BRANCH") == "master" {
-		suffix = "-prod"
-	}
 	params := repo.CommitParams{
-		Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix,
+		Repo:   asset,
 		Branch: os.Getenv("GITHUB_BRANCH"),
-		Path:   "media/" + id + ext[0],
+		Path:   "media/" + id + "." + ext,
 		Data:   &d,
 	}
 
@@ -108,7 +151,7 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 
 	data := map[string]string{
 		"id":                 id,
-		"path":               "media/" + id + ext[0],
+		"path":               "media/" + id + "." + ext,
 		"contentType":        contentType,
 		"contentDisposition": header.Header.Get("Content-Disposition"),
 		"length":             fmt.Sprint(header.Size),
@@ -226,6 +269,7 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 func init() {
 	log.Printf("Gin cold start")
 	sess := session.Must(session.NewSession())
+	lClient := lambda2.New(sess)
 
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -240,6 +284,8 @@ func init() {
 		BucketName:       os.Getenv("BUCKET_NAME"),
 		GithubV4Client:   githubV4Client,
 		GithubRestClient: githubRestClient,
+		Stage:            os.Getenv("STAGE"),
+		Lambda:           lClient,
 	}
 	handler = InitializeHandler(actionContext)
 }

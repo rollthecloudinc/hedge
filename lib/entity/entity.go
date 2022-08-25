@@ -15,6 +15,7 @@ import (
 
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/es"
+	"goclassifieds/lib/gov"
 	"goclassifieds/lib/os"
 	repo "goclassifieds/lib/repo"
 	"goclassifieds/lib/utils"
@@ -70,6 +71,7 @@ type ValidateEntityRequest struct {
 	EntityName string
 	EntityType string
 	UserId     string
+	Site       string
 	Entity     map[string]interface{}
 }
 
@@ -114,6 +116,7 @@ type DefaultManagerConfig struct {
 	Index          string
 	BucketName     string
 	Stage          string
+	Site           string
 	BeforeSave     EntityHook
 	AfterSave      EntityHook
 	BeforeFind     EntityCollectionHook
@@ -244,17 +247,28 @@ type CqlTemplateFinderConfig struct {
 
 type OwnerAuthorizationConfig struct {
 	UserId string `json:"userId"`
+	Site   string `json:"site"`
+}
+
+type ResourceOrOwnerAuthorizationConfig struct {
+	UserId   string `json:"userId"`
+	Site     string `json:"site"`
+	Resource gov.ResourceTypes
+	Asset    string
+	Lambda   *lambda.Lambda `json:"-"`
 }
 
 type DefaultCreatorConfig struct {
 	Lambda *lambda.Lambda `json:"-"`
 	UserId string         `json:"userId"`
+	Site   string         `json:"site"`
 	Save   string         `json:"save"`
 }
 
 type DefaultUpdatorConfig struct {
 	Lambda *lambda.Lambda `json:"-"`
 	UserId string         `json:"userId"`
+	Site   string         `json:"site"`
 	Save   string         `json:"save"`
 }
 
@@ -316,6 +330,10 @@ type CqlTemplateFinder struct {
 
 type OwnerAuthorizationAdaptor struct {
 	Config OwnerAuthorizationConfig `json:"config"`
+}
+
+type ResourceOrOwnerAuthorizationAdaptor struct {
+	Config ResourceOrOwnerAuthorizationConfig `json:"config"`
 }
 
 type DefaultCreatorAdaptor struct {
@@ -787,12 +805,65 @@ func (a OwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, 
 	return (userId == a.Config.UserId), entity
 }
 
+func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
+
+	grantAccessRequest := gov.GrantAccessRequest{
+		User:      a.Config.UserId,
+		Type:      gov.User,
+		Resource:  a.Config.Resource,
+		Operation: gov.Write,
+		Asset:     a.Config.Asset,
+	}
+
+	payload, err := json.Marshal(grantAccessRequest)
+	if err != nil {
+		log.Printf("Error marshalling grant access request: %s", err.Error())
+		return false, nil
+	}
+
+	log.Print("before grant access invoke")
+
+	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking grant access: %s", err.Error())
+		return false, nil
+	}
+
+	var grantRes gov.GrantAccessResponse
+	json.Unmarshal(res.Payload, &grantRes)
+
+	b, _ := json.Marshal(grantRes)
+	log.Print(string(b))
+
+	if id != "" {
+
+		// log.Printf("Check ownership of %s", id)
+		entity := m.Load(id, "default")
+		if entity == nil {
+			return false, nil
+		}
+		userId := fmt.Sprint(entity["userId"])
+		// log.Printf("Check Entity Ownership: %s == %s", userId, a.Config.UserId)
+		return (userId == a.Config.UserId), entity
+
+	}
+
+	return grantRes.Grant, nil
+}
+
 func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
 	request := ValidateEntityRequest{
 		EntityName: m.Config.SingularName,
 		Entity:     entity,
 		UserId:     c.Config.UserId,
+		Site:       c.Config.Site,
+	}
+
+	write, _ := m.Allow("", "write", "default")
+	if !write {
+		log.Printf("not allowed to write entity %s", entity)
+		return entity, errors.New("unauthorized to write entity.")
 	}
 
 	payload, err := json.Marshal(request)
@@ -1416,6 +1487,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			Config: DefaultCreatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
+				Site:   config.Site,
 				Save:   "default",
 			},
 		},
@@ -1423,6 +1495,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			Config: DefaultUpdatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
+				Site:   config.Site,
 				Save:   "default",
 			},
 		},
@@ -1477,6 +1550,7 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			Config: DefaultCreatorConfig{
 				Lambda: config.Lambda,
 				UserId: config.UserId,
+				Site:   config.Site,
 				Save:   "default",
 			},
 		},

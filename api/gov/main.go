@@ -26,11 +26,11 @@ func GetGrant(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.API
 	var res events.APIGatewayProxyResponse
 
 	grantAccessRequest := gov.GrantAccessRequest{
-		User:      req.PathParameters["user"], //"e36b42fe-b09c-4514-a519-e178bb52957e",
+		User:      req.PathParameters["user"],
 		Type:      gov.UserTypeMap[req.PathParameters["type"]],
 		Resource:  gov.ResourceTypeMap[req.PathParameters["resource"]],
 		Operation: gov.OperationMap[req.PathParameters["op"]],
-		Asset:     req.PathParameters["proxy"], //"rollthecloudinc/rtc",
+		Asset:     req.PathParameters["proxy"],
 	}
 
 	log.Print(req)

@@ -835,13 +835,10 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 	b, _ := json.Marshal(grantRes)
 	log.Print(string(b))
 
-	if id != "" {
+	entity := m.Load(id, "default")
 
+	if entity != nil {
 		// log.Printf("Check ownership of %s", id)
-		entity := m.Load(id, "default")
-		if entity == nil {
-			return false, nil
-		}
 		userId := fmt.Sprint(entity["userId"])
 		// log.Printf("Check Entity Ownership: %s == %s", userId, a.Config.UserId)
 		return (userId == a.Config.UserId), entity

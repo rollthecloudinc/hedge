@@ -105,6 +105,8 @@ resources:
                 - Effect: "Allow"
                   Action:
                     - "cognito-idp:ListUsers"
+                    - "cognito-idp:AdminUpdateUserAttributes"
+                    - "cognito-idp:AdminConfirmSignUp"
                   Resource: ${self:custom.userPoolArn}
                 - Effect: "Allow"
                   Action:
@@ -238,10 +240,14 @@ functions:
     role: EntityApiRole
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
+      COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
           path: /publicuserprofile/{id}
+          method: GET
+      - httpApi:
+          path: /github/signup
           method: GET
   ProxyApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
@@ -261,7 +267,7 @@ functions:
           path: /marvel/{proxy+}
           method: GET
   ChatApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/api/func/chat/chat_/chat
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
     role: EntityApiRole
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}

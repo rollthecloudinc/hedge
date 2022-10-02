@@ -13,7 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
+	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/google/go-github/github"
+	"github.com/sethvargo/go-password/password"
 	"golang.org/x/oauth2"
 )
 
@@ -24,9 +26,20 @@ type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 type ActionContext struct {
 	Session       *session.Session
 	Client        *cognitoidentityprovider.CognitoIdentityProvider
+	SesClient     *ses.SES
 	EntityManager entity.Manager
 	UserPoolId    string
 	Stage         string
+}
+
+type MyTemplateData struct {
+	Name           string `json:"name"`
+	FavoriteAnimal string `json:"favoriteanimal"`
+}
+
+type TempPasswordData struct {
+	Name         string `json:"name"`
+	TempPassword string `json:"tempPassword"`
 }
 
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -52,8 +65,8 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	code := req.QueryStringParameters["code"]
 	// state := req.QueryStringParameters["state"]
 	config := oauth2.Config{
-		ClientID:     "Iv1.c72ed0518c7be356",
-		ClientSecret: "X",
+		ClientID:     os.Getenv("GITHUB_APP_CLIENT_ID"),
+		ClientSecret: os.Getenv("GITHUB_APP_CLIENT_SECRET"),
 		RedirectURL:  "",
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://github.com/login/oauth/authorize",
@@ -95,22 +108,16 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 			primaryEmail = email.Email
 		}
 	}
+	tempPassword, err := password.Generate(15, 5, 2, false, false)
+	log.Print("temp password " + tempPassword)
 	cogUser := &cognitoidentityprovider.SignUpInput{
 		Username: user.Login,
-		Password: aws.String("Test1234!"),
+		Password: aws.String(tempPassword),
 		ClientId: aws.String(os.Getenv("COGNITO_APP_CLIENT_ID")),
 		UserAttributes: []*cognitoidentityprovider.AttributeType{
 			{
 				Name:  aws.String("email"),
 				Value: primaryEmail,
-			},
-			{
-				Name:  aws.String("custom:githubAccessToken"),
-				Value: aws.String(token.AccessToken),
-			},
-			{
-				Name:  aws.String("custom:githubRefreshToken"),
-				Value: aws.String(token.RefreshToken),
 			},
 		},
 	}
@@ -128,6 +135,18 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 				Name:  aws.String("email_verified"),
 				Value: aws.String("true"),
 			},
+			{
+				Name:  aws.String("custom:githubAccessToken"),
+				Value: aws.String(token.AccessToken),
+			},
+			{
+				Name:  aws.String("custom:githubRefreshToken"),
+				Value: aws.String(token.RefreshToken),
+			},
+			/*{
+				Name:  aws.String("custom:githubLogin"),
+				Value: user.Login,
+			},*/
 		},
 	}
 	_, err = ac.Client.AdminUpdateUserAttributes(updateInput)
@@ -141,6 +160,41 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		Username:   user.Login,
 	}
 	_, err = ac.Client.AdminConfirmSignUp(confirmInput)
+	if err != nil {
+		log.Print(err.Error())
+		res.StatusCode = 500
+		return res, nil
+	}
+	resetPass := &cognitoidentityprovider.AdminResetUserPasswordInput{
+		UserPoolId: aws.String(ac.UserPoolId),
+		Username:   user.Login,
+	}
+	_, err = ac.Client.AdminResetUserPassword(resetPass)
+	if err != nil {
+		log.Print(err.Error())
+		res.StatusCode = 500
+		return res, nil
+	}
+	emailData := TempPasswordData{
+		Name:         user.GetLogin(),
+		TempPassword: tempPassword,
+	}
+	jsonData, err := json.Marshal(emailData)
+	if err != nil {
+		log.Print(err.Error())
+		res.StatusCode = 500
+		return res, nil
+	}
+	emailInput := &ses.SendTemplatedEmailInput{
+		Source:               aws.String("Security <sso@druidcloud.dev>"),
+		Template:             aws.String("TempPassword"),
+		ConfigurationSetName: aws.String("TempPassword"),
+		Destination: &ses.Destination{
+			ToAddresses: []*string{primaryEmail},
+		},
+		TemplateData: aws.String(string(jsonData)),
+	}
+	_, err = ac.SesClient.SendTemplatedEmail(emailInput)
 	if err != nil {
 		log.Print(err.Error())
 		res.StatusCode = 500
@@ -193,6 +247,7 @@ func RequestActionContext(ac *ActionContext) *ActionContext {
 	return &ActionContext{
 		Session:    ac.Session,
 		Client:     ac.Client,
+		SesClient:  ac.SesClient,
 		Stage:      ac.Stage,
 		UserPoolId: ac.UserPoolId,
 	}
@@ -203,10 +258,12 @@ func init() {
 
 	sess := session.Must(session.NewSession())
 	client := cognitoidentityprovider.New(sess)
+	sesClient := ses.New(sess)
 
 	actionContext := ActionContext{
 		Session:    sess,
 		Client:     client,
+		SesClient:  sesClient,
 		UserPoolId: os.Getenv("USER_POOL_ID"),
 		Stage:      os.Getenv("STAGE"),
 	}

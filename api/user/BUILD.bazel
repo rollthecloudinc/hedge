@@ -24,8 +24,10 @@ go_library(
         "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_aws_aws_sdk_go//aws/session",
         "@com_github_aws_aws_sdk_go//service/cognitoidentityprovider",
+        "@com_github_aws_aws_sdk_go//service/ses",
         "@org_golang_x_oauth2//:go_default_library",
         "@com_github_google_go_github_v46//github",
         "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_sethvargo_go_password//password",
     ],
 )

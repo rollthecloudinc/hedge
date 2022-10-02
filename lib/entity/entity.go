@@ -328,6 +328,9 @@ type CqlTemplateFinder struct {
 	Config CqlTemplateFinderConfig `json:"config"`
 }
 
+type NoopAuthorizationAdaptor struct {
+}
+
 type OwnerAuthorizationAdaptor struct {
 	Config OwnerAuthorizationConfig `json:"config"`
 }
@@ -792,6 +795,10 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 
 func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
+}
+
+func (a NoopAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
+	return true, nil
 }
 
 func (a OwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {

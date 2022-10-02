@@ -61,7 +61,9 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 	} else if payload.EntityName == "gridlayout" {
 		newEntity, err = ValidateGridLayout(jsonData, payload)
 	} else {
-		return invalid, errors.New("Entity validation does exist")
+		newEntity = payload.Entity
+		// This needs to be commented out to allow shapeshifters though for now.
+		// return invalid, errors.New("Entity validation does exist")
 	}
 
 	log.Printf("after validation")

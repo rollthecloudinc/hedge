@@ -34,5 +34,7 @@ go_library(
         "@com_github_tangzero_inflector//:inflector",
         "@com_github_shurcool_githubv4//:go_default_library",
         "@org_golang_x_oauth2//:go_default_library",
+        "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_aws_aws_sdk_go//service/cognitoidentityprovider",
     ],
 )

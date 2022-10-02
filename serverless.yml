@@ -15,6 +15,8 @@ custom:
   aveApikey: ${file(./private.${opt:stage, 'dev'}.json):aveApikey}
   githubToken: ${file(./private.${opt:stage, 'dev'}.json):githubToken}
   githubBranch: ${file(./private.${opt:stage, 'dev'}.json):githubBranch}
+  githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
+  githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
 provider:
   name: aws
   runtime: go1.x
@@ -105,6 +107,10 @@ resources:
                 - Effect: "Allow"
                   Action:
                     - "cognito-idp:ListUsers"
+                    - "cognito-idp:AdminUpdateUserAttributes"
+                    - "cognito-idp:AdminConfirmSignUp"
+                    - "cognito-idp:AdminResetUserPassword"
+                    - "cognito-idp:AdminGetUser"
                   Resource: ${self:custom.userPoolArn}
                 - Effect: "Allow"
                   Action:
@@ -115,6 +121,10 @@ resources:
                   Action:
                     - "es:*"
                   Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
+                - Effect: "Allow"
+                  Action:
+                    - "ses:SendTemplatedEmail"
+                  Resource: "*"
 functions:
   EntityApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/entity/entity_/entity
@@ -124,6 +134,7 @@ functions:
       BUCKET_NAME: ${self:custom.bucketName}
       GITHUB_TOKEN: ${self:custom.githubToken}
       GITHUB_BRANCH: ${self:custom.githubBranch}
+      USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
@@ -211,6 +222,19 @@ functions:
       - httpApi:
           path: /{site}/panelpage/{id}
           method: GET
+      - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: POST
+          authorizer:
+            name: cognito
+      - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: PUT
+          authorizer:
+            name: cognito
+      - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: GET
           #authorizer:
             #name: cognito
             #name: authorizer2
@@ -238,10 +262,16 @@ functions:
     role: EntityApiRole
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
+      COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
       STAGE: ${opt:stage, 'dev'}
+      GITHUB_APP_CLIENT_ID: ${self:custom.githubAppClientId}
+      GITHUB_APP_CLIENT_SECRET: ${self:custom.githubAppClientSecret}
     events:
       - httpApi:
           path: /publicuserprofile/{id}
+          method: GET
+      - httpApi:
+          path: /github/signup
           method: GET
   ProxyApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
@@ -261,7 +291,7 @@ functions:
           path: /marvel/{proxy+}
           method: GET
   ChatApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/api/func/chat/chat_/chat
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
     role: EntityApiRole
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}

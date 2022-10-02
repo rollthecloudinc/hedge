@@ -16,7 +16,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/mitchellh/mapstructure"
@@ -41,6 +43,7 @@ type ActionContext struct {
 	GithubV4Client *githubv4.Client
 	Session        *session.Session
 	Lambda         *lambda2.Lambda
+	Cognito        *cognitoidentityprovider.CognitoIdentityProvider
 	TypeManager    entity.Manager
 	EntityManager  entity.Manager
 	EntityName     string
@@ -50,6 +53,7 @@ type ActionContext struct {
 	BucketName     string
 	Stage          string
 	Site           string
+	UserPoolId     string
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -177,7 +181,11 @@ func InitializeHandler(c *ActionContext) Handler {
 		pathPieces := strings.Split(req.Path, "/")
 		entityName := pathPieces[2]
 
-		if index := strings.Index(entityName, "list"); index > -1 {
+		if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+			entityName = pathPieces[3]
+		}
+
+		if index := strings.Index(entityName, "list"); index > -1 && entityName != "shapeshifter" {
 			entityName = inflector.Pluralize(entityName[0:index])
 			if entityName == "features" {
 				entityName = "ads"
@@ -309,6 +317,8 @@ func InitializeHandler(c *ActionContext) Handler {
 					Lambda:   ac.Lambda,
 				},
 			})
+		} else if singularName == "shapeshifter" {
+			ac.EntityManager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
 		} else {
 			ac.EntityManager.AddAuthorizer("default", entity.OwnerAuthorizationAdaptor{
 				Config: entity.OwnerAuthorizationConfig{
@@ -349,6 +359,23 @@ func InitializeHandler(c *ActionContext) Handler {
 					Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
 					Branch: os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
 					Path:   "panelpage",                                                  // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+				},
+			})
+		} else if singularName == "shapeshifter" {
+			ac.EntityManager.AddLoader("default", entity.GithubFileLoaderAdaptor{
+				Config: entity.GithubFileUploadConfig{
+					Client: ac.GithubV4Client,
+					Repo:   req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Branch: os.Getenv("GITHUB_BRANCH"),
+					Path:   req.PathParameters["proxy"],
+				},
+			})
+			ac.EntityManager.AddStorage("default", entity.GithubFileUploadAdaptor{
+				Config: entity.GithubFileUploadConfig{
+					Client: ac.GithubV4Client,
+					Repo:   req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Branch: os.Getenv("GITHUB_BRANCH"),
+					Path:   req.PathParameters["proxy"],
 				},
 			})
 		}
@@ -452,10 +479,46 @@ func TemplateUserId(ac *ActionContext) TemplateUserIdFunc {
 }
 
 func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest) *ActionContext {
+
+	pathPieces := strings.Split(req.Path, "/")
+
+	var githubToken string
+
+	if len(pathPieces) < 4 || pathPieces[3] != "shapeshifter" {
+		githubToken = os.Getenv("GITHUB_TOKEN")
+	} else {
+		log.Print("shapeshifter detected")
+		username := GetUsername(req)
+		getUserInput := &cognitoidentityprovider.AdminGetUserInput{
+			Username:   aws.String(username),
+			UserPoolId: aws.String(ac.UserPoolId),
+		}
+		user, err := ac.Cognito.AdminGetUser(getUserInput)
+		if err == nil {
+			for _, attr := range user.UserAttributes {
+				log.Print("attribute " + *attr.Name)
+				if *attr.Name == "custom:githubAccessToken" {
+					log.Print("custom:githubAccessToken detected")
+					githubToken = *attr.Value
+					log.Print("github token " + githubToken)
+					break
+				}
+			}
+		} else {
+			log.Print(err.Error())
+		}
+	}
+
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: githubToken},
+	)
+	httpClient := oauth2.NewClient(context.Background(), src)
+	githubV4Client := githubv4.NewClient(httpClient)
+
 	return &ActionContext{
 		EsClient:       ac.EsClient,
 		OsClient:       ac.OsClient,
-		GithubV4Client: ac.GithubV4Client,
+		GithubV4Client: githubV4Client,
 		Session:        ac.Session,
 		Lambda:         ac.Lambda,
 		Template:       ac.Template,
@@ -463,6 +526,7 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 		BucketName:     ac.BucketName,
 		Stage:          ac.Stage,
 		Site:           req.PathParameters["site"],
+		UserPoolId:     ac.UserPoolId,
 	}
 }
 
@@ -478,6 +542,20 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 		userId = req.RequestContext.Authorizer["sub"].(string)
 	}
 	return userId
+}
+
+func GetUsername(req *events.APIGatewayProxyRequest) string {
+	username := ""
+	log.Printf("claims are %v", req.RequestContext.Authorizer["claims"])
+	if req.RequestContext.Authorizer["claims"] != nil {
+		username = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["username"])
+		if username == "<nil>" {
+			username = ""
+		}
+	} else if req.RequestContext.Authorizer["username"] != nil {
+		username = req.RequestContext.Authorizer["username"].(string)
+	}
+	return username
 }
 
 func init() {
@@ -507,24 +585,27 @@ func init() {
 		log.Printf("Opensearch Error: %s", err.Error())
 	}
 
-	src := oauth2.StaticTokenSource(
+	/*src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
 	httpClient := oauth2.NewClient(context.Background(), src)
 
-	githubV4Client := githubv4.NewClient(httpClient)
+	githubV4Client := githubv4.NewClient(httpClient)*/
 
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
+	cogClient := cognitoidentityprovider.New(sess)
 
 	actionContext := ActionContext{
-		EsClient:       esClient,
-		OsClient:       osClient,
-		GithubV4Client: githubV4Client,
-		Session:        sess,
-		Lambda:         lClient,
-		BucketName:     os.Getenv("BUCKET_NAME"),
-		Stage:          os.Getenv("STAGE"),
+		EsClient: esClient,
+		OsClient: osClient,
+		//GithubV4Client: githubV4Client,
+		Session:    sess,
+		Lambda:     lClient,
+		Cognito:    cogClient,
+		BucketName: os.Getenv("BUCKET_NAME"),
+		Stage:      os.Getenv("STAGE"),
+		UserPoolId: os.Getenv("USER_POOL_ID"),
 	}
 
 	log.Printf("entity bucket storage: %s", actionContext.BucketName)

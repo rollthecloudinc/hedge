@@ -194,8 +194,11 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	ext := strings.Split(pathPieces[len(pathPieces)-1], ".")
 	contentType := mime.TypeByExtension(ext[len(ext)-1])
 
+	log.Print("content type: " + contentType)
 	if ext[len(ext)-1] == "md" {
 		contentType = "text/markdown"
+	} else if ext[len(ext)-1] == "svg" {
+		contentType = "image/svg+xml"
 	}
 
 	suffix := ""

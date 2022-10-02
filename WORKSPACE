@@ -1084,6 +1084,13 @@ go_repository(
     version = "v46.0.0",
 )
 
+go_repository(
+    name = "com_github_sethvargo_go_password",
+    importpath = "github.com/sethvargo/go-password",
+    sum = "h1:BTDl4CC/gjf/axHMaDQtw507ogrXLci6XRiLc7i/UHI=",
+    version = "v0.2.0",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")

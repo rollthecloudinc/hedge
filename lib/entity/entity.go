@@ -35,6 +35,7 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-playground/validator/v10"
 	"github.com/gocql/gocql"
+	"github.com/google/go-github/v46/github"
 	opensearch "github.com/opensearch-project/opensearch-go"
 	opensearchapi "github.com/opensearch-project/opensearch-go/opensearchapi"
 )
@@ -221,6 +222,13 @@ type GithubFileUploadConfig struct {
 	Path   string           `json:"path"`
 }
 
+type GithubRestFileUploadConfig struct {
+	Client *github.Client `json:"-"`
+	Repo   string         `json:"repo"`
+	Branch string         `json:"branch"`
+	Path   string         `json:"path"`
+}
+
 type ElasticTemplateFinderConfig struct {
 	Client        *elasticsearch7.Client `json:"-"`
 	Index         string                 `json:"index"`
@@ -288,6 +296,10 @@ type GithubFileLoaderAdaptor struct {
 	Config GithubFileUploadConfig `json:"config"`
 }
 
+type GithubRestLoaderAdaptor struct {
+	Config GithubRestFileUploadConfig `json:"config"`
+}
+
 type FinderLoaderAdaptor struct {
 	Finder string `json:"finder"`
 }
@@ -314,6 +326,10 @@ type CqlAutoDiscoveryExpansionStorageAdaptor struct {
 
 type GithubFileUploadAdaptor struct {
 	Config GithubFileUploadConfig `json:"config"`
+}
+
+type GithubRestFileUploadAdaptor struct {
+	Config GithubRestFileUploadConfig `json:"config"`
 }
 
 type ElasticTemplateFinder struct {
@@ -794,6 +810,29 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 }
 
 func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
+}
+
+func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
+
+	dataBuffer := bytes.Buffer{}
+	json.NewEncoder(&dataBuffer).Encode(entity)
+	data := []byte(dataBuffer.String())
+	params := repo.CommitParams{
+		Repo:   s.Config.Repo,
+		Branch: s.Config.Branch,
+		Path:   s.Config.Path + "/" + id + ".json",
+		Data:   &data,
+	}
+
+	repo.CommitRest(
+		s.Config.Client,
+		&params,
+	)
+
+}
+
+func (s GithubRestFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
 }
 

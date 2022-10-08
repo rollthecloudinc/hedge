@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 var aveDomain string
 var aveApiKey string
+var carbonAwareDomain string
 
 func GetCities(country string, state string, city string) (string, error) {
 	res, err := http.Get("http://api.zippopotam.us/" + country + "/" + state + "/" + city)
@@ -30,7 +32,16 @@ func GetRequest(domain string, req *events.APIGatewayProxyRequest) (string, erro
 		qs[i] = url.QueryEscape(k) + "=" + url.QueryEscape(v)
 		i++
 	}
-	res, err := http.Get("https://" + domain + "/query?apikey=" + aveApiKey + "&" + strings.Join(qs, "&"))
+	var res *http.Response
+	var err error
+	var uri string
+	if strings.Index(req.Path, "carbonaware") > -1 {
+		uri = "https://" + domain + "/" + req.PathParameters["proxy"] + "?" + strings.Join(qs, "&")
+		log.Print(uri)
+		res, err = http.Get(uri)
+	} else {
+		res, err = http.Get("https://" + domain + "/query?apikey=" + aveApiKey + "&" + strings.Join(qs, "&"))
+	}
 	if err != nil {
 		return "", err
 	}
@@ -51,6 +62,12 @@ func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 			return events.APIGatewayProxyResponse{StatusCode: 500}, err
 		}
 		return events.APIGatewayProxyResponse{StatusCode: 200, Body: body, Headers: map[string]string{"Content-Type": "application/json"}}, nil
+	} else if strings.Index(req.Path, "carbonaware") > -1 {
+		body, err := GetRequest(carbonAwareDomain, req)
+		if err != nil {
+			return events.APIGatewayProxyResponse{StatusCode: 500}, err
+		}
+		return events.APIGatewayProxyResponse{StatusCode: 200, Body: body, Headers: map[string]string{"Content-Type": "application/json"}}, nil
 	}
 	return events.APIGatewayProxyResponse{StatusCode: 400}, nil
 }
@@ -58,5 +75,6 @@ func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 func main() {
 	aveDomain = os.Getenv("PROXY_AVE_DOMAIN")
 	aveApiKey = os.Getenv("PROXY_AVE_APIKEY")
+	carbonAwareDomain = os.Getenv("PROXY_CARBONAWARE_DOMAIN")
 	lambda.Start(ProxyRequest)
 }

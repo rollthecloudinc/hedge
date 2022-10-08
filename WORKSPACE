@@ -1091,6 +1091,13 @@ go_repository(
     version = "v0.2.0",
 )
 
+go_repository(
+    name = "com_github_golang_jwt_jwt_v4",
+    importpath = "github.com/golang-jwt/jwt/v4",
+    sum = "h1:rcc4lwaZgFMCZ5jxF9ABolDcIHdBytAFgqFPbSJQAYs=",
+    version = "v4.4.2",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")

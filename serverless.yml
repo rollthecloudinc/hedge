@@ -12,9 +12,11 @@ custom:
   cognitoAppClientId: ${file(./private.${opt:stage, 'dev'}.json):cognitoAppClientId}
   bucketName: ${file(./private.${opt:stage, 'dev'}.json):bucketName}
   proxyAveDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyAveDomain}
+  proxyCarbonAwareDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyCarbonAwareDomain}
   aveApikey: ${file(./private.${opt:stage, 'dev'}.json):aveApikey}
   githubToken: ${file(./private.${opt:stage, 'dev'}.json):githubToken}
   githubBranch: ${file(./private.${opt:stage, 'dev'}.json):githubBranch}
+  githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
   githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
   githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
 provider:
@@ -56,13 +58,15 @@ package:
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
     - api/chat/AmazonRootCA1.pem
+    - api/entity/rtc-vertigo-dev.private-key.pem
+    - api/entity/rtc-vertigo-prod.private-key.pem
 resources:
   Resources:
     EntityApiRole:
       Type: AWS::IAM::Role
       Properties:
         Path: "/"
-        RoleName: "goclassifieds-entity-api-us-east-1-lambdaRole"
+        RoleName: goclassifieds-entity-api-${opt:region, 'us-east-1'}-lambdaRole
         AssumeRolePolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -134,6 +138,7 @@ functions:
       BUCKET_NAME: ${self:custom.bucketName}
       GITHUB_TOKEN: ${self:custom.githubToken}
       GITHUB_BRANCH: ${self:custom.githubBranch}
+      GITHUB_APP_ID: ${self:custom.githubAppId}
       USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}
     events:
@@ -210,6 +215,21 @@ functions:
           #authorizer:
             #name: authorizer2
       - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: POST
+          authorizer:
+            name: cognito
+      - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: PUT
+          authorizer:
+            name: cognito
+      - httpApi:
+          path: /{owner}/{repo}/shapeshifter/{proxy+}
+          method: GET
+          authorizer:
+            name: cognito
+      - httpApi:
           path: /{site}/panelpage/{proxy+}
           method: POST
           authorizer:
@@ -221,19 +241,6 @@ functions:
             name: cognito
       - httpApi:
           path: /{site}/panelpage/{id}
-          method: GET
-      - httpApi:
-          path: /{owner}/{repo}/shapeshifter/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-      - httpApi:
-          path: /{owner}/{repo}/shapeshifter/{proxy+}
-          method: PUT
-          authorizer:
-            name: cognito
-      - httpApi:
-          path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: GET
           #authorizer:
             #name: cognito
@@ -279,6 +286,7 @@ functions:
     environment:
       PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
       PROXY_AVE_APIKEY: ${self:custom.aveApikey}
+      PROXY_CARBONAWARE_DOMAIN: ${self:custom.proxyCarbonAwareDomain}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
@@ -286,6 +294,9 @@ functions:
           method: GET
       - httpApi:
           path: /ave
+          method: GET
+      - httpApi:
+          path: /carbonaware/{proxy+}
           method: GET
       - httpApi:
           path: /marvel/{proxy+}
@@ -360,32 +371,32 @@ functions:
       - httpApi:
           path: /grant/{type}/{user}/{resource}/{op}/{proxy+}
           method: GET
-  IndexEntity:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
-    role: EntityApiRole
-    environment:
-      ELASTIC_URL: ${self:custom.elasticUrl}
-      STAGE: ${opt:stage, 'dev'}
-      BUCKET_NAME: ${self:custom.bucketName}
-    events:
-      - s3:
-          bucket: ${self:custom.bucketName}
-          event: s3:ObjectCreated:*
-          rules:
-            - suffix: .json.gz
-          existing: true
-  ConvertMedia:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
-    role: EntityApiRole
-    environment:
-      STAGE: ${opt:stage, 'dev'}
-    events:
-      - s3:
-          bucket: ${self:custom.bucketName}
-          event: s3:ObjectCreated:*
-          rules:
-            - suffix: .css
-          existing: true
+  #IndexEntity:
+  #  handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
+  #  role: EntityApiRole
+  #  environment:
+  #    ELASTIC_URL: ${self:custom.elasticUrl}
+ #     STAGE: ${opt:stage, 'dev'}
+#    BUCKET_NAME: ${self:custom.bucketName}
+#    events:
+ #     - s3:
+  #        bucket: ${self:custom.bucketName}
+ #         event: s3:ObjectCreated:*
+#          rules:
+#            - suffix: .json.gz
+#          existing: true
+#  ConvertMedia:
+#    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
+#    role: EntityApiRole
+#    environment:
+#      STAGE: ${opt:stage, 'dev'}
+#    events:
+#      - s3:
+#          bucket: ${self:custom.bucketName}
+#          event: s3:ObjectCreated:*
+#          rules:
+#            - suffix: .css
+#          existing: true
   ValidateEntity:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
     role: EntityApiRole

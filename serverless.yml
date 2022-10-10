@@ -226,6 +226,8 @@ functions:
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: GET
+          authorizer:
+            name: cognito
       - httpApi:
           path: /{site}/panelpage/{proxy+}
           method: POST

@@ -12,10 +12,11 @@ import (
 )
 
 type CommitParams struct {
-	Repo   string
-	Branch string
-	Path   string
-	Data   *[]byte
+	Repo     string
+	Branch   string
+	Path     string
+	Data     *[]byte
+	UserName string
 }
 
 type GithubUserInfo struct {
@@ -103,7 +104,7 @@ func CommitRest(c *github.Client, params *CommitParams) {
 		log.Panic(err)
 	}*/
 	userInfo := &GithubUserInfo{
-		Name:  "Vertigo",
+		Name:/*"Vertigo"*/ params.UserName,
 		Email: "vertigo@rollthecloud.com",
 	}
 	branch, _, err := c.Repositories.GetBranch(context.Background(), pieces[0], pieces[1], params.Branch, true)

@@ -113,7 +113,12 @@ func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var res events.APIGatewayProxyResponse
 	pathPieces := strings.Split(req.Path, "/")
-	id := pathPieces[3]
+	var id string
+	if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+		id = pathPieces[len(pathPieces)-1]
+	} else {
+		id = pathPieces[3]
+	}
 	log.Printf("entity by id: %s", id)
 	ent := ac.EntityManager.Load(id, ac.Implementation)
 	body, err := json.Marshal(ent)
@@ -360,35 +365,46 @@ func InitializeHandler(c *ActionContext) Handler {
 		if singularName == "panelpage" {
 			ac.EntityManager.AddLoader("default", entity.GithubFileLoaderAdaptor{
 				Config: entity.GithubFileUploadConfig{
-					Client: ac.GithubV4Client,
-					Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
-					Branch: os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
-					Path:   "panelpage",                                                  // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+					Client:   ac.GithubV4Client,
+					Repo:     "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
+					Branch:   os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
+					Path:     "panelpage",
+					UserName: GetUsername(req), // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 			ac.EntityManager.AddStorage("default", entity.GithubFileUploadAdaptor{
 				Config: entity.GithubFileUploadConfig{
-					Client: ac.GithubV4Client,
-					Repo:   "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
-					Branch: os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
-					Path:   "panelpage",                                                  // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
+					Client:   ac.GithubV4Client,
+					Repo:     "rollthecloudinc/" + req.PathParameters["site"] + "-objects", // @todo: Hard coded to test integration for now.
+					Branch:   os.Getenv("GITHUB_BRANCH"),                                   // This will cone env vars from inside json file passed via serverless.
+					Path:     "panelpage",
+					UserName: GetUsername(req), // path to place stuff. This will probably be a separate repo or directory udnerneath assets.
 				},
 			})
 		} else if singularName == "shapeshifter" {
-			ac.EntityManager.AddLoader("default", entity.GithubFileLoaderAdaptor{
-				Config: entity.GithubFileUploadConfig{
-					Client: ac.GithubV4Client,
-					Repo:   req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
-					Branch: os.Getenv("GITHUB_BRANCH"),
-					Path:   req.PathParameters["proxy"],
+			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+			var loaderPath string
+			if req.HTTPMethod == "GET" {
+				loaderPath = strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+			} else {
+				loaderPath = req.PathParameters["proxy"]
+			}
+			ac.EntityManager.AddLoader("default", entity.GithubRestFileLoaderAdaptor{
+				Config: entity.GithubRestFileUploadConfig{
+					Client:   ac.GithubRestClient,
+					Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Branch:   os.Getenv("GITHUB_BRANCH"),
+					Path:     loaderPath,
+					UserName: GetUsername(req),
 				},
 			})
 			ac.EntityManager.AddStorage("default", entity.GithubRestFileUploadAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
-					Client: ac.GithubRestClient,
-					Repo:   req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
-					Branch: os.Getenv("GITHUB_BRANCH"),
-					Path:   req.PathParameters["proxy"],
+					Client:   ac.GithubRestClient,
+					Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Branch:   os.Getenv("GITHUB_BRANCH"),
+					Path:     strings.Join(proxyPieces[0:len(proxyPieces)-1], "/"),
+					UserName: GetUsername(req),
 				},
 			})
 		}
@@ -665,7 +681,7 @@ func init() {
 	lClient := lambda2.New(sess)
 	cogClient := cognitoidentityprovider.New(sess)
 
-	pem, err := os.ReadFile("api/entity/rtc-vertigo-dev.private-key.pem")
+	pem, err := os.ReadFile("api/entity/rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
 	if err != nil {
 		log.Print("Error reading github app pem file", err.Error())
 	}

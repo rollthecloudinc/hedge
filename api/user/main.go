@@ -190,8 +190,12 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 			res.StatusCode = 500
 			return res, nil
 		}
+		defaultEmail := "druidcloud.dev"
+		if ac.Stage == "prod" {
+			defaultEmail = "druidcloud.io"
+		}
 		emailInput := &ses.SendTemplatedEmailInput{
-			Source:               aws.String("Security <sso@druidcloud.dev>"),
+			Source:               aws.String("Security <sso@" + defaultEmail + ">"),
 			Template:             aws.String("TempPassword"),
 			ConfigurationSetName: aws.String("TempPassword"),
 			Destination: &ses.Destination{

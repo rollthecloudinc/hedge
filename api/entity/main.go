@@ -631,14 +631,18 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 
 func GetUsername(req *events.APIGatewayProxyRequest) string {
 	username := ""
+	field := "username"
+	/*if os.Getenv("STAGE") == "prod" {
+		field = "cognito:username"
+	}*/
 	log.Printf("claims are %v", req.RequestContext.Authorizer["claims"])
 	if req.RequestContext.Authorizer["claims"] != nil {
-		username = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["username"])
+		username = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})[field])
 		if username == "<nil>" {
 			username = ""
 		}
-	} else if req.RequestContext.Authorizer["username"] != nil {
-		username = req.RequestContext.Authorizer["username"].(string)
+	} else if req.RequestContext.Authorizer[field] != nil {
+		username = req.RequestContext.Authorizer[field].(string)
 	}
 	return username
 }

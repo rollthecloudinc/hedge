@@ -141,6 +141,8 @@ func CommitRest(c *github.Client, params *CommitParams) {
 		log.Panic(err)
 	}
 	log.Print("Created tree " + *tree.SHA)
+	log.Print("user name: " + userInfo.Name)
+	log.Print("user email: " + userInfo.Email)
 	parents := make([]*github.Commit, 1)
 	parents[0] = &github.Commit{SHA: branch.Commit.SHA}
 	newCommit := &github.Commit{

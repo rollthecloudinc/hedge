@@ -59,6 +59,7 @@ package:
     - api/chat/queries.tmpl
     - api/chat/AmazonRootCA1.pem
     - api/entity/rtc-vertigo-dev.private-key.pem
+    - api/entity/rtc-vertigo-prod.private-key.pem
 resources:
   Resources:
     EntityApiRole:

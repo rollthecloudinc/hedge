@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-playground/validator/v10"
 	"github.com/gocql/gocql"
+	"github.com/google/go-github/v46/github"
 	opensearch "github.com/opensearch-project/opensearch-go"
 	opensearchapi "github.com/opensearch-project/opensearch-go/opensearchapi"
 )
@@ -215,10 +217,19 @@ type CqlAdaptorConfig struct {
 }
 
 type GithubFileUploadConfig struct {
-	Client *githubv4.Client `json:"-"`
-	Repo   string           `json:"repo"`
-	Branch string           `json:"branch"`
-	Path   string           `json:"path"`
+	Client   *githubv4.Client `json:"-"`
+	Repo     string           `json:"repo"`
+	Branch   string           `json:"branch"`
+	Path     string           `json:"path"`
+	UserName string           `json:"userName"`
+}
+
+type GithubRestFileUploadConfig struct {
+	Client   *github.Client `json:"-"`
+	Repo     string         `json:"repo"`
+	Branch   string         `json:"branch"`
+	Path     string         `json:"path"`
+	UserName string         `json:"userName"`
 }
 
 type ElasticTemplateFinderConfig struct {
@@ -288,6 +299,14 @@ type GithubFileLoaderAdaptor struct {
 	Config GithubFileUploadConfig `json:"config"`
 }
 
+type GithubRestFileLoaderAdaptor struct {
+	Config GithubRestFileUploadConfig `json:"config"`
+}
+
+type GithubRestLoaderAdaptor struct {
+	Config GithubRestFileUploadConfig `json:"config"`
+}
+
 type FinderLoaderAdaptor struct {
 	Finder string `json:"finder"`
 }
@@ -314,6 +333,10 @@ type CqlAutoDiscoveryExpansionStorageAdaptor struct {
 
 type GithubFileUploadAdaptor struct {
 	Config GithubFileUploadConfig `json:"config"`
+}
+
+type GithubRestFileUploadAdaptor struct {
+	Config GithubRestFileUploadConfig `json:"config"`
 }
 
 type ElasticTemplateFinder struct {
@@ -572,6 +595,32 @@ func (s GithubFileLoaderAdaptor) Load(id string, m *EntityManager) map[string]in
 	return obj
 }
 
+func (s GithubRestFileLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
+	log.Printf("BEGIN GithubRestFileUploadAdaptor::LOAD %s", id)
+	var obj map[string]interface{}
+	pieces := strings.Split(s.Config.Repo, "/")
+	opts := &github.RepositoryContentGetOptions{
+		Ref: s.Config.Branch,
+	}
+	suffix := ""
+	if id != "" {
+		suffix = "/" + id
+	}
+	log.Print("Github Rest Fetch " + pieces[0] + "/" + pieces[1] + ":" + s.Config.Path + suffix)
+	file, _, res, err := s.Config.Client.Repositories.GetContents(context.Background(), pieces[0], pieces[1], s.Config.Path+suffix, opts)
+	if err != nil && res.StatusCode != 404 {
+		log.Print("Github get content failure.")
+		log.Panic(err)
+	}
+	if err == nil {
+		content, _ := base64.StdEncoding.DecodeString(*file.Content)
+		log.Printf(string(content))
+		json.Unmarshal(content, &obj)
+	}
+	log.Printf("END GithubRestFileUploadAdaptor::LOAD %s", id)
+	return obj
+}
+
 func (s S3StorageAdaptor) Store(id string, entity map[string]interface{}) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&entity); err != nil {
@@ -777,13 +826,16 @@ func (s CqlAutoDiscoveryExpansionStorageAdaptor) Purge(m *EntityManager, entitie
 func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
 
 	dataBuffer := bytes.Buffer{}
-	json.NewEncoder(&dataBuffer).Encode(entity)
+	encoder := json.NewEncoder(&dataBuffer)
+	encoder.SetIndent("", "\t")
+	encoder.Encode(entity)
 	data := []byte(dataBuffer.String())
 	params := repo.CommitParams{
-		Repo:   s.Config.Repo,
-		Branch: s.Config.Branch,
-		Path:   s.Config.Path + "/" + id + ".json",
-		Data:   &data,
+		Repo:     s.Config.Repo,
+		Branch:   s.Config.Branch,
+		Path:     s.Config.Path + "/" + id + ".json",
+		Data:     &data,
+		UserName: s.Config.UserName,
 	}
 
 	repo.Commit(
@@ -794,6 +846,32 @@ func (s GithubFileUploadAdaptor) Store(id string, entity map[string]interface{})
 }
 
 func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
+	return nil
+}
+
+func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
+
+	dataBuffer := bytes.Buffer{}
+	encoder := json.NewEncoder(&dataBuffer)
+	encoder.SetIndent("", "\t")
+	encoder.Encode(entity)
+	data := []byte(dataBuffer.String())
+	params := repo.CommitParams{
+		Repo:     s.Config.Repo,
+		Branch:   s.Config.Branch,
+		Path:     s.Config.Path + "/" + id + ".json",
+		Data:     &data,
+		UserName: s.Config.UserName,
+	}
+
+	repo.CommitRest(
+		s.Config.Client,
+		&params,
+	)
+
+}
+
+func (s GithubRestFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]interface{}) error {
 	return nil
 }
 

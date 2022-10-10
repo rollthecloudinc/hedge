@@ -61,6 +61,7 @@ func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.AP
 }
 
 func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	userExists := false
 	res := events.APIGatewayProxyResponse{}
 	code := req.QueryStringParameters["code"]
 	// state := req.QueryStringParameters["state"]
@@ -72,7 +73,7 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 			AuthURL:  "https://github.com/login/oauth/authorize",
 			TokenURL: "https://github.com/login/oauth/access_token",
 		},
-		Scopes: []string{},
+		Scopes: []string{ /*"repo"*/ },
 	}
 	ctx := context.Background()
 	token, err := config.Exchange(ctx, code)
@@ -122,10 +123,13 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		},
 	}
 	u, err := ac.Client.SignUp(cogUser)
-	if err != nil {
+	if err != nil && err.Error() != "UsernameExistsException: User already exists" {
 		log.Print(err.Error())
 		res.StatusCode = 500
 		return res, nil
+	}
+	if err != nil && err.Error() == "UsernameExistsException: User already exists" {
+		userExists = true
 	}
 	updateInput := &cognitoidentityprovider.AdminUpdateUserAttributesInput{
 		UserPoolId: aws.String(ac.UserPoolId),
@@ -155,50 +159,56 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		res.StatusCode = 500
 		return res, nil
 	}
-	confirmInput := &cognitoidentityprovider.AdminConfirmSignUpInput{
-		UserPoolId: aws.String(ac.UserPoolId),
-		Username:   user.Login,
-	}
-	_, err = ac.Client.AdminConfirmSignUp(confirmInput)
-	if err != nil {
-		log.Print(err.Error())
-		res.StatusCode = 500
-		return res, nil
-	}
-	resetPass := &cognitoidentityprovider.AdminResetUserPasswordInput{
-		UserPoolId: aws.String(ac.UserPoolId),
-		Username:   user.Login,
-	}
-	_, err = ac.Client.AdminResetUserPassword(resetPass)
-	if err != nil {
-		log.Print(err.Error())
-		res.StatusCode = 500
-		return res, nil
-	}
-	emailData := TempPasswordData{
-		Name:         user.GetLogin(),
-		TempPassword: tempPassword,
-	}
-	jsonData, err := json.Marshal(emailData)
-	if err != nil {
-		log.Print(err.Error())
-		res.StatusCode = 500
-		return res, nil
-	}
-	emailInput := &ses.SendTemplatedEmailInput{
-		Source:               aws.String("Security <sso@druidcloud.dev>"),
-		Template:             aws.String("TempPassword"),
-		ConfigurationSetName: aws.String("TempPassword"),
-		Destination: &ses.Destination{
-			ToAddresses: []*string{primaryEmail},
-		},
-		TemplateData: aws.String(string(jsonData)),
-	}
-	_, err = ac.SesClient.SendTemplatedEmail(emailInput)
-	if err != nil {
-		log.Print(err.Error())
-		res.StatusCode = 500
-		return res, nil
+	if !userExists {
+		confirmInput := &cognitoidentityprovider.AdminConfirmSignUpInput{
+			UserPoolId: aws.String(ac.UserPoolId),
+			Username:   user.Login,
+		}
+		_, err = ac.Client.AdminConfirmSignUp(confirmInput)
+		if err != nil {
+			log.Print(err.Error())
+			res.StatusCode = 500
+			return res, nil
+		}
+		resetPass := &cognitoidentityprovider.AdminResetUserPasswordInput{
+			UserPoolId: aws.String(ac.UserPoolId),
+			Username:   user.Login,
+		}
+		_, err = ac.Client.AdminResetUserPassword(resetPass)
+		if err != nil {
+			log.Print(err.Error())
+			res.StatusCode = 500
+			return res, nil
+		}
+		emailData := TempPasswordData{
+			Name:         user.GetLogin(),
+			TempPassword: tempPassword,
+		}
+		jsonData, err := json.Marshal(emailData)
+		if err != nil {
+			log.Print(err.Error())
+			res.StatusCode = 500
+			return res, nil
+		}
+		defaultEmail := "druidcloud.dev"
+		if ac.Stage == "prod" {
+			defaultEmail = "druidcloud.io"
+		}
+		emailInput := &ses.SendTemplatedEmailInput{
+			Source:               aws.String("Security <sso@" + defaultEmail + ">"),
+			Template:             aws.String("TempPassword"),
+			ConfigurationSetName: aws.String("TempPassword"),
+			Destination: &ses.Destination{
+				ToAddresses: []*string{primaryEmail},
+			},
+			TemplateData: aws.String(string(jsonData)),
+		}
+		_, err = ac.SesClient.SendTemplatedEmail(emailInput)
+		if err != nil {
+			log.Print(err.Error())
+			res.StatusCode = 500
+			return res, nil
+		}
 	}
 	res.Body = u.String()
 	return res, nil

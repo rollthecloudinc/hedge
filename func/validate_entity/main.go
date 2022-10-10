@@ -60,6 +60,8 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		newEntity, err = ValidatePanelPage(jsonData, payload)
 	} else if payload.EntityName == "gridlayout" {
 		newEntity, err = ValidateGridLayout(jsonData, payload)
+	} else if payload.EntityName == "shapeshifter" {
+		newEntity, err = ValidateShapeshifter(jsonData, payload)
 	} else {
 		newEntity = payload.Entity
 		// This needs to be commented out to allow shapeshifters though for now.
@@ -352,4 +354,46 @@ func ValidateGridLayout(jsonData []byte, payload *entity.ValidateEntityRequest) 
 func main() {
 	// Make the handler available for Remote Procedure Call by AWS Lambda
 	lambda.Start(handler)
+}
+
+func ValidateShapeshifter(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
+	var deadObject map[string]interface{}
+
+	log.Printf("Inside ValidatePanelPage")
+
+	var obj map[string]interface{}
+	err := json.Unmarshal(jsonData, &obj)
+	if err != nil {
+		return deadObject, err
+	}
+
+	/*if obj["id"] == "" {
+		obj["id"] = utils.GenerateId()
+	}*/
+
+	obj["userId"] = payload.UserId
+
+	/*readUserId := obj.UserId
+	for _, userId := range obj.EntityPermissions.ReadUserIds {
+		if userId == "*" {
+			readUserId = userId
+		}
+	}*/
+
+	/*obj.EntityPermissions = cc.PanelPagePermissions{
+		ReadUserIds:   []string{readUserId},
+		WriteUserIds:  []string{obj.UserId},
+		DeleteUserIds: []string{obj.UserId},
+	}*/
+
+	/*validate := validator.New()
+	err = validate.Struct(obj)*/
+
+	/*if err != nil {
+		msg, _ := json.Marshal(err.(validator.ValidationErrors))
+		log.Printf("Validation Errors: %s", string(msg))
+		return deadObject, err.(validator.ValidationErrors)
+	}*/
+
+	return obj, nil
 }

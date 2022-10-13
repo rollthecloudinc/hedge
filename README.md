@@ -1,47 +1,33 @@
+> The cost and hassle free way to roll with JSON on the cloud.
+
+## Summary
+
+Once installed JSON can be saved to Github repositories using our simple, intuitive REST API.
+
+Saved JSON becomes automatically version controlled.
+
+Never be left in the dark about your JSON and always know:
+* Who made change
+* What changed
+* When change was made
+* Audit log and complete change history
+
+The perfect pair with modern web apps that run completely in the browser. Send JSON directly to your Github repositories within the browser itself.
+
+Combine your repositories with Github Pages to make JSON highly available across the globe – JSON is your website.
+
+## Use Cases
+
+### classifieds-ui.com
+
+> Classifieds ui is a flexible, reimagined free market of goods, products and services on the web. Secure ecommerce that fast tracks healthy planetary growth and entrepreneurial aspirations.
+
+Post new home listing to the real estate section.
+
+### zingurus.com
+
+> Zingurus is a fun, new, hip free exchange of media, thoughts, sarcasm and commentary without limits on the modern web. Strike lightening begin a storm and rain down free from the shackles of censorship.
+
+Post new message on the public forum.
+
 <img width="146" alt="Screen Shot 2022-06-13 at 1 43 16 AM" src="https://user-images.githubusercontent.com/73197190/173287441-8ce440b1-2833-4950-8a75-c75f28304c3c.png">
-
-
-# Summary
-
-Serverless highly available, auto scaling, low latency, performant app services distributed across clouds leading the way to reduce carbon on the web.
-
-# Organization
-
-This is a [bazel monorepo](https://bazel.build/) using [serverless framework](https://www.serverless.com/).
-
-* api
-  * Public lambdas exposed as part of API gateway.
-* func
-  * Independent lambdas execuated manually or via events.
-* lib
-  * Internal libraries shared accross entire organization.
-
-# Languages
-
-* golang
-* nodejs
-
-# Cloud
-
-* AWS
-  * Cognito
-  * API Gateway
-    * HTTP
-    * Websocket
-  * Lambda
-  * Open Search
-  * s3
-  * Key Spaces (cassandra)
-
-# Purpose
-
-Intended to be used internally for satisfying specific domain requirements of Roll the Cloud initiatives. These APIs fill gaps when direct communication with AWS is not possible in the browser for [druids](https://github.com/ng-druid/platform).
-
-* security vulnerability
-* sdk incompatibility
-* event bridge handler
-* secure communication w/ vendors outside of AWS
-
-# Considerations
-
-New and existing APIs should be created and repurporsed / replaced with maximum reusability in mind across the corporation. An example of this is the [internal entity API](https://github.com/verti-go/main/wiki/Entity-API). The entity API is intended to manage persistence and search of entities accross any number of source destinations.

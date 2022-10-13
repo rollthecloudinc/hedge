@@ -35,3 +35,11 @@ Post new home listing to the real estate section.
 Post new message on the public forum.
 
 > Add Request Snippet and Screen Capture from Insomnia
+
+### vertigo.druidcloud.app
+
+> The official Vertigo App website.
+
+Create new page on site.
+
+> Add Request Snippet and Screen Capture from Insomnia

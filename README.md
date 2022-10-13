@@ -38,7 +38,7 @@ Post new message on the public forum.
 
 ### demo.druidcloud.io
 
-> State of the art cloud environment for building sustainable, low energy web experiences. Architected from the ground up to be the most optimized platform for rapid green website building and distri…
+> State of the art cloud environment for building sustainable, low energy web experiences. Architected from the ground up to be the most optimized platform for rapid green website building and distribution to online audiences across the globe.
 
 Create new demo page.
 

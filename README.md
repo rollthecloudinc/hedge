@@ -22,7 +22,7 @@ Combine your repositories with Github Pages to make JSON highly available across
 
 ### classifieds-ui.com
 
-> Classifieds ui is a flexible, reimagined free market of goods, products and services on the web. Secure ecommerce that fast tracks healthy planetary growth and entrepreneurial aspirations.
+> Classifieds ui is a flexible, reimagined free market of goods, products and services on the sustainable web. Secure ecommerce that fast tracks healthy planetary growth and entrepreneurial aspirations.
 
 Post new home listing to the real estate section.
 
@@ -30,7 +30,7 @@ Post new home listing to the real estate section.
 
 ### zingurus.com
 
-> Zingurus is a fun, new, hip free exchange of media, thoughts, sarcasm and commentary without limits on the modern web. Strike lightening begin a storm and rain down free from the shackles of censorship.
+> Zingurus is a fun, new, hip free exchange of media, thoughts, sarcasm and commentary without limits on the sustainable web. Strike lightening begin a storm and rain down free from the shackles of censorship.
 
 Post new message on the public forum.
 

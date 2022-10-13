@@ -36,10 +36,10 @@ Post new message on the public forum.
 
 > Add Request Snippet and Screen Capture from Insomnia
 
-### vertigo.druidcloud.app
+### demo.druidcloud.io
 
-> The official Vertigo App website.
+> State of the art cloud environment for building sustainable, low energy web experiences. Architected from the ground up to be the most optimized platform for rapid green website building and distri…
 
-Create new page on site.
+Create new demo page.
 
 > Add Request Snippet and Screen Capture from Insomnia

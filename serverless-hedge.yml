@@ -1,0 +1,107 @@
+service: hedge
+frameworkVersion: '3'
+plugins:
+  - serverless-prune-plugin
+custom:
+  elasticUrl: ${file(./private.${opt:stage, 'dev'}.json):elasticUrl}
+  keyspaceUsername: ${file(./private.${opt:stage, 'dev'}.json):keyspaceUsername}
+  keyspacePassword: ${file(./private.${opt:stage, 'dev'}.json):keyspacePassword}
+  apigatewayEndpoint: ${file(./private.${opt:stage, 'dev'}.json):apigatewayEndpoint}
+  userPoolId: ${file(./private.${opt:stage, 'dev'}.json):userPoolId}
+  userPoolArn: ${file(./private.${opt:stage, 'dev'}.json):userPoolArn}
+  identityPoolId: ${file(./private.${opt:stage, 'dev'}.json):identityPoolId}
+  issuer: ${file(./private.${opt:stage, 'dev'}.json):issuer}
+  cognitoAppClientId: ${file(./private.${opt:stage, 'dev'}.json):cognitoAppClientId}
+  bucketName: ${file(./private.${opt:stage, 'dev'}.json):bucketName}
+  proxyAveDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyAveDomain}
+  proxyCarbonAwareDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyCarbonAwareDomain}
+  aveApikey: ${file(./private.${opt:stage, 'dev'}.json):aveApikey}
+  githubToken: ${file(./private.${opt:stage, 'dev'}.json):githubToken}
+  githubBranch: ${file(./private.${opt:stage, 'dev'}.json):githubBranch}
+  githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
+  githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
+  githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
+provider:
+  name: aws
+  runtime: go1.x
+  memorySize: 256
+  timeout: 10
+package:
+  individually: false
+  patterns:
+    - '!./**'
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
+    - job/renewable_report/regions.json
+resources:
+  Resources:
+    HedgeRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: hedge-lambdaRole
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: hedge-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "s3:PutObject"
+                    - "s3:GetObject"
+                  Resource: "arn:aws:s3:::${self:custom.bucketName}/*/*"
+                - Effect: "Allow"
+                  Action:
+                    - "lambda:InvokeFunction"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "execute-api:Invoke"
+                    - "execute-api:ManageConnections"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "es:*"
+                  Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
+                - Effect: "Allow"
+                  Action:
+                    - "ses:SendTemplatedEmail"
+                  Resource: "*"
+functions:
+  RenewableReport:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
+    role: HedgeRole
+    environment:
+      GITHUB_TOKEN: ${self:custom.githubToken}
+      GITHUB_BRANCH: ${self:custom.githubBranch}
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - schedule:
+          rate: rate(4 hours)
+          enabled: true

@@ -1,47 +1,45 @@
+> The cost and hassle free way to roll with JSON on the cloud.
+
 <img width="146" alt="Screen Shot 2022-06-13 at 1 43 16 AM" src="https://user-images.githubusercontent.com/73197190/173287441-8ce440b1-2833-4950-8a75-c75f28304c3c.png">
 
+## Summary
 
-# Summary
+Once installed JSON can be saved to Github repositories using our simple, intuitive REST API.
 
-Serverless highly available, auto scaling, low latency, performant app services distributed across clouds leading the way to reduce carbon on the web.
+Saved JSON becomes automatically version controlled.
 
-# Organization
+Never be left in the dark about your JSON and always know:
+* Who made change
+* What changed
+* When change was made
+* Audit log and complete change history
 
-This is a [bazel monorepo](https://bazel.build/) using [serverless framework](https://www.serverless.com/).
+The perfect pair with modern web apps that run completely in the browser. Send JSON directly to your Github repositories within the browser itself.
 
-* api
-  * Public lambdas exposed as part of API gateway.
-* func
-  * Independent lambdas execuated manually or via events.
-* lib
-  * Internal libraries shared accross entire organization.
+Combine your repositories with Github Pages to make JSON highly available across the globe – JSON is your website.
 
-# Languages
+## Use Cases
 
-* golang
-* nodejs
+### classifieds-ui.com
 
-# Cloud
+> Classifieds ui is a flexible, reimagined free market of goods, products and services on the sustainable web. Secure ecommerce that fast tracks healthy planetary growth and entrepreneurial aspirations.
 
-* AWS
-  * Cognito
-  * API Gateway
-    * HTTP
-    * Websocket
-  * Lambda
-  * Open Search
-  * s3
-  * Key Spaces (cassandra)
+Post new home listing to the real estate section.
 
-# Purpose
+> Add Request Snippet and Screen Capture from Insomnia
 
-Intended to be used internally for satisfying specific domain requirements of Roll the Cloud initiatives. These APIs fill gaps when direct communication with AWS is not possible in the browser for [druids](https://github.com/ng-druid/platform).
+### zingurus.com
 
-* security vulnerability
-* sdk incompatibility
-* event bridge handler
-* secure communication w/ vendors outside of AWS
+> Zingurus is a fun, new, hip free exchange of media, thoughts, sarcasm and commentary without limits on the sustainable web. Strike lightening begin a storm and rain down free from the shackles of censorship.
 
-# Considerations
+Post new message on the public forum.
 
-New and existing APIs should be created and repurporsed / replaced with maximum reusability in mind across the corporation. An example of this is the [internal entity API](https://github.com/verti-go/main/wiki/Entity-API). The entity API is intended to manage persistence and search of entities accross any number of source destinations.
+> Add Request Snippet and Screen Capture from Insomnia
+
+### demo.druidcloud.io
+
+> State of the art cloud environment for building sustainable, low energy web experiences. Architected from the ground up to be the most optimized platform for rapid green website building and distribution to online audiences across the globe.
+
+Create new demo page.
+
+> Add Request Snippet and Screen Capture from Insomnia

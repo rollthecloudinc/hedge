@@ -4,9 +4,9 @@
 
 ## Summary
 
-Once installed JSON can be saved to Github repositories using our simple, intuitive REST API.
+Once installed JSON can be saved to Github repositories using our simple, intuitive REST API that bounces between data centers with lowest carbon intensity.
 
-Saved JSON becomes automatically version controlled.
+Saved JSON becomes automatically version controlled stored on sustainaible infrastructure.
 
 Never be left in the dark about your JSON and always know:
 * Who made change

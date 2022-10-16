@@ -13,6 +13,7 @@ Never be left in the dark about your JSON and always know:
 * What changed
 * When change was made
 * Audit log and complete change history
+* Taking part in making the web a more climate friendly place
 
 The perfect pair with modern web apps that run completely in the browser. Send JSON directly to your Github repositories within the browser itself.
 

@@ -104,4 +104,4 @@ functions:
     events:
       - schedule:
           rate: rate(10 minutes)
-          enabled: false
+          enabled: true

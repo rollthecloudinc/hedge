@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"goclassifieds/lib/entity"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/shurcooL/githubv4"
@@ -36,16 +39,36 @@ type Report struct {
 	Id          string             `json:"id"`
 	Intensities map[string]float64 `json:"intensities"`
 	UserId      string             `json:"userId"`
+	StartDate   time.Time          `json:"startDate"`
+	EndDate     time.Time          `json:"endDate"`
+	CreatedDate time.Time          `json:"createdDate"`
+}
+
+type CalculateIntensitiesInput struct {
+	StartDate time.Time
+	EndDate   time.Time
 }
 
 func handler(ctx context.Context, b json.RawMessage) {
 	log.Print("renewable_report run")
 
+	frequency := 4 * time.Hour
+	startDate := time.Now()
+	endDate := time.Now().Add(frequency)
+
 	ReadRegions()
-	CalculateIntensities()
+
+	calcIntensitiesInput := &CalculateIntensitiesInput{
+		StartDate: startDate,
+		EndDate:   endDate,
+	}
+	CalculateIntensities(calcIntensitiesInput)
 
 	report := Report{}
 	report.Id = "report"
+	report.CreatedDate = time.Now()
+	report.StartDate = startDate
+	report.EndDate = endDate
 	report.Intensities = make(map[string]float64)
 
 	for index, location := range locations {
@@ -111,11 +134,20 @@ func ReadRegions() {
 	}
 }
 
-func CalculateIntensities() {
+func CalculateIntensities(input *CalculateIntensitiesInput) {
 	locations = make([]Location, len(regions.Regions))
-	uri := "https://carbon-aware-api.azurewebsites.net/emissions/bylocation?"
+	format := "%d-%02d-%02dT%02d:%02d:%02d"
+	startDate := fmt.Sprintf(format,
+		input.StartDate.Year(), input.StartDate.Month(), input.StartDate.Day(),
+		input.StartDate.Hour(), input.StartDate.Minute(), input.StartDate.Second())
+	endDate := fmt.Sprintf(format,
+		input.EndDate.Year(), input.EndDate.Month(), input.EndDate.Day(),
+		input.EndDate.Hour(), input.EndDate.Minute(), input.EndDate.Second())
+	baseUri := "https://carbon-aware-api.azurewebsites.net/emissions/bylocation?time=" + url.QueryEscape(startDate) + "&toTime=" + url.QueryEscape(endDate)
 	for index, region := range regions.Regions {
-		res, err := http.Get(uri + "location=" + region.RegionName)
+		uri := baseUri + "&location=" + region.RegionName
+		log.Print("GET: " + uri)
+		res, err := http.Get(uri)
 		if err != nil {
 			log.Print("Calculation of intensities failed for "+region.RegionName, err.Error())
 			continue

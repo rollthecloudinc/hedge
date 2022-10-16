@@ -55,7 +55,7 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
     - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
@@ -421,7 +421,7 @@ functions:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
   RenewableReport:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}

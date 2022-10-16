@@ -103,6 +103,7 @@ func CommitRest(c *github.Client, params *CommitParams) {
 		log.Print("Github user info failure.")
 		log.Panic(err)
 	}*/
+	log.Print("username: " + params.UserName)
 	userInfo := &GithubUserInfo{
 		Name:/*"Vertigo"*/ params.UserName,
 		Email: "vertigo@rollthecloud.com",

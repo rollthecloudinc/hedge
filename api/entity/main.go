@@ -135,6 +135,7 @@ func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.AP
 
 func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
+	//pathPieces := strings.Split(req.Path, "/")
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
@@ -150,6 +151,10 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	if err != nil {
 		return res, err
 	}
+	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+	log.Print("Index Entity")
+	ac.EntityManager.Save(newEntity, "opensearch")
+	//}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
 		"Content-Type": "application/json",
@@ -160,6 +165,7 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 
 func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
+	//pathPieces := strings.Split(req.Path, "/")
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
@@ -171,6 +177,10 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	if err != nil {
 		return res, err
 	}
+	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+	log.Print("Index Entity")
+	ac.EntityManager.Save(newEntity, "opensearch")
+	//}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
 		"Content-Type": "application/json",
@@ -234,13 +244,20 @@ func InitializeHandler(c *ActionContext) Handler {
 			Stage:          ac.Stage,
 		})
 
+		searchIndex := "classified_" + pluralName
+		if singularName == "shapeshifter" {
+			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+			searchIndex = req.PathParameters["owner"] + "__" + req.PathParameters["repo"] + "__" + strings.Join(proxyPieces[0:len(proxyPieces)-1], "__")
+			log.Print("search Index: " + searchIndex)
+		}
+
 		if singularName == "type" {
 			ac.EntityManager = ac.TypeManager
 		} else {
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
 				SingularName:   singularName,
 				PluralName:     pluralName,
-				Index:          "classified_" + pluralName,
+				Index:          searchIndex,
 				EsClient:       ac.EsClient,
 				OsClient:       ac.OsClient,
 				GithubV4Client: ac.GithubV4Client,
@@ -599,9 +616,31 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 	githubV4Client := githubv4.NewClient(httpClient)
 	//githubRestClient := github.NewClient(httpClient)
 
+	token := req.Headers["authorization"][7:]
+	log.Print("token: " + token)
+
+	awsSigner := sign.AwsSigner{
+		Service:        "es",
+		Region:         "us-east-1",
+		Session:        ac.Session,
+		IdentityPoolId: os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:         os.Getenv("ISSUER"),
+		Token:          token,
+	}
+
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    awsSigner,
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Error: %s", err.Error())
+	}
+
 	return &ActionContext{
 		EsClient:         ac.EsClient,
-		OsClient:         ac.OsClient,
+		OsClient:         osClient,
 		GithubV4Client:   githubV4Client,
 		GithubRestClient: githubRestClient,
 		Session:          ac.Session,
@@ -631,7 +670,7 @@ func GetUserId(req *events.APIGatewayProxyRequest) string {
 
 func GetUsername(req *events.APIGatewayProxyRequest) string {
 	username := ""
-	field := "username"
+	field := "cognito:username"
 	/*if os.Getenv("STAGE") == "prod" {
 		field = "cognito:username"
 	}*/
@@ -654,25 +693,24 @@ func init() {
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
 	}
 
-	awsSigner := sign.AwsSigner{
+	/*awsSigner := sign.AwsSigner{
 		Service: "es",
 		Region:  "us-east-1",
-	}
+	}*/
 
-	opensearchCfg := opensearch.Config{
+	/*opensearchCfg := opensearch.Config{
 		Addresses: []string{os.Getenv("ELASTIC_URL")},
 		Signer:    awsSigner,
-	}
+	}*/
 
 	esClient, err := elasticsearch7.NewClient(elasticCfg)
 	if err != nil {
-
 	}
 
-	osClient, err := opensearch.NewClient(opensearchCfg)
+	/*osClient, err := opensearch.NewClient(opensearchCfg)
 	if err != nil {
 		log.Printf("Opensearch Error: %s", err.Error())
-	}
+	}*/
 
 	/*src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -692,7 +730,7 @@ func init() {
 
 	actionContext := ActionContext{
 		EsClient: esClient,
-		OsClient: osClient,
+		// OsClient: osClient,
 		//GithubV4Client: githubV4Client,
 		Session:      sess,
 		Lambda:       lClient,

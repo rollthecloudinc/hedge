@@ -420,6 +420,8 @@ func (m EntityManager) Purge(storage string, entities ...map[string]interface{})
 
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 
+	log.Print("EntityManager:save " + storage)
+
 	ent, err := m.ExecuteHook(BeforeSave, entity)
 
 	if err != nil {
@@ -671,17 +673,25 @@ func (s ElasticStorageAdaptor) Store(id string, entity map[string]interface{}) {
 }
 
 func (s OpensearchStorageAdaptor) Store(id string, entity map[string]interface{}) {
+	log.Print("OpensearchStorageAdaptor:TOP")
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(entity); err != nil {
 		log.Fatalf("Error encoding body: %s", err)
 	}
+	log.Print("OpensearchStorageAdaptor index " + s.Config.Index + "for id " + id)
 	req := opensearchapi.IndexRequest{
 		Index:      s.Config.Index,
 		DocumentID: id,
 		Body:       &buf,
 		Refresh:    "true",
 	}
-	_, err := req.Do(context.Background(), s.Config.Client)
+	res, err := req.Do(context.Background(), s.Config.Client)
+
+	if res != nil && res.IsError() {
+		var body []byte
+		res.Body.Read(body)
+		log.Print("OpensearchStorageAdaptor response error status "+res.Status(), string(body))
+	}
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)
 	}

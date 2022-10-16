@@ -4,7 +4,7 @@
 
 ## Summary
 
-Once installed JSON can be saved to Github repositories using our simple, intuitive REST API that bounces between data centers with lowest carbon intensity.
+Once installed JSON can be saved to Github repositories using our simple, intuitive carbon aware REST API that bounces between data centers with lowest carbon intensity.
 
 Saved JSON becomes automatically version controlled stored on sustainaible infrastructure.
 

@@ -15,7 +15,7 @@ Never be left in the dark about your JSON and always know:
 * Audit log and complete change history
 * Devotion to protecting the planet from harmful tech covered
 
-The perfect pair with modern web apps that run completely in the browser. Send JSON directly to your Github repositories within the browser itself.
+The perfect pair with modern climate friently web apps that run completely in the browser. Send JSON directly to your Github repositories within the browser itself. Eliminate the need for proxies or more middle men APIs.
 
 Combine your repositories with Github Pages to make JSON highly available across the globe – JSON is your website.
 

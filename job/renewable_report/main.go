@@ -44,6 +44,11 @@ type Report struct {
 	CreatedDate time.Time          `json:"createdDate"`
 }
 
+type Intensity struct {
+	Region string  `json:"region"`
+	Rating float64 `json:"rating"`
+}
+
 type CalculateIntensitiesInput struct {
 	StartDate time.Time
 	EndDate   time.Time
@@ -100,11 +105,15 @@ func ReportEntityManager() *entity.EntityManager {
 		GithubV4Client: githubV4Client,
 		Stage:          os.Getenv("STAGE"),
 	})
+	suffix := ""
+	if os.Getenv("STAGE") == "prod" {
+		suffix = "-prod"
+	}
 	manager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
 	manager.AddLoader("default", entity.GithubFileLoaderAdaptor{
 		Config: entity.GithubFileUploadConfig{
 			Client:   githubV4Client,
-			Repo:     "rollthecloudinc/hedge-objects",
+			Repo:     "rollthecloudinc/hedge-objects" + suffix,
 			Branch:   os.Getenv("GITHUB_BRANCH"),
 			Path:     "renewable-report",
 			UserName: "ng-druid",
@@ -113,7 +122,7 @@ func ReportEntityManager() *entity.EntityManager {
 	manager.AddStorage("default", entity.GithubFileUploadAdaptor{
 		Config: entity.GithubFileUploadConfig{
 			Client:   githubV4Client,
-			Repo:     "rollthecloudinc/hedge-objects",
+			Repo:     "rollthecloudinc/hedge-objects" + suffix,
 			Branch:   os.Getenv("GITHUB_BRANCH"),
 			Path:     "renewable-report",
 			UserName: "ng-druid",

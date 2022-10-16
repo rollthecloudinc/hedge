@@ -96,6 +96,7 @@ func ReportEntityManager() *entity.EntityManager {
 			UserName: "ng-druid",
 		},
 	})
+	log.Print("create report manager")
 	return &manager
 }
 

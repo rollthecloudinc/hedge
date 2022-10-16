@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func handler() {
+func handler(ctx context.Context, b json.RawMessage) {
 	log.Print("renewable_report run")
 }
 

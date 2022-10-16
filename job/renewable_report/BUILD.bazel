@@ -16,5 +16,6 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_lambda_go//events",
     ],
 )

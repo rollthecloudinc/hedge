@@ -15,7 +15,10 @@ go_library(
     importpath = "goclassifieds/job/renewable_report",
     visibility = ["//visibility:private"],
     deps = [
+        "//lib/entity",
         "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_aws_aws_lambda_go//events",
+        "@org_golang_x_oauth2//:go_default_library",
+        "@com_github_shurcool_githubv4//:go_default_library",
     ],
 )

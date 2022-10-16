@@ -424,6 +424,8 @@ functions:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
     role: EntityApiRole
     environment:
+      GITHUB_TOKEN: ${self:custom.githubToken}
+      GITHUB_BRANCH: ${self:custom.githubBranch}
       STAGE: ${opt:stage, 'dev'}
     events:
       - schedule:

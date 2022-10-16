@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "renewable_report",
+    embed = [":renewable_report_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/job/renewable_report",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "renewable_report_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/job/renewable_report",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/entity",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_lambda_go//events",
+        "@org_golang_x_oauth2//:go_default_library",
+        "@com_github_shurcool_githubv4//:go_default_library",
+    ],
+)

@@ -9,6 +9,8 @@ custom:
   apigatewayEndpoint: ${file(./private.${opt:stage, 'dev'}.json):apigatewayEndpoint}
   userPoolId: ${file(./private.${opt:stage, 'dev'}.json):userPoolId}
   userPoolArn: ${file(./private.${opt:stage, 'dev'}.json):userPoolArn}
+  identityPoolId: ${file(./private.${opt:stage, 'dev'}.json):identityPoolId}
+  issuer: ${file(./private.${opt:stage, 'dev'}.json):issuer}
   cognitoAppClientId: ${file(./private.${opt:stage, 'dev'}.json):cognitoAppClientId}
   bucketName: ${file(./private.${opt:stage, 'dev'}.json):bucketName}
   proxyAveDomain: ${file(./private.${opt:stage, 'dev'}.json):proxyAveDomain}
@@ -140,6 +142,8 @@ functions:
       GITHUB_BRANCH: ${self:custom.githubBranch}
       GITHUB_APP_ID: ${self:custom.githubAppId}
       USER_POOL_ID: ${self:custom.userPoolId}
+      IDENTITY_POOL_ID: ${self:custom.identityPoolId}
+      ISSUER: ${self:custom.issuer}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:

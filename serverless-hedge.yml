@@ -103,5 +103,5 @@ functions:
       STAGE: ${opt:stage, 'dev'}
     events:
       - schedule:
-          rate: rate(10 minutes)
+          rate: rate(4 hours)
           enabled: true

@@ -6,11 +6,11 @@ Emissionless is a Serverless framework project to carry our our sustainability m
 
 # Shapshifter
 
-Supercharge github repos with RESTful APIs to easily commit JSON
+Supercharge Github repos with RESTful APIs to easily commit JSON
 
 # Media
 
-Supercharge github repos with API to upload media files.
+Supercharge Github repos with API to upload media files.
 
 # HEDGE
 

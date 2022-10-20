@@ -1,6 +1,6 @@
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
-Monorepo of APIs to carry out our sustainaible missions on the web. EmissionLESS is ServerLESS framework project.
+Emissionless is a Serverless framework project to carry out web experience requirements with significiantly reduced environmental impact.
 
 # Octocat.store
 

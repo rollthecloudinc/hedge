@@ -57,7 +57,7 @@ type CalculateIntensitiesInput struct {
 func handler(ctx context.Context, b json.RawMessage) {
 	log.Print("renewable_report run")
 
-	frequency := 4 * time.Hour
+	frequency := 5 * time.Minute
 	startDate := time.Now()
 	endDate := time.Now().Add(frequency)
 

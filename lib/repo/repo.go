@@ -80,7 +80,7 @@ func Commit(c *githubv4.Client, params *CommitParams) {
 			BranchName:              (*githubv4.String)(&params.Branch),
 		},
 		Message: githubv4.CommitMessage{
-			Headline: "add file",
+			Headline: githubv4.String("Update File: " + params.Path),
 		},
 		ExpectedHeadOid: *githubv4.NewGitObjectID(q.Repository.Object.Commit.History.Edges[0].Node.Oid),
 		FileChanges: &githubv4.FileChanges{

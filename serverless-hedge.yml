@@ -21,11 +21,12 @@ custom:
   githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
   githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
   githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
+  hedgeEnabled: ${file(./private.${opt:stage, 'dev'}.json):hedgeEnabled}
 provider:
   name: aws
   runtime: go1.x
   memorySize: 256
-  timeout: 10
+  timeout: 60
 package:
   individually: false
   patterns:
@@ -102,6 +103,6 @@ functions:
       GITHUB_BRANCH: ${self:custom.githubBranch}
       STAGE: ${opt:stage, 'dev'}
     events:
-      - schedule:
-          rate: rate(4 hours)
-          enabled: true
+    - schedule:
+        rate: rate(5 minutes)
+        enabled: ${self:custom.hedgeEnabled}

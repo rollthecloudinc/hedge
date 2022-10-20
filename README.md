@@ -6,6 +6,10 @@ Emissionless is a Serverless framework project to carry our our sustainability m
 
 Supercharge github repos with RESTful APIs to easily commit JSON, media, and large objects.
 
+* PUT https://octocat.store/owner/repo/path
+* POST https://octocat.store/owner/repo/path
+* GET https://octocat.store/owner/repo/path
+
 # HEDGE.earth
 
 Bounce RESTful requests between data centers using renewable resources.

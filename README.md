@@ -2,7 +2,7 @@
 
 Emissionless is a Serverless framework project to carry our our sustainability missions.
 
-# Octocat.store
+# Shapshifter
 
 Supercharge github repos with RESTful APIs to easily commit JSON, media, and large objects.
 

@@ -8,7 +8,7 @@ Supercharge github repos with RESTful APIs to easily commit JSON
 
 # Media
 
-Supercharge guthub repos with API to upload media files.
+Supercharge github repos with API to upload media files.
 
 # HEDGE
 

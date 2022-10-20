@@ -4,7 +4,7 @@ Emissionless is a Serverless framework project to carry our our sustainability m
 
 # Octocat.store
 
-Supercharge github repos with RESTful APIs to easily commit JSON, media, and large objects across clouds.
+Supercharge github repos with RESTful APIs to easily commit JSON, media, and large objects.
 
 # HEDGE.earth
 

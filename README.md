@@ -10,6 +10,6 @@ Supercharge github repos with RESTful APIs to easily commit JSON
 
 Supercharge guthub repos with API to upload media files.
 
-# HEDGE.earth
+# HEDGE
 
 Bounce RESTful requests between data centers using renewable resources.

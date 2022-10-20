@@ -1,6 +1,6 @@
 > The cost and hassle free way to roll with JSON on the cloud using climate friendly tech stack
 
-<img width="146" alt="Screen Shot 2022-06-13 at 1 43 16 AM" src="https://user-images.githubusercontent.com/73197190/173287441-8ce440b1-2833-4950-8a75-c75f28304c3c.png">
+![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
 ## Summary
 

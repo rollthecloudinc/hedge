@@ -20,6 +20,18 @@ The POST body can be any valid JSON with an id property. The id property is used
 }
 ```
 
+JSON Documents comitted via the shapshifter API will have the user id added automatically of the authenticated user that made the change.
+
+
+Example Response:
+```javascript
+{
+  "id": "6f39a72a-6af3-4348-9158-7f111a6d0352"
+  "title": "My first document",
+  "userId": "cc149bd7-83ef-47c5-a397-eb0eb0068e0d"
+}
+```
+
 # Media
 
 Supercharge Github repos with API to upload media files.

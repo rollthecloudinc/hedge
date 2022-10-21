@@ -32,7 +32,7 @@ Example Response:
 }
 ```
 
-View use cases for more specific examples.
+View [use cases](https://github.com/rollthecloudinc/emissionless/wiki/Shapshifter-Use-Cases) for more specific examples.
 
 Future Features:
 * Validation

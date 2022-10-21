@@ -37,9 +37,9 @@ View use cases for more specific examples.
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Druid](https://github.com/rollthecloudinc/druid) our nonprofits sustainaible web development platform built on Reactive Angular. Druid relies heavily on NxRx Data to streamline managing data between the server and browser.
 
 Future Features:
-* JSON Schema Validation
+* Validation
   * Repository owners will be able to provide [JSON schema](https://json-schema.org/) files that are used to validate entities before commiting. Entities that fail validation will not be comitted producing error messaging instead.
-* Open Seach Indexing
+* Search
   * JSON documents become searchable using [Open Search](https://opensearch.org/) API and dashboards. Climate Warrior App installers will have access to both Open Search API and their own dashboards.
   * Index schemas will also be customizable including defining the schema documents will use for indexing.
 

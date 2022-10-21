@@ -45,7 +45,7 @@ Future Features:
 * Webhooks
   * Developers will be able to alter incoming and outgoing data using their own custom webhooks. Including implementing their own validation validation strategy when JSON Schema doesn't fit the bill.
 
-> Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Druid](https://github.com/rollthecloudinc/druid) our nonprofits sustainaible web development platform built on Reactive Angular. Druid relies heavily on NxRx Data to streamline managing data between the server and browser. Druid entities are currently hard coded into emissionless. Shapshifters goal is to enable a free folow of JSON of all entity types without needing to reploy, modify the API.
+> Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Druid](https://github.com/rollthecloudinc/druid) our nonprofits sustainaible web development platform built on Reactive Angular. Druid relies heavily on NxRx Data to streamline managing data between the server and browser. Druid entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to reploy, modify emissionless.
 
 # Media
 

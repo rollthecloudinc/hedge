@@ -40,6 +40,10 @@ Future Features:
 * Search
   * JSON documents become searchable using [Open Search](https://opensearch.org/) API and dashboards. Climate Warrior App installers will have access to both Open Search API and their own dashboards.
   * Index schemas will also be customizable including defining the schema documents will use for indexing.
+* Notifications
+  * Clients will be able to subscribe to various push notifications during the flow of saving data.
+* Webhooks
+  * Developers will be able to alter incoming and outgoing data using their own custom webhooks.
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Druid](https://github.com/rollthecloudinc/druid) our nonprofits sustainaible web development platform built on Reactive Angular. Druid relies heavily on NxRx Data to streamline managing data between the server and browser.
 

@@ -8,8 +8,8 @@ Supercharge Github repos with RESTful APIs to easily commit JSON.
 
 | Method | Region: N. Virginia |
 | ------------- | ------------- |
-| GET  | https://us-east-1.emissionless.services/owner/repo/shapshifter/path/id  |
-| POST  | https://us-east-1.emissionless.services/owner/repo/shapshifter/path/id  |
+| GET  | https://us-east-1.emissionless.services/owner/repo/shapeshifter/path/id  |
+| POST  | https://us-east-1.emissionless.services/owner/repo/shapeshifter/path/id  |
 
 The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
 

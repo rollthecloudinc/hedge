@@ -38,7 +38,9 @@ View use cases for more specific examples.
 
 Future Features:
 * JSON Schema Validation
+  * Repository owners will be able to provide JSON schema files that are used to validate entities before commiting. Entities that fail validation will not be comitted producing error messaging instead.
 * Open Seach Indexing
+  * Entities become searchable using Open Search API and dashboards. Climate Warrior App installers will have access to both Open Search API and isolated dashboards.
 
 # Media
 

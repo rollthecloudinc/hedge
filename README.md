@@ -34,6 +34,8 @@ Example Response:
 
 View use cases for more specific examples.
 
+> Shapeshifter original intent was efficient cost effective means of storing NxRx Data Entities. The API is being used exclusively with Druid our nonprofits sustainaible web development platform built on Reactive Angular.
+
 # Media
 
 Supercharge Github repos with API to upload media files.

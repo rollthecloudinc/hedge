@@ -4,7 +4,7 @@ Emissionless works alongside [Climate Warrior](https://github.com/apps/climate-w
 
 # Shapshifter
 
-Supercharge Github repos with RESTful APIs to easily commit JSON and bypass read cache.
+Supercharge Github repos with RESTful APIs to easily commit JSON.
 
 | Method | Region: N. Virginia |
 | ------------- | ------------- |

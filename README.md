@@ -1,6 +1,6 @@
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
-Emissionless is a Serverless framework project to carry our our sustainability missions.
+Emissionless works alongside Climate Warrior to battle climate change on web. Emissionless provides a set of climate friendly APIs that can be used by Github users that install, authorize the Climate Warrior App for repositories which they would liek to use the emissionless APIs.
 
 * https://emissionless.services [coming soon]
 

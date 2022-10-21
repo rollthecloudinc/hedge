@@ -32,6 +32,8 @@ Example Response:
 }
 ```
 
+View use cases for more specific examples.
+
 # Media
 
 Supercharge Github repos with API to upload media files.

@@ -22,6 +22,9 @@ custom:
   githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
   githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
   hedgeEnabled: ${file(./private.${opt:stage, 'dev'}.json):hedgeEnabled}
+  hedgeDomain: ${file(./private.${opt:stage, 'dev'}.json):hedgeDomain}
+  hedgeCertArn: ${file(./private.${opt:stage, 'dev'}.json):hedgeCertArn}
+  hedgeOriginAccessIdentity: ${file(./private.${opt:stage, 'dev'}.json):hedgeOriginAccessIdentity}
 provider:
   name: aws
   runtime: go1.x
@@ -32,9 +35,20 @@ package:
   patterns:
     - '!./**'
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
+    - bazel-bin/edge/renewable_redirect/renewable_redirect.js
     - job/renewable_report/regions.json
 resources:
   Resources:
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          PriceClass: PriceClass_100
+          Aliases:
+            - "${self:custom.hedgeDomain}"
+          ViewerCertificate:
+            AcmCertificateArn: "${self:custom.hedgeCertArn}"
+            SslSupportMethod: sni-only
     HedgeRole:
       Type: AWS::IAM::Role
       Properties:
@@ -47,7 +61,8 @@ resources:
               Principal:
                 Service:
                   - lambda.amazonaws.com
-              Action: sts:AssumeRole   
+                  - edgelambda.amazonaws.com
+              Action: sts:AssumeRole
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         Policies:
@@ -94,6 +109,13 @@ resources:
                   Action:
                     - "ses:SendTemplatedEmail"
                   Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "lambda:GetFunction"
+                    - "lambda:EnableReplication*"
+                    - "iam:CreateServiceLinkedRole"
+                    - "cloudfront:UpdateDistribution"
+                  Resource: "*"
 functions:
   RenewableReport:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
@@ -106,3 +128,31 @@ functions:
     - schedule:
         rate: rate(5 minutes)
         enabled: ${self:custom.hedgeEnabled}
+  RenewableRedirect:
+    handler: bazel-bin/edge/renewable_redirect/renewable_redirect.handler
+    role: HedgeRole
+    runtime: nodejs14.x
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+    events:
+    - cloudFront:
+        eventType: origin-request
+        origin:
+          DomainName: "${self:custom.bucketName}.s3.us-east-1.amazonaws.com"
+          OriginPath: /apps/hedge/2022101701
+          S3OriginConfig:
+            OriginAccessIdentity: "origin-access-identity/cloudfront/${self:custom.hedgeOriginAccessIdentity}"
+        behavior:
+          ViewerProtocolPolicy: https-only
+          AllowedMethods:
+            - 'GET'
+            - 'HEAD'
+            - 'OPTIONS'
+            - 'PUT'
+            - 'PATCH'
+            - 'POST'
+            - 'DELETE'
+          CachedMethods:
+            - 'GET'
+            - 'HEAD'
+            - 'OPTIONS'

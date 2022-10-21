@@ -11,7 +11,7 @@ Supercharge Github repos with RESTful APIs to easily commit JSON
 | GET  | https://us-east-1.emissionless.services/owner/repo/shapshifter/path/id  |
 | POST  | https://us-east-1.emissionless.services/owner/repo/shapshifter/path/id  |
 
-The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id in the path should match the id inside the json document body.
+The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
 
 ```javascript
 {

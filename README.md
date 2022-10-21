@@ -2,8 +2,6 @@
 
 Emissionless works alongside Climate Warrior to battle climate change on web. Emissionless provides a set of climate friendly APIs that can be used by Github users that install, authorize the Climate Warrior App for repositories which they would like to use the cross regional cloud hosted emissionless APIs.
 
-* https://emissionless.services [coming soon]
-
 # Shapshifter
 
 Supercharge Github repos with RESTful APIs to easily commit JSON

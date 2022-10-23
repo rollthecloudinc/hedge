@@ -25,6 +25,9 @@ custom:
   hedgeDomain: ${file(./private.${opt:stage, 'dev'}.json):hedgeDomain}
   hedgeCertArn: ${file(./private.${opt:stage, 'dev'}.json):hedgeCertArn}
   hedgeOriginAccessIdentity: ${file(./private.${opt:stage, 'dev'}.json):hedgeOriginAccessIdentity}
+  hedgeCachePolicyId: ${file(./private.${opt:stage, 'dev'}.json):hedgeCachePolicyId}
+  hedgeOriginPath: ${file(./private.${opt:stage, 'dev'}.json):hedgeOriginPath}
+  awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
 provider:
   name: aws
   runtime: go1.x
@@ -104,7 +107,7 @@ resources:
                 - Effect: "Allow"
                   Action:
                     - "es:*"
-                  Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
+                  Resource: "arn:aws:es:us-east-1:${self:custom.awsAccountId}:domain/${self:custom.bucketName}/*"
                 - Effect: "Allow"
                   Action:
                     - "ses:SendTemplatedEmail"
@@ -137,9 +140,11 @@ functions:
     events:
     - cloudFront:
         eventType: origin-request
+        cachePolicy:
+          id: "${self:custom.hedgeCachePolicyId}"
         origin:
           DomainName: "${self:custom.bucketName}.s3.us-east-1.amazonaws.com"
-          OriginPath: /apps/hedge/2022101701
+          OriginPath: "${self:custom.hedgeOriginPath}"
           S3OriginConfig:
             OriginAccessIdentity: "origin-access-identity/cloudfront/${self:custom.hedgeOriginAccessIdentity}"
         behavior:

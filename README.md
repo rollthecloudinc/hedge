@@ -14,6 +14,7 @@ Supercharge Github repos with RESTful APIs to easily commit JSON.
 | Method | HEDGE.earth |
 | ------------- | ------------- |
 | GET  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
+| PUT  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 | POST  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 
 > The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our HEDGE objects dev repo. Once you have tested, verified HEDGE.earth works with your API submit a pull request to HEDGE objects prod rep. See our emissionless.json service schema for reference and _schema.json for json schema defination of a HEDGE service.

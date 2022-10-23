@@ -34,7 +34,7 @@ function pickRegion({ service, report }) {
     const bestRegions = calculateBestRegions({ report });
     let bestAvailableRegion = pickBestAvailableRegion({ availableRegions, bestRegions });
     if (bestAvailableRegion === undefined) {
-        bestAvailableRegion = report.defaultRegion !== undefined ? report.defaultRegion : 'westus';
+        bestAvailableRegion = report.defaultRegion !== undefined ? report.defaultRegion : 'eastus';
     }
     const bestServiceRegion = service.regions.find(r => r.region === bestAvailableRegion);
     console.log('pickRegion', 'best service region', bestServiceRegion.region);
@@ -92,8 +92,9 @@ function provideFeedback({ bestRegions, bestRegion, report }) {
     if (bestRegions.length > 0 && bestRegions[0].region === bestRegion.region) {
         console.log('Using region [' + bestRegion.region + '] with absolute lowest carbon intentity.');
     } else if (bestRegions.length > 0 && bestRegions.find(r => r.region === bestRegion.region) !== undefined) {
-        console.log('Using less optimal region [' + bestRegion.region + ']. If you were using [' + bestRegions[0].region + '] could have saved an extra ' + (report.intensities[bestRegion.region] - report.intensities[bestRegions[0].region]) + ' of cabon.');
+        console.log('Using less optimal region [' + bestRegion.region + ']. If you were using [' + bestRegions[0].region + '] could have saved an extra ' + (report.intensities[bestRegion.region] - report.intensities[bestRegions[0].region]) + ' of carbon.');
     } else {
         cobnsole.log('Using region [' + bestRegion.region + '] no intensity grid data available.');
     }
+    // @todo: default region difference. - carbon savings.
 }

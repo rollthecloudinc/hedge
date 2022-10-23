@@ -13,8 +13,8 @@ Supercharge Github repos with RESTful APIs to easily commit JSON.
 
 | Method | HEDGE.earth |
 | ------------- | ------------- |
-| GET  | https://edge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |
-| POST  | https://edge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |
+| GET  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
+| POST  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 
 > The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth.
 

@@ -17,7 +17,7 @@ Supercharge Github repos with RESTful APIs to easily commit JSON.
 | PUT  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 | POST  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 
-> The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our HEDGE objects dev repo. Once you have tested, verified HEDGE.earth works with your API submit a pull request to HEDGE objects prod rep. See our emissionless.json service schema for reference and _schema.json for json schema defination of a HEDGE service.
+> The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod rep](https://github.com/rollthecloudinc/hedge-objects-prod/tree/dev/services). See our [emissionless.json](https://store.hedge.earth/services/emissionlesss.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service.
 
 The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
 

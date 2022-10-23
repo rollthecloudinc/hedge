@@ -16,6 +16,8 @@ Supercharge Github repos with RESTful APIs to easily commit JSON.
 | GET  | https://hedge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 | POST  | https://hedge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 
+> The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth.
+
 The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
 
 ```javascript

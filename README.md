@@ -11,7 +11,7 @@ Bounce RESTful requests between data centers using renewable resources.
 
 Supercharge Github repos with RESTful APIs to easily commit JSON.
 
-| Method | Region: N. Virginia |
+| Method | HEDGE.earth |
 | ------------- | ------------- |
 | GET  | https://hedge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |
 | POST  | https://hedge.edge.earth/emissionless/owner/repo/shapeshifter/path/id  |

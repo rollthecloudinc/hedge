@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 
+	"github.com/MicahParks/keyfunc"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/lestrrat-go/jwx/jwk"
 )
 
 var handler Handler
@@ -23,23 +22,16 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.QueryStringParameters["token"]
 
-	ctx := context.Background()
+	// ctx := context.Background()
 	// Fetch all keys
-	jwkSet, err := jwk.Fetch(ctx, "https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json")
+	// jwkSet, err := jwk.Fetch(ctx, "https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json")
+	jwks, err := keyfunc.Get("https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json", keyfunc.Options{})
 	if err != nil {
 		log.Fatalln("Unable to fetch keys")
 	}
 
 	// Verify
-	t, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		key, _ := jwkSet.LookupKeyID(t.Header["kid"].(string))
-		var k interface{}
-		err = key.Raw(&k)
-		if err != nil {
-			return nil, err
-		}
-		return k, nil
-	})
+	t, err := jwt.Parse(token, jwks.Keyfunc)
 	if err != nil || !t.Valid {
 		log.Print(err)
 		log.Fatalln("Unauthorized")

@@ -58,6 +58,7 @@ require (
 )
 
 require (
+	github.com/MicahParks/keyfunc v1.5.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/google/go-github/v46 v46.0.0 // indirect
 	github.com/sethvargo/go-password v0.2.0 // indirect

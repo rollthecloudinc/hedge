@@ -15,6 +15,10 @@ To this end our contribution to reducing web carbon begins with generating a per
 
 # Shapshifter
 
+1. Problem: Github lacks a simple way for client applications to store JSON.
+2. Solution: Create a Github App that once installed can be used aongside a simple RESTful API to commit JSON to Github repos.
+3. Resolution:
+
 Supercharge Github repos with RESTful APIs to easily commit JSON.
 
 | Method | HEDGE.earth |

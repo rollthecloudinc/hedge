@@ -12,7 +12,7 @@ Emissionless works alongside [Climate Warrior](https://github.com/apps/climate-w
 
 3. Resolution:
 
-To this end our contribution to reducing web carbon begins with generating a periodical renewables report of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Creating one of the worlds first known open source, hosted carbon aware reverse proxies maximizing renewables usage on the global scale for processing API requests.
+To this end our contribution to reducing web carbon begins with generating a periodical [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Creating one of the worlds first known open source, hosted carbon aware reverse proxies maximizing renewables usage on the global scale for processing API requests.
 
 # Shapshifter
 

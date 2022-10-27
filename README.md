@@ -1,8 +1,5 @@
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
-Emissionless works alongside [Climate Warrior](https://github.com/apps/climate-warrior) to battle climate change on web. Emissionless provides a set of carbon free APIs that can be used by Github users that install, authorize the Climate Warrior App for repositories which they would like to use the cross regional cloud hosted emissionless APIs.
-
-
 # HEDGE
 
 1. Problem: API requests contribute to 83% of web carbon emissions.

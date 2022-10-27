@@ -16,7 +16,7 @@ To this end our contribution to reducing web carbon begins with generating a per
 # Shapshifter
 
 1. Problem: Traditional databases are clunky, complex and consume a large amount of resources and energy.
-2. Solution: Transform Github into a database.
+2. Solution: Replace the traditional database with Github repositories using JSON.
 3. Resolution:
 
 Supercharge Github repos with RESTful APIs to easily commit JSON.

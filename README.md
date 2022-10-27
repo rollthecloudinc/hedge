@@ -5,7 +5,14 @@ Emissionless works alongside [Climate Warrior](https://github.com/apps/climate-w
 
 # HEDGE
 
-Bounce RESTful requests between data centers using renewable resources.
+1. Problem: API requests contribute to 83% of web carbon emissions.
+2. Solution: Maximize amount of clean energy used to fulfill API requests.
+
+
+
+3. Resolution:
+
+To this end our contribution to reducing web carbon begins with generating a periodical renewables report of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Creating one of the worlds first known open source, hosted carbon aware reverse proxies maximizing renewables usage on the global scale for processing API requests.
 
 # Shapshifter
 

@@ -2,22 +2,25 @@
 
 # HEDGE
 
-1. Problem: API requests contribute to 83% of web carbon emissions.
-2. Solution: Maximize amount of clean energy used to fulfill API requests.
+* **Problem:** API requests contribute to 83% of web carbon emissions
+* **Solution:** Maximize amount of clean energy used to fulfill API requests
 
+**Resolution:** 
 
+To this end our contribution to reducing web carbon begins with generating a periodical renewables report of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
 
-3. Resolution:
+Reverse proxy: An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use.
 
-To this end our contribution to reducing web carbon begins with generating a periodical [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Creating one of the worlds first known open source, hosted carbon aware reverse proxies maximizing renewables usage on the global scale for processing API requests.
+**Impact**
 
-> Reverse proxy: An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and NOW clean energy use.
+HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
 
 # Shapshifter
 
-1. Problem: Traditional databases are clunky, complex and consume a large amount of resources and energy.
-2. Solution: Replace the traditional database with Github repositories using JSON.
-3. Resolution:
+* **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
+* **Solution:** Replace the traditional database with Github repositories using JSON.
+
+**Resolution:**
 
 Supercharge Github repos with RESTful APIs to easily commit JSON.
 

@@ -1,6 +1,8 @@
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
-# HEDGE
+# APIs
+
+## HEDGE
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
 * **Solution:** Maximize amount of clean energy used to fulfill API requests
@@ -15,7 +17,7 @@ Reverse proxy: An application that sits in front of back-end applications and fo
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
 
-# Shapshifter
+## Shapshifter
 
 * **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
 * **Solution:** Replace the traditional database with Github repositories using JSON.

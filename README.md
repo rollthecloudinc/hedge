@@ -18,6 +18,8 @@ To this end our contribution to reducing web carbon begins with generating a [pe
 | ANY  | https://edge.hedge.earth/{service}/{proxy+}  | Production |
 | ANY  | https://hedgeedgex.druidcloud.dev/{service}/{proxy+}  | Development |
 
+Javascript Package:
+
 For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same operations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
 
 Import HEDGE

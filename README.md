@@ -28,7 +28,7 @@ import { hedge } from '@rollthecloudinc/hedge';
 Climate friendly POST request for service.
 ```javascript
 const method = 'POST';
-const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "My New Add", price: 50 };
+const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "Test Add", price: 50 };
 const h = await hedge({ service: 'emissionless' });
 const res = await h.bounce('/rollthecloudinc/classifieds/shapeshifter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
 ```

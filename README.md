@@ -48,7 +48,7 @@ const { difference } = await region.compare('useast')
 console.log('difference in carbon intensity between region useast and the region used to carry out request.', difference)
 ```
 
-The complete HEDGE Javascript API has been documented in our [demo repository](https://github.com/rollthecloudinc/hedge-demo/blob/master/src/index.js).
+The complete HEDGE Javascript API has been documented in our [demo repository](https://github.com/rollthecloudinc/hedge-demo/blob/master/src/index.js). The HEDGE javaScript API source code can be found under [/lib/hedge](https://github.com/rollthecloudinc/emissionless/tree/master/lib/hedge).
 
 **Impact**
 

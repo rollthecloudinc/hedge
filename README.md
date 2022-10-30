@@ -11,11 +11,12 @@
 
 To this end our contribution to reducing web carbon begins with generating a periodical renewables report of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense power sources. The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
 
-| Method | Endpoint |
-| ------------- | ------------- |
-| ANY  | https://edge.hedge.earth/{service}/{proxy+}  |
-
 Reverse proxy: An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use.
+
+| Method | Endpoint | Environment |
+| ------------- | ------------- |---------------|
+| ANY  | https://edge.hedge.earth/{service}/{proxy+}  | Production |
+| ANY  | https://hedgeedgex.druidcloud.dev/{service}/{proxy+}  | Development |
 
 For CORs compatible APIs the hedge proxy can be bypassed opting to use the hedge JavaScript package instead.The HEDGE JavaScript package carries out the same oeprations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
 

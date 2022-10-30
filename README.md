@@ -44,7 +44,7 @@ console.log('region used', regionDocument.region);
 ```
 
 ```javascript
-const { difference } = await region.compare('useast')
+const { difference } = await region.compare({ region: 'useast' })
 console.log('difference in carbon intensity between region useast and the region used to carry out request.', difference)
 ```
 

@@ -5,6 +5,7 @@ const https = require('https');
 const objectsCache = new Map();
 
 exports.handler = async (event, _, callback) => {
+    console.log('region', process.env.AWS_REGION);
     const request = event.Records[0].cf.request;
     const pieces = request.uri.split('/')
     const uri = "/" + pieces.slice(2).join('/')
@@ -13,6 +14,7 @@ exports.handler = async (event, _, callback) => {
     const bestRegion = pickRegion({ service, report });
     const bestRegions = calculateBestRegions({ report });
     provideFeedback({ bestRegions, bestRegion, report });
+    console.log('herex');
     delete request.origin.s3
     request.origin.custom = {
       domainName: bestRegion.origin,
@@ -26,6 +28,8 @@ exports.handler = async (event, _, callback) => {
     };
     request.uri = uri
     request.headers["host"] = [{key: "host", value: bestRegion.origin }];
+    request.headers['cache-control'] = [{key: "cache-control", value: 'no-cache'}];
+    console.log('new request', request);
     callback(null, request);
 };
 
@@ -43,7 +47,16 @@ function pickRegion({ service, report }) {
 }
 
 async function getObject({ path }) {
-    const options = { host: 'store.hedge.earth', path: '/' + path + '.json' };
+    const stage = process.env.STAGE;
+    let domain = 'store.hedge.earth';
+    let pathPrefix = '/';
+    //console.log('vars', process.env);
+    console.log('stage', stage);
+    if (stage === 'dev' || stage === undefined) {
+        domain = "rollthecloudinc.github.io"
+        pathPrefix = "/hedge-objects/"
+    }
+    const options = { host: domain, path: pathPrefix + path + '.json' };
     console.log('getObject', "options", options);
     return objectsCache.has(path) ? new Promise(res => res(objectsCache.get(path))) : new Promise(resolve => {
         https.request(options, res => {
@@ -89,6 +102,7 @@ function pickBestAvailableRegion({ bestRegions, availableRegions }) {
 }
 
 function provideFeedback({ bestRegions, bestRegion, report }) {
+    console.log("provideFeedbackx")
     if (bestRegions.length > 0 && bestRegions[0].region === bestRegion.region) {
         console.log('Using region [' + bestRegion.region + '] with absolute lowest carbon intentity.');
     } else if (bestRegions.length > 0 && bestRegions.find(r => r.region === bestRegion.region) !== undefined) {

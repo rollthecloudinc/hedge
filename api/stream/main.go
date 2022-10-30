@@ -63,6 +63,8 @@ func InitializeHandler(c *ActionContext) Handler {
 			return Connect(req, ac)
 		} else if req.RequestContext.RouteKey == "$disconnect" {
 			return Disconnect(req, ac)
+		} else if req.RequestContext.RouteKey == "$default" {
+			return events.APIGatewayProxyResponse{StatusCode: 200}, nil
 		}
 
 		return events.APIGatewayProxyResponse{StatusCode: 500}, nil
@@ -92,6 +94,9 @@ func CreateConnectionManager(ac *ActionContext) entity.EntityManager {
 				},
 			},
 		},
+		Authorizers: map[string]entity.Authorization{
+			"default": entity.NoopAuthorizationAdaptor{},
+		},
 	}
 	return manager
 }
@@ -116,6 +121,7 @@ func GetUserId(req *events.APIGatewayWebsocketProxyRequest) string {
 }
 
 func init() {
+	log.Print("init")
 	cluster := gocql.NewCluster("cassandra.us-east-1.amazonaws.com")
 	cluster.Keyspace = "ClassifiedsDev"
 	cluster.Port = 9142
@@ -141,5 +147,6 @@ func init() {
 }
 
 func main() {
+	log.Print("start xxx")
 	lambda.Start(handler)
 }

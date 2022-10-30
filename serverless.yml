@@ -28,6 +28,8 @@ provider:
   timeout: 10
   websocketsApiName: goclassifieds-stream
   websocketsApiRouteSelectionExpression: $request.body.action # custom routes are selected by the value of the action property in the body
+  #logs:
+    #websocket: true
   httpApi:
     payload: '1.0'
     cors: true
@@ -50,6 +52,8 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/readable_profiles/readable_profiles_/readable_profiles
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
@@ -76,6 +80,7 @@ resources:
               Principal:
                 Service:
                   - lambda.amazonaws.com
+                  - apigateway.amazonaws.com
               Action: sts:AssumeRole   
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
@@ -418,33 +423,33 @@ functions:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
-  #Stream:
-    #handler: bazel-bin/api/stream/linux_amd64_pure_stripped/stream
-    #role: EntityApiRole
-    #environment:
-      #KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
-      #KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
-      #STAGE: ${opt:stage, 'dev'}
-    #events:
-      #- websocket:
-          #route: $connect
-          #authorizer:
-            #name: Authorize
-            #identitySource:
-              #- 'route.request.querystring.token'
-      #- websocket:
-          #route: $disconnect
+  Stream:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
+    role: EntityApiRole
+    environment:
+      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - websocket:
+          route: $connect
+          authorizer:
+            name: Authorize
+            identitySource:
+              - 'route.request.querystring.token'
+      - websocket:
+          route: $disconnect
   CssToJson:
     handler: bazel-bin/func/css_to_json/css_to_json.handler
     role: EntityApiRole
     runtime: nodejs14.x
     environment:
       STAGE: ${opt:stage, 'dev'}
-  #Authorize:
-    #handler: bazel-bin/api/authorizer/linux_amd64_pure_stripped/authorizer
-    #environment:
-      #USER_POOL_ID: ${self:custom.userPoolId}
-      #STAGE: ${opt:stage, 'dev'}
+  Authorize:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}
   #Authorize2:
     #handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
     #environment:

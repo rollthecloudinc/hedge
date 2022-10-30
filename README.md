@@ -18,7 +18,7 @@ Reverse proxy: An application that sits in front of back-end applications and fo
 | ANY  | https://edge.hedge.earth/{service}/{proxy+}  | Production |
 | ANY  | https://hedgeedgex.druidcloud.dev/{service}/{proxy+}  | Development |
 
-For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same oeprations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
+For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same operations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
 
 **Impact**
 

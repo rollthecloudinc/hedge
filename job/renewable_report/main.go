@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/repo"
+	"goclassifieds/lib/sign"
+	"goclassifieds/lib/utils"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,6 +17,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/opensearch-project/opensearch-go"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -54,6 +59,22 @@ type CalculateIntensitiesInput struct {
 	EndDate   time.Time
 }
 
+type EnergyGridCarbonIntensity struct {
+	Id          string    `json:"id"`
+	Region      string    `json:"region"`
+	Rating      float64   `json:"rating"`
+	StartDate   time.Time `json:"start_date"`
+	EndDate     time.Time `json:"end_date"`
+	CreatedDate time.Time `json:"created_date"`
+}
+
+type ReportEntityManagerInput struct {
+}
+
+type EnergyGridCarbonIntensityEntityManagerInput struct {
+	OsClient *opensearch.Client
+}
+
 func handler(ctx context.Context, b json.RawMessage) {
 	log.Print("renewable_report run")
 
@@ -76,25 +97,82 @@ func handler(ctx context.Context, b json.RawMessage) {
 	report.EndDate = endDate
 	report.Intensities = make(map[string]float64)
 
+	gridIntensities := make([]*EnergyGridCarbonIntensity, len(locations))
+
 	for index, location := range locations {
 		report.Intensities[regions.Regions[index].RegionName] = location.Rating
+		gridIntensities[index] = &EnergyGridCarbonIntensity{
+			Id:          utils.GenerateId(),
+			CreatedDate: report.CreatedDate,
+			StartDate:   startDate,
+			EndDate:     endDate,
+			Region:      regions.Regions[index].RegionName,
+			Rating:      location.Rating,
+		}
 	}
 
-	manager := ReportEntityManager()
+	sess := session.Must(session.NewSession())
+
+	userPasswordAwsSigner := sign.UserPasswordAwsSigner{
+		Service:            "es",
+		Region:             "us-east-1",
+		Session:            sess,
+		IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:             os.Getenv("ISSUER"),
+		Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
+		Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
+		CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
+	}
+
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    userPasswordAwsSigner,
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Error: %s", err.Error())
+	}
+
+	manageInput := &ReportEntityManagerInput{}
+	manager := ReportEntityManager(manageInput)
 	entity, err := ReportToEntity(&report)
+
+	gridManageInput := &EnergyGridCarbonIntensityEntityManagerInput{
+		OsClient: osClient,
+	}
+	gridManager := EnergyGridCarbonIntensityEntityManager(gridManageInput)
 
 	if err != nil {
 		log.Print("Failure converting report to entity", err.Error())
 	} else {
 		manager.Save(entity, "default")
+		for _, gridIntensity := range gridIntensities {
+			intensitEntity, _ := EnergyGridCarbonIntensityToEntity(gridIntensity)
+			gridManager.Save(intensitEntity, "default")
+		}
 	}
 }
 
-func ReportEntityManager() *entity.EntityManager {
-	var githubToken string
-	var srcToken oauth2.TokenSource
-	githubToken = os.Getenv("GITHUB_TOKEN")
-	srcToken = oauth2.StaticTokenSource(
+func ReportEntityManager(input *ReportEntityManagerInput) *entity.EntityManager {
+
+	pem, err := os.ReadFile("api/entity/rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
+	if err != nil {
+		log.Print("Error reading github app pem file", err.Error())
+	}
+
+	getInstallionTokenInput := &repo.GetInstallationTokenInput{
+		GithubAppPem: pem,
+		Owner:        "rollthecloudinc",
+		GithubAppId:  os.Getenv("GITHUB_APP_ID"),
+	}
+	installationToken, err := repo.GetInstallationToken(getInstallionTokenInput)
+	if err != nil {
+		log.Print("Error fetching installation token.")
+	}
+
+	githubToken := *installationToken.Token
+	srcToken := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: githubToken},
 	)
 	httpClient := oauth2.NewClient(context.Background(), srcToken)
@@ -129,6 +207,23 @@ func ReportEntityManager() *entity.EntityManager {
 		},
 	})
 	log.Print("create report manager")
+	return &manager
+}
+
+func EnergyGridCarbonIntensityEntityManager(input *EnergyGridCarbonIntensityEntityManagerInput) *entity.EntityManager {
+	manager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+		SingularName: "energy_grid_carbon_intensity",
+		PluralName:   "energy_grid_carbon_intensities",
+		Stage:        os.Getenv("STAGE"),
+	})
+	manager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
+	manager.AddStorage("default", entity.OpensearchStorageAdaptor{
+		Config: entity.OpensearchAdaptorConfig{
+			Index:  "energy-grid-carbon-intensity-001",
+			Client: input.OsClient,
+		},
+	})
+	log.Print("create energy grid carbon intensity manager")
 	return &manager
 }
 
@@ -187,6 +282,20 @@ func ReportToEntity(report *Report) (map[string]interface{}, error) {
 		log.Fatalf("Error encoding query: %s", err)
 	}
 	jsonData, err := json.Marshal(report)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
+}
+
+func EnergyGridCarbonIntensityToEntity(gridIntensity *EnergyGridCarbonIntensity) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(gridIntensity); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	jsonData, err := json.Marshal(gridIntensity)
 	if err != nil {
 		return nil, err
 	}

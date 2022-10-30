@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"log"
 	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v46/github"
 	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 type CommitParams struct {
@@ -22,6 +26,12 @@ type CommitParams struct {
 type GithubUserInfo struct {
 	Name  string
 	Email string
+}
+
+type GetInstallationTokenInput struct {
+	GithubAppPem []byte
+	Owner        string
+	GithubAppId  string
 }
 
 func Commit(c *githubv4.Client, params *CommitParams) {
@@ -207,4 +217,62 @@ func GetUserInfo(client *github.Client) (*GithubUserInfo, error) {
 		Email: *primaryEmail,
 	}
 	return userInfo, nil
+}
+
+func GetInstallationToken(input *GetInstallationTokenInput) (*github.InstallationToken, error) {
+
+	pk, err := jwt.ParseRSAPrivateKeyFromPEM(input.GithubAppPem)
+	if err != nil {
+		log.Print("Error parsing github app pem")
+	}
+	log.Print("Parsed github app pem")
+	token := jwt.New(jwt.SigningMethodRS256)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["iat"] = time.Now().Add(-60 * time.Second).Unix()
+	claims["exp"] = time.Now().Add(10 * time.Minute).Unix()
+	claims["iss"] = input.GithubAppId
+	tokenString, err := token.SignedString(pk)
+	if err != nil {
+		log.Print("Error signing token", err.Error())
+		return &github.InstallationToken{}, err
+	}
+	log.Print("Token string " + tokenString)
+	listOpts := &github.ListOptions{
+		Page:    1,
+		PerPage: 100,
+	}
+	srcToken := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: tokenString},
+	)
+	httpClient := oauth2.NewClient(context.Background(), srcToken)
+	githubRestClient := github.NewClient(httpClient)
+	installations, _, err := githubRestClient.Apps.ListInstallations(context.Background(), listOpts)
+	if err != nil {
+		log.Print("Error listing installations", err.Error())
+		return &github.InstallationToken{}, err
+	}
+	var targetInstallation *github.Installation
+	if err == nil {
+		log.Printf("Has instllations %d", len(installations))
+		for _, installation := range installations {
+			log.Print("installation account login ", installation.Account.Login)
+			if *installation.Account.Login == input.Owner {
+				targetInstallation = installation
+			}
+		}
+	}
+
+	if targetInstallation != nil {
+		log.Printf("matched installation %d", targetInstallation.ID)
+		tokenOpts := &github.InstallationTokenOptions{}
+		installationToken, _, err := githubRestClient.Apps.CreateInstallationToken(context.Background(), *targetInstallation.ID, tokenOpts)
+		if err != nil {
+			log.Print("Error generating instllation token", err.Error())
+			return &github.InstallationToken{}, err
+		}
+		return installationToken, nil
+	}
+
+	return &github.InstallationToken{}, errors.New("No target installation matches owner " + input.Owner)
+
 }

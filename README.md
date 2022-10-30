@@ -13,6 +13,8 @@ To this end our contribution to reducing web carbon begins with generating a per
 
 Reverse proxy: An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use.
 
+For CORs compatible APIs the hedge proxy can be bypassed opting to use the hedge JavaScript package instead.The HEDGE JavaScript package carries out the same oeprations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
+
 **Impact**
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.

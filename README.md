@@ -20,6 +20,18 @@ Reverse proxy: An application that sits in front of back-end applications and fo
 
 For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same operations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
 
+Import HEDGE
+```javascript
+import { hedge } from '@rollthecloudinc/hedge';
+```
+
+Climate friendly POST request for service.
+```javascript
+const method = 'POST';
+const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "My New Add", price: 50 };
+const res = hedge({ service: 'emissionless' }).bounce('/rollthecloudinc/classifieds/shapeshiter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
+```
+
 **Impact**
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.

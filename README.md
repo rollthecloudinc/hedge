@@ -33,6 +33,8 @@ const h = await hedge({ service: 'emissionless' });
 const res = await h.bounce('/rollthecloudinc/classifieds/shapeshifter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
 ```
 
+> Hedge.bounce() has the same interface as [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) except the protocol (https://) and domain name are omitted.
+
 **Impact**
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.

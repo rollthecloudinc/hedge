@@ -1098,6 +1098,13 @@ go_repository(
     version = "v4.4.2",
 )
 
+go_repository(
+    name = "com_github_micahparks_keyfunc",
+    importpath = "github.com/MicahParks/keyfunc",
+    sum = "h1:RlyyYgKQI/adkIw1yXYtPvTAOb7hBhSX42aH23d8N0Q=",
+    version = "v1.5.1",
+)
+
 gazelle_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")

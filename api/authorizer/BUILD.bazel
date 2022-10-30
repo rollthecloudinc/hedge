@@ -18,10 +18,10 @@ go_library(
     srcs = ["main.go"],
     importpath = "goclassifieds/api/authorizer",
     visibility = ["//visibility:private"],
-    deps = [
+    deps = [ 
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_aws_aws_lambda_go//lambda",
-        "@com_github_golang_jwt_jwt_v4//:jwt-go",
-        "@com_github_lestrrat_go_jwx//jwk",
+        "@com_github_golang_jwt_jwt_v4//:go_default_library",
+        "@com_github_micahparks_keyfunc//:go_default_library"
     ],
 )

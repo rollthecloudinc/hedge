@@ -35,6 +35,21 @@ const res = await h.bounce('/rollthecloudinc/classifieds/shapeshifter/ads/b83f97
 
 > Hedge.bounce() has the same interface as [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) except the protocol (https://) and domain name are omitted.
 
+The region that was used to make the request and comparisions between other regions carbon intensity levels can also be made.
+
+```javascript
+const { region } = await h.region();
+const { regionDocument } = await region.document();
+console.log('region used', regionDocument.region);
+```
+
+```javascript
+const { difference } = await region.compare('useast')
+console.log('difference in carbon intensity between region useast and the region used to carry out request.', difference)
+```
+
+The complete HEDGE Javascript API has been documented in our [demo repository](https://github.com/rollthecloudinc/hedge-demo/blob/master/src/index.js).
+
 **Impact**
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.

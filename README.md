@@ -29,7 +29,8 @@ Climate friendly POST request for service.
 ```javascript
 const method = 'POST';
 const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "My New Add", price: 50 };
-const res = hedge({ service: 'emissionless' }).bounce('/rollthecloudinc/classifieds/shapeshiter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
+const h = await hedge({ service: 'emissionless' });
+cont res = await h.bounce('/rollthecloudinc/classifieds/shapeshiter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
 ```
 
 **Impact**

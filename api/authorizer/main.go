@@ -22,6 +22,8 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.QueryStringParameters["token"]
 
+	log.Print("top")
+
 	// ctx := context.Background()
 	// Fetch all keys
 	// jwkSet, err := jwk.Fetch(ctx, "https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json")
@@ -30,6 +32,8 @@ func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionConte
 		log.Fatalln("Unable to fetch keys")
 	}
 
+	log.Print("fectehd keys")
+
 	// Verify
 	t, err := jwt.Parse(token, jwks.Keyfunc)
 	if err != nil || !t.Valid {
@@ -37,7 +41,14 @@ func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionConte
 		log.Fatalln("Unauthorized")
 	}
 
+	log.Print("authorized")
+
 	claims := t.Claims.(jwt.MapClaims)
+
+	log.Print("got claims")
+
+	claims["cognito:groups"] = nil //claims["cognito:groups"]
+	claims["cognito:roles"] = nil  //claims["cognito:groups"]
 
 	return events.APIGatewayCustomAuthorizerResponse{
 		PrincipalID: "me",
@@ -45,10 +56,10 @@ func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionConte
 			Version: "2012-10-17",
 			Statement: []events.IAMPolicyStatement{
 				{
-					Action:   []string{"execute-api:*"},
+					Action:   []string{"execute-api:Invoke"},
 					Effect:   "Allow",
 					Resource: []string{"*"},
-					// Resource: []string{request.Re},
+					// Resource: []string{request.Resource},
 				},
 			},
 		},

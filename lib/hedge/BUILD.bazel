@@ -1,0 +1,24 @@
+load("@npm//@bazel/esbuild:index.bzl", "esbuild")
+
+esbuild(
+    name = "hedge_lib",
+    entry_point = "index.js",
+    platform = "node",
+    target = "node10",
+    tool = select({
+        "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
+        "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",
+        "@bazel_tools//src/conditions:linux_x86_64": "@esbuild_linux//:bin/esbuild",
+    }),
+    deps = [
+    ],
+)
+
+load("@build_bazel_rules_nodejs//:index.bzl", "pkg_npm")
+
+pkg_npm(
+    name = "hedge",
+    srcs = ["package.json"],
+    deps = [":hedge_lib"],
+    substitutions = {"//internal/": "//"},
+)

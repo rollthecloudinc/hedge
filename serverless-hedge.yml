@@ -28,6 +28,8 @@ custom:
   hedgeCachePolicyId: ${file(./private.${opt:stage, 'dev'}.json):hedgeCachePolicyId}
   hedgeOriginPath: ${file(./private.${opt:stage, 'dev'}.json):hedgeOriginPath}
   awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
+  defaultSigningUsername: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningUsername}
+  defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
 provider:
   name: aws
   runtime: go1.x
@@ -40,6 +42,8 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
     - bazel-bin/edge/renewable_redirect/renewable_redirect.js
     - job/renewable_report/regions.json
+    - api/entity/rtc-vertigo-dev.private-key.pem
+    - api/entity/rtc-vertigo-prod.private-key.pem
 resources:
   Resources:
     CloudFrontDistribution:
@@ -126,6 +130,13 @@ functions:
     environment:
       GITHUB_TOKEN: ${self:custom.githubToken}
       GITHUB_BRANCH: ${self:custom.githubBranch}
+      COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
+      ELASTIC_URL: ${self:custom.elasticUrl}
+      IDENTITY_POOL_ID: ${self:custom.identityPoolId}
+      ISSUER: ${self:custom.issuer}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
+      GITHUB_APP_ID: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
       STAGE: ${opt:stage, 'dev'}
     events:
     - schedule:

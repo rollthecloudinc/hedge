@@ -13,7 +13,7 @@ To this end our contribution to reducing web carbon begins with generating a [pe
 
 Reverse proxy: 
 
-An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use.
+An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use. The HEDGE reverse proxy url is below for both the prod and dev environments.
 
 | Method | Endpoint | Environment |
 | ------------- | ------------- |---------------|

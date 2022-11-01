@@ -61,7 +61,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 ## Shapshifter
 
 * **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
-* **Solution:** Replace the traditional database with Github repositories using JSON.
+* **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.
 
 **Resolution:**
 

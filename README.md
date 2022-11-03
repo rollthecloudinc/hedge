@@ -62,6 +62,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Future Features**
 * Electricity usage and carbon emission tracking and monitoring.
+* Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
 * Postman plugin (50 million APIs)
 * Serverless Framework plugin to incorporate into AWS API Gateway provisioning
 * Nginx and HaProxy extension

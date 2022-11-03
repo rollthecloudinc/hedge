@@ -2,6 +2,8 @@
 
 # APIs
 
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
+
 ## HEDGE
 
 * **Problem:** API requests contribute to 83% of web carbon emissions

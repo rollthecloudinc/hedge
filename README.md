@@ -61,8 +61,9 @@ The complete HEDGE Javascript API has been documented in our [demo repository](h
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
 
 **Future Features**
-* Electricity usage and carbon emission tracking and monitoring.
-* Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
+* Advertise & Promote Amount of carbon being saved
+  * Electricity usage and carbon emission tracking and monitoring.
+  * Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
 * Postman plugin (50 million APIs)
 * Serverless Framework plugin to incorporate into AWS API Gateway provisioning
 * Nginx and HaProxy extension

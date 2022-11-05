@@ -69,7 +69,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## Shapshifter
+## Shapeshifter
 
 * **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
 * **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.

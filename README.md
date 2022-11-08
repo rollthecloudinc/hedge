@@ -75,8 +75,8 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 ## Octostore
 
 
-* **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
-* **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.
+* **Problem:** Traditional databases require large amounts of electricity creating large emissions.
+* **Solution:** Piggback on the leader of code storage restoring data storage to good planetary health.
 
 **Resolution:**
 

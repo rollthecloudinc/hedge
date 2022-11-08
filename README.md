@@ -78,7 +78,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Repair data storage by supercharge repos with RESTful APIs to store everything in Github easily.
+Repair data storage providing repos with RESTful APIs to store everything in Github easily.
 
 ### Octostore: Shapeshifter API
 

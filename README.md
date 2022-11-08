@@ -79,7 +79,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 Supercharge Github repos with RESTful APIs to store everything in Github easily.
 
-### Shapeshifter API
+### Octostore: Shapeshifter API
 
 Store JSON in Github easily.
 
@@ -135,6 +135,6 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-### Media API
+### Octostore: Media API
 
 Store Media and other files under 100MB in Github easily.

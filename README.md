@@ -74,7 +74,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 <img width="224" alt="Screen Shot 2022-11-07 at 7 42 26 PM" src="https://user-images.githubusercontent.com/73197190/200446064-8fb570e3-e0f2-4659-a19e-dda084c8a33e.png">
 
 * **Problem:** Traditional databases are resources intensive and wastful.
-* **Solution:** Repair data storage by using Github for storage.
+* **Solution:** Repair data storage by using Github.
 
 **Resolution:**
 

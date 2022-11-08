@@ -69,14 +69,25 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## Shapeshifter
+## Octostore
+
 
 * **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
 * **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.
 
-**Resolution:**
+### Shapeshifter
+
+**Resolution For JSON Storage:**
 
 Supercharge Github repos with RESTful APIs to easily commit JSON.
+
+| Method | HEDGE.earth |
+| ------------- | ------------- |
+| GET  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| PUT  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| POST  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+
+deprecated:
 
 | Method | HEDGE.earth |
 | ------------- | ------------- |
@@ -122,6 +133,8 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-# Media
+### Media
+
+**Resolution For File Storage:**
 
 Supercharge Github repos with API to upload media files

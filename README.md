@@ -2,9 +2,12 @@
 
 # Initiatives
 
-![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
+* HEDGE: rewriting the web for good.
+* Octostore: sustainable low resource storage without sacrifice.
 
 ## HEDGE
+
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
 * **Solution:** Maximize amount of clean energy used to fulfill API requests

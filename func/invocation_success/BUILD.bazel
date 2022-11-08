@@ -15,7 +15,11 @@ go_library(
     importpath = "goclassifieds/func/invocation_success",
     visibility = ["//visibility:private"],
     deps = [
-        "@com_github_aws_aws_lambda_go//lambda",
-        "@com_github_aws_aws_lambda_go//events",
+      "//lib/entity",
+      "//lib/sign",
+      "@com_github_aws_aws_lambda_go//lambda",
+      "@com_github_aws_aws_lambda_go//events",
+      "@com_github_aws_aws_sdk_go//aws/session",
+      "@com_github_opensearch_project_opensearch_go//:opensearch-go",
     ],
 )

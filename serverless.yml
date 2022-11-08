@@ -21,6 +21,9 @@ custom:
   githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
   githubAppClientId: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientId}
   githubAppClientSecret: ${file(./private.${opt:stage, 'dev'}.json):githubAppClientSecret}
+  awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
+  defaultSigningUsername: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningUsername}
+  defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
 provider:
   name: aws
   runtime: go1.x
@@ -59,7 +62,6 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/invocation_failure/invocation_failure_/invocation_failure
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/invocation_success/invocation_success_/invocation_success
     - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
@@ -447,15 +449,16 @@ functions:
     runtime: nodejs14.x
     environment:
       STAGE: ${opt:stage, 'dev'}
-  InvocationFailure:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/invocation_failure/invocation_failure_/invocation_failure
-    role: EntityApiRole
-    environment:
-      STAGE: ${opt:stage, 'dev'}
   InvocationSuccess:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/invocation_success/invocation_success_/invocation_success
     role: EntityApiRole
     environment:
+      COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
+      ELASTIC_URL: ${self:custom.elasticUrl}
+      IDENTITY_POOL_ID: ${self:custom.identityPoolId}
+      ISSUER: ${self:custom.issuer}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       STAGE: ${opt:stage, 'dev'}
     events:
       - cloudwatchLog:

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"goclassifieds/lib/entity"
+	"goclassifieds/lib/sign"
 	"log"
 	"os"
 	"strconv"
@@ -11,6 +14,8 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/opensearch-project/opensearch-go"
 )
 
 type RenewableRecord struct {
@@ -27,8 +32,13 @@ type RenewableRecord struct {
 	Path           string `json:"path"`
 }
 
+type RenewableRecordEntityManagerInput struct {
+	OsClient *opensearch.Client
+}
+
 func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 	data, _ := logsEvent.AWSLogs.Parse()
+	records := make([]RenewableRecord, 0)
 	for _, logEvent := range data.LogEvents {
 		pieces := strings.Fields(logEvent.Message)
 		lastNumberIndex := -1
@@ -76,10 +86,73 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 		b, err := json.Marshal(record)
 		if err == nil {
 			log.Print(string(b))
+			records = append(records, record)
 		} else {
 			log.Print("json marshall failure")
 		}
+
+		sess := session.Must(session.NewSession())
+
+		userPasswordAwsSigner := sign.UserPasswordAwsSigner{
+			Service:            "es",
+			Region:             "us-east-1",
+			Session:            sess,
+			IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
+			Issuer:             os.Getenv("ISSUER"),
+			Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
+			Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
+			CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
+		}
+
+		opensearchCfg := opensearch.Config{
+			Addresses: []string{os.Getenv("ELASTIC_URL")},
+			Signer:    userPasswordAwsSigner,
+		}
+
+		osClient, err := opensearch.NewClient(opensearchCfg)
+		if err != nil {
+			log.Printf("Opensearch Error: %s", err.Error())
+		}
+		recordManageInput := &RenewableRecordEntityManagerInput{
+			OsClient: osClient,
+		}
+		recordManager := RenewableRecordEntityManager(recordManageInput)
+		for _, r := range records {
+			recordEntity, _ := RenewableRecordToEntity(&r)
+			recordManager.Save(recordEntity, "default")
+		}
 	}
+}
+
+func RenewableRecordEntityManager(input *RenewableRecordEntityManagerInput) *entity.EntityManager {
+	manager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+		SingularName: "renewable_record",
+		PluralName:   "renewable_records",
+		Stage:        os.Getenv("STAGE"),
+	})
+	manager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
+	manager.AddStorage("default", entity.OpensearchStorageAdaptor{
+		Config: entity.OpensearchAdaptorConfig{
+			Index:  "renewable-record-001",
+			Client: input.OsClient,
+		},
+	})
+	log.Print("create renewable record manager")
+	return &manager
+}
+
+func RenewableRecordToEntity(record *RenewableRecord) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(record); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+	jsonData, err := json.Marshal(record)
+	if err != nil {
+		return nil, err
+	}
+	var entity map[string]interface{}
+	err = json.Unmarshal(jsonData, &entity)
+	return entity, nil
 }
 
 func main() {

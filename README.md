@@ -76,7 +76,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 
 * **Problem:** Traditional databases require large amounts of electricity creating large emissions.
-* **Solution:** Piggback on the leader of code storage restoring data storage to good planetary health.
+* **Solution:** Piggback on the leader of code collaboration restoring data storage to good planetary health.
 
 **Resolution:**
 

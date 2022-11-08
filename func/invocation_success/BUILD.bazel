@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "invocation_success",
+    embed = [":invocation_success_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/func/invocation_success",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "invocation_success_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/invocation_success",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_aws_aws_lambda_go//events",
+    ],
+)

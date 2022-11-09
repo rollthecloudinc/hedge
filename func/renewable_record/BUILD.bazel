@@ -17,6 +17,7 @@ go_library(
     deps = [
       "//lib/entity",
       "//lib/sign",
+      "//lib/utils",
       "@com_github_aws_aws_lambda_go//lambda",
       "@com_github_aws_aws_lambda_go//events",
       "@com_github_aws_aws_sdk_go//aws/session",

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/sign"
+	"goclassifieds/lib/utils"
 	"log"
 	"math"
 	"os"
@@ -19,7 +20,9 @@ import (
 )
 
 type RenewableRecord struct {
+	Id             string `json:"id"`
 	RequestId      string `json:"request_id"`
+	AwsRegion      string `json:"aws_region"`
 	Region         string `json:"region"`
 	Duration       uint16 `json:"duration"`
 	BilledDuration uint16 `json:"billed_duration"`
@@ -30,6 +33,7 @@ type RenewableRecord struct {
 	Electricity    uint16 `json:"electricity"`
 	Function       string `json:"function"`
 	Path           string `json:"path"`
+	Called         bool   `json:"called"`
 }
 
 type RenewableRecordEntityManagerInput struct {
@@ -38,14 +42,17 @@ type RenewableRecordEntityManagerInput struct {
 
 func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 	data, _ := logsEvent.AWSLogs.Parse()
-	records := make([]RenewableRecord, 0)
+	record := RenewableRecord{
+		Id:        utils.GenerateId(),
+		AwsRegion: os.Getenv("AWS_REGION"),
+		Called:    true,
+	}
+	regions := make([]string, 0)
+	intensities := make([]uint16, 0)
 	for _, logEvent := range data.LogEvents {
 		log.Print(logEvent.Message)
 		pieces := strings.Fields(logEvent.Message)
 		lastNumberIndex := -1
-		record := RenewableRecord{
-			Region: os.Getenv("AWS_REGION"),
-		}
 		for index, field := range pieces {
 			_, err := strconv.ParseFloat(field, 32)
 			ival, err2 := strconv.ParseUint(field, 0, 16)
@@ -55,19 +62,14 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				}
 				name := strings.Join(pieces[lastNumberIndex+2:index], " ")
 				if name == "Duration:" {
-					// record.Duration = fmt.Sprintf("%f%s", val, strings.ToLower(pieces[index+1]))
 					record.Duration = uint16(ival)
 				} else if name == "Billed Duration:" {
-					// record.BilledDuration = fmt.Sprintf("%f%s", val, strings.ToLower(pieces[index+1]))
 					record.BilledDuration = uint16(ival)
 				} else if name == "Memory Size:" {
-					// record.MemorySize = fmt.Sprintf("%f%s", val, strings.ToLower(pieces[index+1]))
 					record.MemorySize = uint16(ival)
 				} else if name == "Max Memory Used:" {
-					// record.MaxMemoryUsed = fmt.Sprintf("%f%s", val, strings.ToLower(pieces[index+1]))
 					record.MaxMemoryUsed = uint16(ival)
 				} else if name == "Init Duration:" {
-					// record.InitDuration = fmt.Sprintf("%f%s", val, strings.ToLower(pieces[index+1]))
 					record.InitDuration = uint16(ival)
 				}
 				lastNumberIndex = index
@@ -75,15 +77,12 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				record.RequestId = pieces[index+1]
 			} else if field == "Duration:" && len(pieces) >= index {
 				if pieces[index-1] == "Billed" {
-					// record.BilledDuration = strings.Join(pieces[index+1:index+3], "")
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.BilledDuration = uint16(math.Round(f))
 				} else if pieces[index-1] == "Init" {
-					// record.InitDuration = strings.Join(pieces[index+1:index+3], "")
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.InitDuration = uint16(math.Round(f))
 				} else {
-					// record.Duration = strings.Join(pieces[index+1:index+3], "")
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.Duration = uint16(math.Round(f))
 				}
@@ -94,47 +93,86 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 			} else if field == "Path:" && len(pieces) >= index {
 				f, _ := strconv.ParseFloat(pieces[index+1], 32)
 				record.Intensity = uint16(math.Round(f))
+			} else if field == "X-HEDGE-REGIONS:" && len(pieces) >= index {
+				for _, region := range strings.Split(pieces[index+1], ",") {
+					regions = append(regions, region)
+				}
+			} else if field == "X-HEDGE-INTENSITIES:" && len(pieces) >= index {
+				for _, intensity := range strings.Split(pieces[index+1], ",") {
+					f, _ := strconv.ParseFloat(intensity, 32)
+					intensities = append(intensities, uint16(math.Round(f)))
+				}
+			} else if field == "X-HEDGE-REGION:" && len(pieces) >= index {
+				record.Region = pieces[index+1]
 			}
 		}
-		b, err := json.Marshal(record)
-		if err == nil {
-			log.Print(string(b))
-			records = append(records, record)
-		} else {
-			log.Print("json marshall failure")
-		}
+	}
 
-		sess := session.Must(session.NewSession())
+	b, err := json.Marshal(record)
+	if err == nil {
+		log.Print(string(b))
+	} else {
+		log.Print("json marshall failure")
+	}
 
-		userPasswordAwsSigner := sign.UserPasswordAwsSigner{
-			Service:            "es",
-			Region:             "us-east-1",
-			Session:            sess,
-			IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
-			Issuer:             os.Getenv("ISSUER"),
-			Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
-			Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
-			CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
-		}
+	sess := session.Must(session.NewSession())
 
-		opensearchCfg := opensearch.Config{
-			Addresses: []string{os.Getenv("ELASTIC_URL")},
-			Signer:    userPasswordAwsSigner,
-		}
+	userPasswordAwsSigner := sign.UserPasswordAwsSigner{
+		Service:            "es",
+		Region:             "us-east-1",
+		Session:            sess,
+		IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:             os.Getenv("ISSUER"),
+		Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
+		Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
+		CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
+	}
 
-		osClient, err := opensearch.NewClient(opensearchCfg)
-		if err != nil {
-			log.Printf("Opensearch Error: %s", err.Error())
-		}
-		recordManageInput := &RenewableRecordEntityManagerInput{
-			OsClient: osClient,
-		}
-		recordManager := RenewableRecordEntityManager(recordManageInput)
-		for _, r := range records {
-			recordEntity, _ := RenewableRecordToEntity(&r)
-			recordManager.Save(recordEntity, "default")
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    userPasswordAwsSigner,
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Error: %s", err.Error())
+	}
+	recordManageInput := &RenewableRecordEntityManagerInput{
+		OsClient: osClient,
+	}
+
+	recordManager := RenewableRecordEntityManager(recordManageInput)
+
+	for index, item := range regions {
+		if item == record.Region {
+			record.Intensity = intensities[index]
+			break
 		}
 	}
+
+	recordEntity, _ := RenewableRecordToEntity(&record)
+	recordManager.Save(recordEntity, "default")
+	for index, item := range regions {
+		if item != record.Region {
+			record2 := RenewableRecord{
+				Id:             utils.GenerateId(),
+				RequestId:      record.RequestId,
+				Region:         item,
+				Duration:       record.Duration,
+				BilledDuration: record.BilledDuration,
+				MemorySize:     record.MemorySize,
+				MaxMemoryUsed:  record.MaxMemoryUsed,
+				InitDuration:   record.InitDuration,
+				Intensity:      intensities[index],
+				Function:       record.Function,
+				Path:           record.Path,
+				Called:         false,
+			}
+			recordEntity2, _ := RenewableRecordToEntity(&record2)
+			recordManager.Save(recordEntity2, "default")
+		}
+	}
+
 }
 
 func RenewableRecordEntityManager(input *RenewableRecordEntityManagerInput) *entity.EntityManager {

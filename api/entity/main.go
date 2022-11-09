@@ -191,6 +191,7 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+		log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"])
 
 		ac := RequestActionContext(c, req)
 
@@ -761,5 +762,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

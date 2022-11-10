@@ -154,8 +154,8 @@ Store Media and other files under 100MB in Github easily.
 
 ## Follow Us
 
-* Twitter: @rollthecloud
-* Facebook : facebook.com/rollthecloud
+* [Twitter](https://twitter.com/rollthecloud)
+* [Facebook](https://www.facebook.com/rollthecloud)
 
 ## Contribute
 

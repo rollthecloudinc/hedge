@@ -142,3 +142,18 @@ Future Features:
 ### Octostore: Media API
 
 Store Media and other files under 100MB in Github easily.
+
+# Contact Us
+
+* Email: hi@rollthecloud.com
+* Phone: (848) 274-2959
+
+# Follow Us
+
+* Twitter: @rollthecloud
+* Facebook : facebook.com/rollthecloud
+
+# Contribute
+
+Code: github.com/rollthecloudinc
+Cash: Paypal Giving Fund

@@ -149,8 +149,7 @@ Store Media and other files under 100MB in Github easily.
 
 ## Contact Us
 
-* Email: hi@rollthecloud.com
-* Phone: (848) 274-2959
+* [Email](hi@rollthecloud.com)
 
 ## Follow Us
 

@@ -149,7 +149,7 @@ Store Media and other files under 100MB in Github easily.
 
 ## Contact Us
 
-* [Email](hi@rollthecloud.com)
+* [Email](mailto:hi@rollthecloud.com)
 
 ## Follow Us
 

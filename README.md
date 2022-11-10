@@ -2,8 +2,8 @@
 
 # Initiatives
 
-* HEDGE: rewriting the web for good.
-* Octostore: repairing data storage for good.
+* HEDGE: Rewriting the web for good.
+* Octostore: Repairing data storage for good.
 
 ## HEDGE
 

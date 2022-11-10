@@ -159,5 +159,5 @@ Store Media and other files under 100MB in Github easily.
 
 ## Contribute
 
-* Code: github.com/rollthecloudinc
-* Cash: [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)
+* [Github](github.com/rollthecloudinc)
+* [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)

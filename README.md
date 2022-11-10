@@ -145,7 +145,7 @@ Store Media and other files under 100MB in Github easily.
 
 # Support
 
-Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity whose mission is to exhile carbon from the web.
+Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity with the mission to exhile carbon from the web.
 
 ## Contact Us
 

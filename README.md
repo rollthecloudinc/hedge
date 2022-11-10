@@ -1,4 +1,4 @@
-> Roll The Cloud Inc. is a registered US 501(c)3 charity. All proceeds go to building a more sustainable web. More information about our missions and obligations as a nonprofit can be found on our website: https://rollthecloud.com. [Donations](https://www.paypal.com/fundraiser/charity/4587641) and [apparel shop](https://www.bonfire.com/store/climatewarrior/) available for those that would like to give a little to support the missions.
+> Roll The Cloud Inc. is a registered US 501(c)3 charity. All proceeds go to building a more sustainable web. More information about our missions and obligations as a nonprofit can be found on our website: https://rollthecloud.com.
 
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 

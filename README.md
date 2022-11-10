@@ -143,17 +143,19 @@ Future Features:
 
 Store Media and other files under 100MB in Github easily.
 
-# Contact Us
+# Support
+
+## Contact Us
 
 * Email: hi@rollthecloud.com
 * Phone: (848) 274-2959
 
-# Follow Us
+## Follow Us
 
 * Twitter: @rollthecloud
 * Facebook : facebook.com/rollthecloud
 
-# Contribute
+## Contribute
 
 * Code: github.com/rollthecloudinc
 * Cash: [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)

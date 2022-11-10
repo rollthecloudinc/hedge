@@ -1,4 +1,4 @@
-> Roll The Cloud Inc. is a registered US 501(c)3 charity. All proceeds go to building a more sustainable web. More information about our missions and obligations as a nonprofit can be found on our website: https://rollthecloud.com.
+> Roll The Cloud Inc. is a registered US 501(c)3 charity. All proceeds go to building a more sustainable web.
 
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 

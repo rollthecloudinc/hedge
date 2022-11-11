@@ -187,8 +187,9 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 	for index, item := range regions {
 		if item != record.Region {
 			record2 := RenewableRecord{
-				Id:             utils.GenerateId(),
-				RequestId:      record.RequestId,
+				Id:        utils.GenerateId(),
+				RequestId: record.RequestId,
+				//AwsRegion:      record.AwsRegion,
 				Region:         item,
 				Duration:       record.Duration,
 				BilledDuration: record.BilledDuration,
@@ -199,6 +200,10 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				Function:       record.Function,
 				Path:           record.Path,
 				Called:         false,
+				Organization:   record.Organization,
+				Repository:     record.Repository,
+				Resource:       record.Resource,
+				Service:        record.Service,
 			}
 			ccInput := &CalulcateCarbonInput{
 				Intensity:  record2.Intensity,

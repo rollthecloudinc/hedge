@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "carbon": {
+      "type": "float"
+    },
+    "electricity": {
+      "type": "float"
+    }
+  }
+}

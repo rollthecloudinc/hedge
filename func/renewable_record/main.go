@@ -20,24 +20,40 @@ import (
 )
 
 type RenewableRecord struct {
-	Id             string `json:"id"`
-	RequestId      string `json:"request_id"`
-	AwsRegion      string `json:"aws_region"`
-	Region         string `json:"region"`
-	Duration       uint16 `json:"duration"`
-	BilledDuration uint16 `json:"billed_duration"`
-	MemorySize     uint16 `json:"memory_size"`
-	MaxMemoryUsed  uint16 `json:"max_memory_used"`
-	InitDuration   uint16 `json:"init_duration"`
-	Intensity      uint16 `json:"intensity"`
-	Electricity    uint16 `json:"electricity"`
-	Function       string `json:"function"`
-	Path           string `json:"path"`
-	Called         bool   `json:"called"`
+	Id             string  `json:"id"`
+	RequestId      string  `json:"request_id"`
+	AwsRegion      string  `json:"aws_region"`
+	Region         string  `json:"region"`
+	Duration       uint16  `json:"duration"`
+	BilledDuration uint16  `json:"billed_duration"`
+	MemorySize     uint16  `json:"memory_size"`
+	MaxMemoryUsed  uint16  `json:"max_memory_used"`
+	InitDuration   uint16  `json:"init_duration"`
+	Intensity      uint16  `json:"intensity"`
+	Electricity    float64 `json:"electricity"`
+	Carbon         float64 `json:"carbon"`
+	Function       string  `json:"function"`
+	Path           string  `json:"path"`
+	Called         bool    `json:"called"`
+	Organization   string  `json:"organization"`
+	Repository     string  `json:"repository"`
+	Service        string  `json:"service"`
+	Resource       string  `json:"resource"`
 }
 
 type RenewableRecordEntityManagerInput struct {
 	OsClient *opensearch.Client
+}
+
+type CalulcateCarbonInput struct {
+	Intensity  uint16 `json:"intensity"`
+	MemorySize uint16 `json:"memory_size"`
+	Duration   uint16 `json:"duration"`
+}
+
+type CalulcateCarbonOutput struct {
+	Carbon      float64 `json:"carbon"`
+	Electricity float64 `json:"electricity"`
 }
 
 func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
@@ -104,6 +120,14 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				}
 			} else if field == "X-HEDGE-REGION:" && len(pieces) >= index {
 				record.Region = pieces[index+1]
+			} else if field == "Organization:" && len(pieces) >= index {
+				record.Organization = pieces[index+1]
+			} else if field == "Repository:" && len(pieces) >= index {
+				record.Repository = pieces[index+1]
+			} else if field == "X-HEDGE-SERVICE:" && len(pieces) >= index {
+				record.Service = pieces[index+1]
+			} else if field == "Resource:" && len(pieces) >= index {
+				record.Resource = pieces[index+1]
 			}
 		}
 	}
@@ -146,6 +170,14 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 	for index, item := range regions {
 		if item == record.Region {
 			record.Intensity = intensities[index]
+			ccInput := &CalulcateCarbonInput{
+				Intensity:  record.Intensity,
+				MemorySize: record.MemorySize,
+				Duration:   record.Duration,
+			}
+			cc := CalulcateCarbon(ccInput)
+			record.Carbon = cc.Carbon
+			record.Electricity = cc.Electricity
 			break
 		}
 	}
@@ -168,11 +200,33 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				Path:           record.Path,
 				Called:         false,
 			}
+			ccInput := &CalulcateCarbonInput{
+				Intensity:  record2.Intensity,
+				MemorySize: record.MemorySize,
+				Duration:   record.Duration,
+			}
+			cc := CalulcateCarbon(ccInput)
+			record2.Carbon = cc.Carbon
+			record2.Electricity = cc.Electricity
 			recordEntity2, _ := RenewableRecordToEntity(&record2)
 			recordManager.Save(recordEntity2, "default")
 		}
 	}
 
+}
+
+func CalulcateCarbon(input *CalulcateCarbonInput) *CalulcateCarbonOutput {
+	output := CalulcateCarbonOutput{}
+	minWattsAverage := .74
+	maxWattsAverage := 3.5
+	averageCpuUtilization := float64(50)
+	averageWatts := float64(minWattsAverage + (averageCpuUtilization/100)*(maxWattsAverage-minWattsAverage))
+	durationInS := float64(input.Duration / 1000 % 60)
+	memorySetInMB := float64(input.MemorySize)
+	functionWatts := float64(averageWatts * durationInS / 3600 * memorySetInMB / 1792)
+	output.Electricity = functionWatts
+	output.Carbon = functionWatts * float64(input.Intensity)
+	return &output
 }
 
 func RenewableRecordEntityManager(input *RenewableRecordEntityManagerInput) *entity.EntityManager {

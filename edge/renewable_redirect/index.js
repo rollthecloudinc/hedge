@@ -21,6 +21,7 @@ exports.handler = async (event, _, callback) => {
     customHeaders["x-hedge-regions"] = [{ key: "x-hedge-regions", value: Object.keys(report.intensities).join(",") }];
     customHeaders["x-hedge-intensities"] = [{ key: "x-hedge-intensities", value: Object.keys(report.intensities).map(r => report.intensities[r]).join(",") }];
     customHeaders["x-hedge-region"] = [{ key: "x-hedge-region", value: bestRegion.region }];
+    customHeaders["x-hedge-service"] = [{ key: "x-hedge-service", value: pieces[1] }];
     request.origin.custom = {
       domainName: bestRegion.origin,
       port: 443,

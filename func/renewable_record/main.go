@@ -216,7 +216,7 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 }
 
 func CalulcateCarbon(input *CalulcateCarbonInput) *CalulcateCarbonOutput {
-	output := CalulcateCarbonOutput{}
+	output := &CalulcateCarbonOutput{}
 	minWattsAverage := .74
 	maxWattsAverage := 3.5
 	averageCpuUtilization := float64(50)
@@ -226,7 +226,7 @@ func CalulcateCarbon(input *CalulcateCarbonInput) *CalulcateCarbonOutput {
 	functionWatts := float64(averageWatts * durationInS / 3600 * memorySetInMB / 1792)
 	output.Electricity = functionWatts
 	output.Carbon = functionWatts * float64(input.Intensity)
-	return &output
+	return output
 }
 
 func RenewableRecordEntityManager(input *RenewableRecordEntityManagerInput) *entity.EntityManager {

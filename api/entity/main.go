@@ -192,6 +192,13 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		_, hedged := req.Headers["x-hedge-region"]
+		if hedged {
+			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
+		} else {
+			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+		}
+
 		ac := RequestActionContext(c, req)
 
 		b, _ := json.Marshal(req)
@@ -406,6 +413,7 @@ func InitializeHandler(c *ActionContext) Handler {
 			} else {
 				loaderPath = req.PathParameters["proxy"]
 			}
+			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Organization: " + req.PathParameters["owner"] + " Repository: " + req.PathParameters["repo"])
 			ac.EntityManager.AddLoader("default", entity.GithubRestFileLoaderAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
 					Client:   ac.GithubRestClient,
@@ -761,5 +769,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

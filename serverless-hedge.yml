@@ -136,7 +136,7 @@ functions:
       ISSUER: ${self:custom.issuer}
       DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
-      GITHUB_APP_ID: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
+      GITHUB_APP_ID: ${self:custom.githubAppId}
       STAGE: ${opt:stage, 'dev'}
     events:
     - schedule:

@@ -87,7 +87,7 @@ Repair data storage providing repos with RESTful APIs to store everything in Git
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 
-### Octostore: Shapeshifter API
+### Octostore: JSON API (aka: Shapeshifter)
 
 Store JSON in Github easily.
 

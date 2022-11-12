@@ -12,6 +12,7 @@ import (
 	"goclassifieds/lib/utils"
 	"goclassifieds/lib/vocab"
 	"log"
+	"os"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -21,6 +22,8 @@ import (
 func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity.ValidateEntityResponse, error) {
 	log.Print("Inside validate")
 	log.Printf("Entity: %s", payload.EntityName)
+
+	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
 	invalid := entity.ValidateEntityResponse{
 		Entity:       payload.Entity,

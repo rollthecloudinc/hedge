@@ -2,6 +2,8 @@
 
 # APIs
 
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
+
 ## HEDGE
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
@@ -9,9 +11,11 @@
 
 **Resolution:** 
 
-To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the carbon aware api for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
+To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the [Green Software Foundation](https://greensoftware.foundation/) [carbon aware api](https://carbon-aware-api.azurewebsites.net/swagger/index.html) for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
 
-> Reverse proxy: An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use.
+Reverse proxy: 
+
+An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use. The HEDGE reverse proxy url is below for both the prod and dev environments. Request to register services will be promoted to prod once tested on dev via pull requests.
 
 | Method | Endpoint | Environment |
 | ------------- | ------------- |---------------|
@@ -56,10 +60,19 @@ The complete HEDGE Javascript API has been documented in our [demo repository](h
 
 HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
 
-## Shapshifter
+**Future Features**
+* Advertise & Promote Amount of carbon being saved
+  * Electricity usage and carbon emission tracking and monitoring.
+  * Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
+* Postman plugin (50 million APIs)
+* Serverless Framework plugin to incorporate into AWS API Gateway provisioning
+* Nginx and HaProxy extension
+* Other configuration as code platforms
+
+## Shapeshifter
 
 * **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
-* **Solution:** Replace the traditional database with Github repositories using JSON.
+* **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.
 
 **Resolution:**
 

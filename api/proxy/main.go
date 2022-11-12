@@ -50,6 +50,14 @@ func GetRequest(domain string, req *events.APIGatewayProxyRequest) (string, erro
 }
 
 func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
+	_, hedged := req.Headers["x-hedge-region"]
+	if hedged {
+		log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
+	} else {
+		log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+	}
+
 	if strings.Index(req.Path, "cities") > -1 {
 		body, err := GetCities(req.PathParameters["country"], req.PathParameters["state"], req.PathParameters["city"])
 		if err != nil {

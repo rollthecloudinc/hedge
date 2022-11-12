@@ -76,7 +76,7 @@ type EnergyGridCarbonIntensityEntityManagerInput struct {
 }
 
 func handler(ctx context.Context, b json.RawMessage) {
-	log.Print("renewable_report run")
+	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
 	frequency := 5 * time.Minute
 	startDate := time.Now()

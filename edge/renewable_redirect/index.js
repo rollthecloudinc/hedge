@@ -6,16 +6,23 @@ const objectsCache = new Map();
 
 exports.handler = async (event, _, callback) => {
     console.log('region', process.env.AWS_REGION);
+    console.log('event', event);
     const request = event.Records[0].cf.request;
     const pieces = request.uri.split('/')
+    // console.log('pieces', pieces);
     const uri = "/" + pieces.slice(2).join('/')
     const report = await getObject({ path: 'renewable-report/report' });
     const service = await getObject({ path: 'services/' + pieces[1] });
     const bestRegion = pickRegion({ service, report });
     const bestRegions = calculateBestRegions({ report });
     provideFeedback({ bestRegions, bestRegion, report });
-    console.log('herex');
+    console.log('herexx');
     delete request.origin.s3
+    const customHeaders = {};
+    customHeaders["x-hedge-regions"] = [{ key: "x-hedge-regions", value: Object.keys(report.intensities).join(",") }];
+    customHeaders["x-hedge-intensities"] = [{ key: "x-hedge-intensities", value: Object.keys(report.intensities).map(r => report.intensities[r]).join(",") }];
+    customHeaders["x-hedge-region"] = [{ key: "x-hedge-region", value: bestRegion.region }];
+    customHeaders["x-hedge-service"] = [{ key: "x-hedge-service", value: pieces[1] }];
     request.origin.custom = {
       domainName: bestRegion.origin,
       port: 443,
@@ -24,7 +31,7 @@ exports.handler = async (event, _, callback) => {
       sslProtocols: ["TLSv1", "TLSv1.1", "TLSv1.2"],
       readTimeout: 30,
       keepaliveTimeout: 30,
-      customHeaders: {}
+      customHeaders
     };
     request.uri = uri
     request.headers["host"] = [{key: "host", value: bestRegion.origin }];
@@ -52,9 +59,9 @@ async function getObject({ path }) {
     let pathPrefix = '/';
     //console.log('vars', process.env);
     console.log('stage', stage);
-    if (stage === 'dev' || stage === undefined) {
-        domain = "rollthecloudinc.github.io"
-        pathPrefix = "/hedge-objects/"
+    if (stage === 'dev' /*|| stage === undefined*/) {
+        domain = "rollthecloudinc.github.io";
+        pathPrefix = "/hedge-objects/";
     }
     const options = { host: domain, path: pathPrefix + path + '.json' };
     console.log('getObject', "options", options);

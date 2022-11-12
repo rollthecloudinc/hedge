@@ -25,6 +25,8 @@ type ResourceManagerParams struct {
 
 func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAccessResponse, error) {
 
+	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
 	cluster := gocql.NewCluster("cassandra.us-east-1.amazonaws.com")
 	cluster.Keyspace = "ClassifiedsDev"
 	cluster.Port = 9142

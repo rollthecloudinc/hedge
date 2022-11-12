@@ -250,6 +250,14 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 
 func InitializeHandler(ac ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
+		_, hedged := req.Headers["x-hedge-region"]
+		if hedged {
+			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
+		} else {
+			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+		}
+
 		if req.HTTPMethod == "POST" {
 			return UploadMediaFile(req, &ac)
 		} else {

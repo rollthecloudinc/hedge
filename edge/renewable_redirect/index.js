@@ -6,16 +6,17 @@ const objectsCache = new Map();
 
 exports.handler = async (event, _, callback) => {
     console.log('region', process.env.AWS_REGION);
+    console.log('event', event);
     const request = event.Records[0].cf.request;
     const pieces = request.uri.split('/')
-    console.log('pieces', pieces.join('/'));
+    // console.log('pieces', pieces);
     const uri = "/" + pieces.slice(2).join('/')
     const report = await getObject({ path: 'renewable-report/report' });
     const service = await getObject({ path: 'services/' + pieces[1] });
     const bestRegion = pickRegion({ service, report });
     const bestRegions = calculateBestRegions({ report });
     provideFeedback({ bestRegions, bestRegion, report });
-    console.log('herex');
+    console.log('herexx');
     delete request.origin.s3
     const customHeaders = {};
     customHeaders["x-hedge-regions"] = [{ key: "x-hedge-regions", value: Object.keys(report.intensities).join(",") }];
@@ -58,10 +59,10 @@ async function getObject({ path }) {
     let pathPrefix = '/';
     //console.log('vars', process.env);
     console.log('stage', stage);
-    //if (stage === 'dev' || stage === undefined) {
+    if (stage === 'dev' /*|| stage === undefined*/) {
         domain = "rollthecloudinc.github.io";
         pathPrefix = "/hedge-objects/";
-    //}
+    }
     const options = { host: domain, path: pathPrefix + path + '.json' };
     console.log('getObject', "options", options);
     return objectsCache.has(path) ? new Promise(res => res(objectsCache.get(path))) : new Promise(resolve => {

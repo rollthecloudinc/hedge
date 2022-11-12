@@ -57,6 +57,8 @@ type CalulcateCarbonOutput struct {
 }
 
 func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
+	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
 	data, _ := logsEvent.AWSLogs.Parse()
 	record := RenewableRecord{
 		Id:        utils.GenerateId(),
@@ -137,6 +139,10 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 		log.Print(string(b))
 	} else {
 		log.Print("json marshall failure")
+	}
+
+	if len(regions) == 1 {
+
 	}
 
 	sess := session.Must(session.NewSession())

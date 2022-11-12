@@ -462,7 +462,31 @@ functions:
       STAGE: ${opt:stage, 'dev'}
     events:
       - cloudwatchLog:
-          logGroup: '/aws/lambda/goclassifieds-api-dev-EntityApi'
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EntityApi"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-MediaApi"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Stream"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ChatApi"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ProxyApi"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-UserApi"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-GrantAccess"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ValidateEntity"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
           filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
   Authorize:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer

@@ -23,6 +23,13 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token1 := request.Headers["authorization"]
 
+	_, hedged := request.Headers["x-hedge-region"]
+	if hedged {
+		log.Print("REPORT RequestId: " + request.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + request.Path + " Resource: " + request.Resource + " X-HEDGE-REGIONS: " + request.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + request.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + request.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + request.Headers["x-hedge-service"])
+	} else {
+		log.Print("REPORT RequestId: " + request.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + request.Path + " Resource: " + request.Resource)
+	}
+
 	log.Printf("%v", request)
 	log.Printf("token is %s", token1)
 

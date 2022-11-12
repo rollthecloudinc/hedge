@@ -139,6 +139,10 @@ Future Features:
 
 Store Media and other files under 100MB in Github easily.
 
+### Octostore: Large Object API
+
+Store Media and other files over 100MB in Github easily.
+
 # Support
 
 Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity with the mission to exhile carbon from the web.

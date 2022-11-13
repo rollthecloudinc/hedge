@@ -1,5 +1,7 @@
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
+> HEDGING (Software Development): Limiting software exposure to carbon by using resources with cleanest energy,
+
 # Initiatives
 
 * Proxy: Rewriting the web for good.
@@ -15,8 +17,6 @@
 **Resolution:** 
 
 To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the [Green Software Foundation](https://greensoftware.foundation/) [carbon aware api](https://carbon-aware-api.azurewebsites.net/swagger/index.html) for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
-
-> HEDGING (Software Development): Limiting software exposure to carbon by chosing sources to run software on cleanest energy.
 
 Reverse proxy: 
 

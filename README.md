@@ -3,7 +3,7 @@
 # Initiatives
 
 * HEDGE: Rewriting the web for good.
-* Octostore: Repairing data storage for good.
+* Vigor: Restoring data storage health for good.
 
 ## HEDGE
 
@@ -74,9 +74,9 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## Octostore
+## Vigor (previously: Octostore)
 
-<img width="224" alt="Screen Shot 2022-11-07 at 7 42 26 PM" src="https://user-images.githubusercontent.com/73197190/200446064-8fb570e3-e0f2-4659-a19e-dda084c8a33e.png">
+![vigor_identity_small](https://user-images.githubusercontent.com/73197190/201541830-f4683225-8f71-4039-8732-5d2e666b0a08.png)
 
 * **Problem:** Traditional databases are resource intensive and wastful.
 * **Solution:** Store data without adding more resources.
@@ -87,7 +87,7 @@ Repair data storage providing repos with RESTful APIs to store everything in Git
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 
-### Octostore: JSON API (aka: Shapeshifter)
+### Vigor: JSON API (aka: Shapeshifter)
 
 Store JSON in Github easily.
 
@@ -135,11 +135,11 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-### Octostore: Media API
+### Vigor: Media API
 
 Store Media and other files under 100MB in Github easily.
 
-### Octostore: Large Object API
+### Vigor: Large Object API
 
 Store Media and other files over 100MB in Github easily.
 

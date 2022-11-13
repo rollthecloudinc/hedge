@@ -78,8 +78,8 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 ![vigor_identity_small](https://user-images.githubusercontent.com/73197190/201541830-f4683225-8f71-4039-8732-5d2e666b0a08.png)
 
-* **Problem:** Traditional data stores run on single servers or data centers unable to take full advantage of renewable energy around the world.
-* **Solution:** Build unrestricted data store that move between regions using clean energy. 
+* **Problem:** Traditional data storage has limited access to clean energy.
+* **Solution:** Provide data store that moves between regions using cleanest energy.
 
 **Resolution:**
 

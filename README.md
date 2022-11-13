@@ -2,12 +2,15 @@
 
 # Initiatives
 
-* HEDGE: Rewriting the web for good.
-* VIGOR: Restoring data storage health for good.
+* HEDGE: 
+  * Edge: Rewriting the web for good.
+  * Store: Restoring data storage health for good.
 
 ## HEDGE
 
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
+
+### Edge
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
 * **Solution:** Maximize amount of clean energy used to fulfill API requests
@@ -74,7 +77,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## VIGOR
+### Store
 
 ![vigor_identity_small](https://user-images.githubusercontent.com/73197190/201541830-f4683225-8f71-4039-8732-5d2e666b0a08.png)
 
@@ -87,7 +90,7 @@ Restore data storage to good health by providing RESTful APIs to store data that
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 
-### Vigor: JSON API (aka: Shapeshifter)
+### Store: JSON API (aka: Shapeshifter)
 
 Store JSON in Github easily.
 
@@ -135,11 +138,11 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-### Vigor: Media API
+### Store: Media API
 
 Store Media and other files under 100MB in Github easily.
 
-### Vigor: Large Object API
+### Store: Large Object API
 
 Store Media and other files over 100MB in Github easily.
 

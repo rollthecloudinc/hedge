@@ -3,7 +3,7 @@
 # Initiatives
 
 * Proxy: Rewriting the web for good.
-* Store: Restoring data storage health for good.
+* Store: Restoring data storage to good health.
 
 ## Proxy
 

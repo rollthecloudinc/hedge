@@ -3,7 +3,7 @@
 # Initiatives
 
 * HEDGE: Rewriting the web for good.
-* Vigor: Restoring data storage health for good.
+* VIGOR: Restoring data storage health for good.
 
 ## HEDGE
 
@@ -74,7 +74,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## Vigor (previously: Octostore)
+## VIGOR
 
 ![vigor_identity_small](https://user-images.githubusercontent.com/73197190/201541830-f4683225-8f71-4039-8732-5d2e666b0a08.png)
 

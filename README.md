@@ -83,7 +83,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Repair data storage providing repos with RESTful APIs to store everything in Github easily. Github becomes a master storage solution with automatic hsitorical retention and sustainaible content distribution via CDN like Github Pages. Also wraps transactions in electricity and carbon emissions tracking for a complete picture of emissions. Lastly distributed around the world at edge locations using HEDGE to bounce traffic to the data center with lowest carbon intensity grid. Ocotostore is one of the very first fully functional carbon aware APIs.
+Repair data storage providing repos with RESTful APIs to store everything in Github easily. Github becomes a master storage solution with automatic hsitorical retention and sustainaible content distribution via CDN like Github Pages. Also wraps transactions in electricity and carbon emissions tracking for a complete picture of emissions. Lastly distributed around the world at edge locations using HEDGE to bounce traffic to the data center with lowest carbon intensity grid. Vigor is one of the very first fully functional carbon aware APIs.
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 

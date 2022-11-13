@@ -77,7 +77,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 ## Store
 
 * **Problem:** Traditional data storage has limited access to clean energy.
-* **Solution:** Provide data store that moves between regions using cleanest energy.
+* **Solution:** Provide data store that moves around the world using the cleanest energy.
 
 **Resolution:**
 

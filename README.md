@@ -3,7 +3,9 @@
 # Initiatives
 
 * Proxy: Rewriting the web for good.
+  * Reverse procy bouncing traffic to data centers using cleanest energy.
 * Store: Reparing data storage for good.
+  * Data storage that moves around the world using the cleanest energy.
 
 ## Proxy
 

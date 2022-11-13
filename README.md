@@ -83,7 +83,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Restore data storage to good health by providing RESTful APIs to store data that move around world between cleanest energy grids. CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Also wraps transactions in electricity and carbon emissions tracking for a complete picture of emissions. Distributed around the world at edge locations using HEDGE to bounce traffic to the data center with lowest carbon intensity grid. Vigor is one of the very first fully functional carbon aware APIs, climate intelligent data stores.
+Restore data storage to good health by providing RESTful APIs to store data that move around world between cleanest energy grids. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions.
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 

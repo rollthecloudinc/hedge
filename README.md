@@ -87,7 +87,7 @@ Repair data storage for good providing REST APIs that move around world between 
 
 ### JSON API
 
-Store JSON in Github easily.
+Store JSON using the cleanest energy resources.
 
 | Method | HEDGE.earth |
 | ------------- | ------------- |

@@ -1,16 +1,11 @@
-![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
 # Initiatives
 
-* HEDGE: 
-  * Edge: Rewriting the web for good.
-  * Store: Restoring data storage health for good.
+* Proxy: Rewriting the web for good.
+* Store: Restoring data storage health for good.
 
-## HEDGE
-
-![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
-
-### Edge
+## Proxy
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
 * **Solution:** Maximize amount of clean energy used to fulfill API requests
@@ -77,7 +72,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-### Store
+## Store
 
 * **Problem:** Traditional data storage has limited access to clean energy.
 * **Solution:** Provide data store that moves between regions using cleanest energy.

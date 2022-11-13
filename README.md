@@ -135,11 +135,11 @@ Future Features:
 
 ### Smalls API
 
-Store Media and other files under 100MB in Github easily.
+Store Media and other files under 100MB using cleanest energy resources.
 
 ### Bigs API
 
-Store Media and other files over 100MB in Github easily.
+Store Media and other files over 100MB using cleanest energy resources.
 
 # Support
 

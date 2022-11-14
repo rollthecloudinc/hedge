@@ -1,6 +1,6 @@
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
-> HEDGING (Software Development): Limiting software exposure to carbon by using resources with cleanest energy,
+> HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
 # Initiatives
 

@@ -65,6 +65,15 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 
 	grant := len(results) != 0
 
+	if len(payload.AdditionalResources) != 0 {
+		for _, r := range payload.AdditionalResources {
+			if r.User == payload.User && r.Type == payload.Type && r.Resource == payload.Resource && r.Asset == payload.Asset && r.Operation == payload.Operation {
+				grant = true
+				break
+			}
+		}
+	}
+
 	return gov.GrantAccessResponse{
 		Grant: grant,
 	}, nil

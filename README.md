@@ -1,10 +1,13 @@
 ![](https://user-images.githubusercontent.com/73197190/196969015-5c967955-ea75-4a51-ae55-7dd47155d402.png)
 
-# APIs
+# Initiatives
 
-![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
+* HEDGE: Rewriting the web for good.
+* Octostore: Repairing data storage for good.
 
 ## HEDGE
+
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
 * **Problem:** API requests contribute to 83% of web carbon emissions
 * **Solution:** Maximize amount of clean energy used to fulfill API requests
@@ -12,6 +15,8 @@
 **Resolution:** 
 
 To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the [Green Software Foundation](https://greensoftware.foundation/) [carbon aware api](https://carbon-aware-api.azurewebsites.net/swagger/index.html) for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
+
+> HEDGING (Software Development): Limiting software exposure to carbon by chosing sources to run software on cleanest energy.
 
 Reverse proxy: 
 
@@ -69,20 +74,28 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Nginx and HaProxy extension
 * Other configuration as code platforms
 
-## Shapeshifter
+## Octostore
 
-* **Problem:** Traditional databases are clunky, complex and consume a large amount of resources and energy.
-* **Solution:** Create a lightweight low resource storage without sacrificing availability, latency, performance.
+<img width="224" alt="Screen Shot 2022-11-07 at 7 42 26 PM" src="https://user-images.githubusercontent.com/73197190/200446064-8fb570e3-e0f2-4659-a19e-dda084c8a33e.png">
+
+* **Problem:** Traditional databases are resource intensive and wastful.
+* **Solution:** Store data without adding more resources.
 
 **Resolution:**
 
-Supercharge Github repos with RESTful APIs to easily commit JSON.
+Repair data storage providing repos with RESTful APIs to store everything in Github easily. Github becomes a master storage solution with automatic hsitorical retention and sustainaible content distribution via CDN like Github Pages. Also wraps transactions in electricity and carbon emissions tracking for a complete picture of emissions. Lastly distributed around the world at edge locations using HEDGE to bounce traffic to the data center with lowest carbon intensity grid. Ocotostore is one of the very first fully functional carbon aware APIs.
+
+> Globally distributed data store with variable cpu operation within the cleanest data grids.
+
+### Octostore: JSON API (aka: Shapeshifter)
+
+Store JSON in Github easily.
 
 | Method | HEDGE.earth |
 | ------------- | ------------- |
-| GET  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
-| PUT  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
-| POST  | https://edge.hedge.earth/emissionless/owner/repo/shapeshifter/path/id  |
+| GET  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| PUT  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| POST  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
 
 > The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod repo](https://github.com/rollthecloudinc/hedge-objects-prod/tree/master/services). See our [emissionless.json](https://store.hedge.earth/services/emissionless.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service. Valid regions can be found in the [regions json file](https://store.hedge.earth/regions/regions.json).
 
@@ -122,6 +135,28 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-# Media
+### Octostore: Media API
 
-Supercharge Github repos with API to upload media files
+Store Media and other files under 100MB in Github easily.
+
+### Octostore: Large Object API
+
+Store Media and other files over 100MB in Github easily.
+
+# Support
+
+Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity with the mission to exhile carbon from the web.
+
+## Contact Us
+
+* [Email](mailto:hi@rollthecloud.com)
+
+## Follow Us
+
+* [Twitter](https://twitter.com/rollthecloud)
+* [Facebook](https://www.facebook.com/rollthecloud)
+
+## Contribute
+
+* [Github](github.com/rollthecloudinc)
+* [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)

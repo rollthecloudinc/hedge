@@ -262,11 +262,12 @@ type OwnerAuthorizationConfig struct {
 }
 
 type ResourceOrOwnerAuthorizationConfig struct {
-	UserId   string `json:"userId"`
-	Site     string `json:"site"`
-	Resource gov.ResourceTypes
-	Asset    string
-	Lambda   *lambda.Lambda `json:"-"`
+	UserId              string `json:"userId"`
+	Site                string `json:"site"`
+	Resource            gov.ResourceTypes
+	Asset               string
+	Lambda              *lambda.Lambda  `json:"-"`
+	AdditionalResources *[]gov.Resource `json:"additional_resources"`
 }
 
 type DefaultCreatorConfig struct {
@@ -905,11 +906,12 @@ func (a OwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, 
 func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
 
 	grantAccessRequest := gov.GrantAccessRequest{
-		User:      a.Config.UserId,
-		Type:      gov.User,
-		Resource:  a.Config.Resource,
-		Operation: gov.Write,
-		Asset:     a.Config.Asset,
+		User:                a.Config.UserId,
+		Type:                gov.User,
+		Resource:            a.Config.Resource,
+		Operation:           gov.Write,
+		Asset:               a.Config.Asset,
+		AdditionalResources: *a.Config.AdditionalResources,
 	}
 
 	payload, err := json.Marshal(grantAccessRequest)

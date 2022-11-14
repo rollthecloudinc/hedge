@@ -9,10 +9,10 @@ import (
 	"os"
 	"strings"
 	"text/template"
-	"time"
 
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/gov"
+	"goclassifieds/lib/repo"
 	"goclassifieds/lib/sign"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -21,7 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v46/github"
 	"github.com/mitchellh/mapstructure"
 	opensearch "github.com/opensearch-project/opensearch-go"
@@ -40,24 +39,25 @@ type TemplateLambdaFunc func(e string, userId string, data []map[string]interfac
 type TemplateUserIdFunc func(req *events.APIGatewayProxyRequest) string
 
 type ActionContext struct {
-	EsClient         *elasticsearch7.Client
-	OsClient         *opensearch.Client
-	GithubV4Client   *githubv4.Client
-	GithubRestClient *github.Client
-	Session          *session.Session
-	Lambda           *lambda2.Lambda
-	Cognito          *cognitoidentityprovider.CognitoIdentityProvider
-	TypeManager      entity.Manager
-	EntityManager    entity.Manager
-	EntityName       string
-	Template         *template.Template
-	TemplateName     string
-	Implementation   string
-	BucketName       string
-	Stage            string
-	Site             string
-	UserPoolId       string
-	GithubAppPem     []byte
+	EsClient            *elasticsearch7.Client
+	OsClient            *opensearch.Client
+	GithubV4Client      *githubv4.Client
+	GithubRestClient    *github.Client
+	Session             *session.Session
+	Lambda              *lambda2.Lambda
+	Cognito             *cognitoidentityprovider.CognitoIdentityProvider
+	TypeManager         entity.Manager
+	EntityManager       entity.Manager
+	EntityName          string
+	Template            *template.Template
+	TemplateName        string
+	Implementation      string
+	BucketName          string
+	Stage               string
+	Site                string
+	UserPoolId          string
+	GithubAppPem        []byte
+	AdditionalResources *[]gov.Resource
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -351,14 +351,16 @@ func InitializeHandler(c *ActionContext) Handler {
 				},
 			})
 		} else if singularName == "shapeshifter" {
+			// Github Installation will indirectly enforce access to repository.
 			// ac.EntityManager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
 			ac.EntityManager.AddAuthorizer("default", entity.ResourceOrOwnerAuthorizationAdaptor{
 				Config: entity.ResourceOrOwnerAuthorizationConfig{
-					UserId:   userId,
-					Site:     ac.Site,
-					Resource: gov.GithubRepo,
-					Asset:    req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
-					Lambda:   ac.Lambda,
+					UserId:              userId,
+					Site:                ac.Site,
+					Resource:            gov.GithubRepo,
+					Asset:               req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Lambda:              ac.Lambda,
+					AdditionalResources: ac.AdditionalResources,
 				},
 			})
 		} else {
@@ -539,6 +541,7 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 	var githubToken string
 	var githubRestClient *github.Client
 	var srcToken oauth2.TokenSource
+	additionalResources := make([]gov.Resource, 0)
 
 	if len(pathPieces) < 4 || pathPieces[3] != "shapeshifter" {
 		githubToken = os.Getenv("GITHUB_TOKEN")
@@ -546,78 +549,34 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 			&oauth2.Token{AccessToken: githubToken},
 		)
 	} else {
-		/*log.Print("shapeshifter detected")
-		username := GetUsername(req)
-		getUserInput := &cognitoidentityprovider.AdminGetUserInput{
-			Username:   aws.String(username),
-			UserPoolId: aws.String(ac.UserPoolId),
+		getTokenInput := &repo.GetInstallationTokenInput{
+			GithubAppPem: ac.GithubAppPem,
+			Owner:        req.PathParameters["owner"],
+			GithubAppId:  os.Getenv("GITHUB_APP_ID"),
 		}
-		user, err := ac.Cognito.AdminGetUser(getUserInput)
-		if err == nil {
-			for _, attr := range user.UserAttributes {
-				log.Print("attribute " + *attr.Name)
-				if *attr.Name == "custom:githubAccessToken" {
-					log.Print("custom:githubAccessToken detected")
-					githubToken = *attr.Value
-					log.Print("github token " + githubToken)
-					break
-				}
-			}
-		} else {
-			log.Print(err.Error())
-		}*/
-		log.Print("shapeshifter detected")
-		pk, err := jwt.ParseRSAPrivateKeyFromPEM(ac.GithubAppPem)
+		installationToken, err := repo.GetInstallationToken(getTokenInput)
 		if err != nil {
-			log.Print("Error parsing github app pem")
-		}
-		log.Print("Parsed github app pem")
-		token := jwt.New(jwt.SigningMethodRS256)
-		claims := token.Claims.(jwt.MapClaims)
-		claims["iat"] = time.Now().Add(-60 * time.Second).Unix()
-		claims["exp"] = time.Now().Add(10 * time.Minute).Unix()
-		claims["iss"] = os.Getenv("GITHUB_APP_ID")
-		tokenString, err := token.SignedString(pk)
-		if err != nil {
-			log.Print("Error signing token", err.Error())
-		}
-		log.Print("Token string " + tokenString)
-		listOpts := &github.ListOptions{
-			Page:    1,
-			PerPage: 100,
+			log.Print("Error generating installation token", err.Error())
 		}
 		srcToken := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: tokenString},
+			&oauth2.Token{AccessToken: *installationToken.Token},
 		)
+
+		username := GetUsername(req)
+		if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
+			log.Print("Granting explicit permission for " + username + " to " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"])
+			resource := gov.Resource{
+				User:      GetUserId(req),
+				Type:      gov.User,
+				Resource:  gov.GithubRepo,
+				Asset:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+				Operation: gov.Write,
+			}
+			additionalResources = append(additionalResources, resource)
+		}
+
 		httpClient := oauth2.NewClient(context.Background(), srcToken)
 		githubRestClient = github.NewClient(httpClient)
-		installations, _, err := githubRestClient.Apps.ListInstallations(context.Background(), listOpts)
-		if err != nil {
-			log.Print("Error listing installations", err.Error())
-		}
-		var targetInstallation *github.Installation
-		if err == nil {
-			log.Printf("Has instllations %d", len(installations))
-			for _, installation := range installations {
-				log.Print("installation account login ", installation.Account.Login)
-				if *installation.Account.Login == req.PathParameters["owner"] {
-					targetInstallation = installation
-				}
-			}
-		}
-		if targetInstallation != nil {
-			log.Printf("matched installation %d", targetInstallation.ID)
-			tokenOpts := &github.InstallationTokenOptions{}
-			installationToken, _, err := githubRestClient.Apps.CreateInstallationToken(context.Background(), *targetInstallation.ID, tokenOpts)
-			if err != nil {
-				log.Print("Error generating instllation token", err.Error())
-			}
-			srcToken := oauth2.StaticTokenSource(
-				&oauth2.Token{AccessToken: *installationToken.Token},
-			)
-			httpClient := oauth2.NewClient(context.Background(), srcToken)
-			githubRestClient = github.NewClient(httpClient)
-		}
 	}
 
 	httpClient := oauth2.NewClient(context.Background(), srcToken)
@@ -647,18 +606,19 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 	}
 
 	return &ActionContext{
-		EsClient:         ac.EsClient,
-		OsClient:         osClient,
-		GithubV4Client:   githubV4Client,
-		GithubRestClient: githubRestClient,
-		Session:          ac.Session,
-		Lambda:           ac.Lambda,
-		Template:         ac.Template,
-		Implementation:   "default",
-		BucketName:       ac.BucketName,
-		Stage:            ac.Stage,
-		Site:             req.PathParameters["site"],
-		UserPoolId:       ac.UserPoolId,
+		EsClient:            ac.EsClient,
+		OsClient:            osClient,
+		GithubV4Client:      githubV4Client,
+		GithubRestClient:    githubRestClient,
+		Session:             ac.Session,
+		Lambda:              ac.Lambda,
+		Template:            ac.Template,
+		Implementation:      "default",
+		BucketName:          ac.BucketName,
+		Stage:               ac.Stage,
+		Site:                req.PathParameters["site"],
+		UserPoolId:          ac.UserPoolId,
+		AdditionalResources: &additionalResources,
 	}
 }
 

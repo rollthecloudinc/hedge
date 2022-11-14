@@ -153,6 +153,8 @@ functions:
       USER_POOL_ID: ${self:custom.userPoolId}
       IDENTITY_POOL_ID: ${self:custom.identityPoolId}
       ISSUER: ${self:custom.issuer}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:

@@ -43,6 +43,15 @@ var OperationMap = map[string]ResourceOperations{
 type ResourceOperations int32
 
 type GrantAccessRequest struct {
+	User                string
+	Type                ResourceUserTypes
+	Resource            ResourceTypes
+	Asset               string
+	Operation           ResourceOperations
+	AdditionalResources []Resource
+}
+
+type Resource struct {
 	User      string
 	Type      ResourceUserTypes
 	Resource  ResourceTypes

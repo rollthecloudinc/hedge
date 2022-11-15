@@ -157,6 +157,6 @@ Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity with the missio
 
 ## Contribute
 
-* [Github](github.com/rollthecloudinc)
+* [Github](https://github.com/rollthecloudinc)
 * [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)
 * [Climate Warrior Apparel](https://www.bonfire.com/store/climatewarrior/)

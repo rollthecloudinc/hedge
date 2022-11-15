@@ -137,6 +137,7 @@ functions:
       DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       GITHUB_APP_ID: ${self:custom.githubAppId}
+      BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
     events:
     - schedule:

@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 
+	"goclassifieds/lib/utils"
+
 	"github.com/MicahParks/keyfunc"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -22,7 +24,7 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.QueryStringParameters["token"]
 
-	log.Print("top")
+	utils.LogUsageForWebsocketRequest(request)
 
 	// ctx := context.Background()
 	// Fetch all keys
@@ -82,5 +84,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

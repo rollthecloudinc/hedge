@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "jwt.go",
         "uuid.go",
+        "log.go",
     ],
     importpath = "goclassifieds/lib/utils",
     visibility = ["//visibility:public"],
@@ -12,5 +13,6 @@ go_library(
         "@com_github_dgrijalva_jwt_go//:jwt-go",
         "@com_github_gin_gonic_gin//:gin",
         "@com_github_google_uuid//:uuid",
+        "@com_github_aws_aws_lambda_go//events",
     ],
 )

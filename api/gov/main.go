@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"goclassifieds/lib/gov"
+	"goclassifieds/lib/utils"
 	"log"
 	"os"
 
@@ -61,6 +62,8 @@ func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 		ac := RequestActionContext(c)
 
+		utils.LogUsageForHttpRequest(req)
+
 		//ac.UserId = GetUserId(req)
 
 		if req.HTTPMethod == "GET" {
@@ -102,5 +105,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

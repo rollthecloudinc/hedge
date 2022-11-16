@@ -24,7 +24,30 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.QueryStringParameters["token"]
 
-	utils.LogUsageForWebsocketRequest(request)
+	usageLog := &utils.LogUsageLambdaInput{
+		// UserId: GetUserId(req),
+		//Username:     GetUsername(req),
+		UserId:       "null",
+		Username:     "null",
+		Resource:     request.RequestContext.RouteKey,
+		Path:         request.RequestContext.EventType,
+		RequestId:    request.RequestContext.RequestID,
+		Intensities:  "null",
+		Regions:      "null",
+		Region:       "null",
+		Service:      "null",
+		Repository:   "null",
+		Organization: "null",
+	}
+	_, hedged := request.Headers["x-hedge-region"]
+	if hedged {
+		usageLog.Intensities = request.Headers["x-hedge-intensities"]
+		usageLog.Regions = request.Headers["x-hedge-regions"]
+		usageLog.Region = request.Headers["x-hedge-region"]
+		usageLog.Service = request.Headers["x-hedge-service"]
+	}
+
+	utils.LogUsageForLambdaWithInput(usageLog)
 
 	// ctx := context.Background()
 	// Fetch all keys

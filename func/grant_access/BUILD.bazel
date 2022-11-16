@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//lib/gov",
         "//lib/entity",
+        "//lib/utils",
         "@com_github_gocql_gocql//:gocql",
         "@com_github_tangzero_inflector//:inflector",
         "@com_github_aws_aws_lambda_go//lambda",

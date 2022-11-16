@@ -42,9 +42,9 @@ provider:
         issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/${self:custom.userPoolId}
         audience:
           - ${self:custom.cognitoAppClientId}
-      #authorizer2:
-      #  type: request
-      #  functionName: Authorize2
+      authorizer2:
+        type: request
+        functionName: Authorize2
 package:
   individually: false
   patterns:
@@ -53,17 +53,14 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
+    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/readable_profiles/readable_profiles_/readable_profiles
+    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer2/authorizer2_/authorizer2
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
-    - bazel-bin/func/css_to_json/css_to_json.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
@@ -224,11 +221,11 @@ functions:
             name: cognito
             scopes:
               - profiles_api/profiles_api
-      #- httpApi:
-         #path: /panelpagelistitems/{proxy+}
-          #method: GET
-          #authorizer:
-            #name: authorizer2
+      - httpApi:
+          path: /panelpagelistitems/{proxy+}
+          method: GET
+          authorizer:
+            name: authorizer2
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: POST
@@ -257,9 +254,8 @@ functions:
       - httpApi:
           path: /{site}/panelpage/{id}
           method: GET
-          #authorizer:
-            #name: cognito
-            #name: authorizer2
+          authorizer:
+            name: authorizer2
   MediaApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
     role: EntityApiRole
@@ -386,39 +382,8 @@ functions:
       - httpApi:
           path: /grant/{type}/{user}/{resource}/{op}/{proxy+}
           method: GET
-  #IndexEntity:
-  #  handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/index_entity/index_entity_/index_entity
-  #  role: EntityApiRole
-  #  environment:
-  #    ELASTIC_URL: ${self:custom.elasticUrl}
- #     STAGE: ${opt:stage, 'dev'}
-#    BUCKET_NAME: ${self:custom.bucketName}
-#    events:
- #     - s3:
-  #        bucket: ${self:custom.bucketName}
- #         event: s3:ObjectCreated:*
-#          rules:
-#            - suffix: .json.gz
-#          existing: true
-#  ConvertMedia:
-#    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/convert_media/convert_media_/convert_media
-#    role: EntityApiRole
-#    environment:
-#      STAGE: ${opt:stage, 'dev'}
-#    events:
-#      - s3:
-#          bucket: ${self:custom.bucketName}
-#          event: s3:ObjectCreated:*
-#          rules:
-#            - suffix: .css
-#          existing: true
   ValidateEntity:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
-    role: EntityApiRole
-    environment:
-      STAGE: ${opt:stage, 'dev'}
-  ReadableProfiles:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/readable_profiles/readable_profiles_/readable_profiles
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
@@ -445,12 +410,6 @@ functions:
               - 'route.request.querystring.token'
       - websocket:
           route: $disconnect
-  CssToJson:
-    handler: bazel-bin/func/css_to_json/css_to_json.handler
-    role: EntityApiRole
-    runtime: nodejs14.x
-    environment:
-      STAGE: ${opt:stage, 'dev'}
   RenewableRecord:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
     role: EntityApiRole
@@ -461,42 +420,43 @@ functions:
       ISSUER: ${self:custom.issuer}
       DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
+      BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
     events:
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EntityApi"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-MediaApi"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Stream"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ChatApi"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ProxyApi"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-UserApi"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-GrantAccess"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ValidateEntity"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
-          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+          filter: 'REPORT'
   Authorize:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}
-  #Authorize2:
-    #handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
-    #environment:
-      #USER_POOL_ID: ${self:custom.userPoolId}
-      #STAGE: ${opt:stage, 'dev'}
+  Authorize2:
+    handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}

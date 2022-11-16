@@ -52,7 +52,30 @@ func GetRequest(domain string, req *events.APIGatewayProxyRequest) (string, erro
 
 func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
-	utils.LogUsageForHttpRequest(req)
+	usageLog := &utils.LogUsageLambdaInput{
+		// UserId: GetUserId(req),
+		//Username:     GetUsername(req),
+		UserId:       "null",
+		Username:     "null",
+		Resource:     req.Resource,
+		Path:         req.Path,
+		RequestId:    req.RequestContext.RequestID,
+		Intensities:  "null",
+		Regions:      "null",
+		Region:       "null",
+		Service:      "null",
+		Repository:   "null",
+		Organization: "null",
+	}
+	_, hedged := req.Headers["x-hedge-region"]
+	if hedged {
+		usageLog.Intensities = req.Headers["x-hedge-intensities"]
+		usageLog.Regions = req.Headers["x-hedge-regions"]
+		usageLog.Region = req.Headers["x-hedge-region"]
+		usageLog.Service = req.Headers["x-hedge-service"]
+	}
+
+	utils.LogUsageForLambdaWithInput(usageLog)
 
 	if strings.Index(req.Path, "cities") > -1 {
 		body, err := GetCities(req.PathParameters["country"], req.PathParameters["state"], req.PathParameters["city"])

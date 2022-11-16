@@ -218,10 +218,42 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
-		utils.LogUsageForHttpRequest(req)
+		usageLog := &utils.LogUsageLambdaInput{
+			// UserId: GetUserId(req),
+			//Username:     GetUsername(req),
+			UserId:       "null",
+			Username:     "null",
+			Resource:     req.Resource,
+			Path:         req.Path,
+			RequestId:    req.RequestContext.RequestID,
+			Intensities:  "null",
+			Regions:      "null",
+			Region:       "null",
+			Service:      "null",
+			Repository:   "null",
+			Organization: "null",
+		}
+		_, hedged := req.Headers["x-hedge-region"]
+		if hedged {
+			usageLog.Intensities = req.Headers["x-hedge-intensities"]
+			usageLog.Regions = req.Headers["x-hedge-regions"]
+			usageLog.Region = req.Headers["x-hedge-region"]
+			usageLog.Service = req.Headers["x-hedge-service"]
+		}
+		_, hasOwner := req.PathParameters["owner"]
+		if hasOwner {
+			usageLog.Organization = req.PathParameters["owner"]
+		}
+		_, hasRepo := req.PathParameters["repo"]
+		if hasRepo {
+			usageLog.Repository = req.PathParameters["repo"]
+		}
+
+		utils.LogUsageForLambdaWithInput(usageLog)
 
 		ac := RequestActionContext(c)
 		ac.EntityManager = NewManager(ac)
+		// ac.EntityManager.Config.LogUsageForLambdaWithInput = usageLog
 
 		if req.HTTPMethod == "GET" && strings.Index(req.Path, "publicuserprofile") > -1 {
 			return GetEntity(req, ac)

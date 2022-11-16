@@ -1,8 +1,10 @@
-![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
-
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
+![17](https://user-images.githubusercontent.com/73197190/202189020-3672deb5-9847-4531-8070-d5aad289e9d8.png)
+
 # Initiatives
+
+![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
 * Proxy: Rewriting the web for good.
   * Reverse proxy bouncing traffic to data centers using cleanest energy.

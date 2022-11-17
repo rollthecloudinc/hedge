@@ -63,18 +63,20 @@ type EntityCollectionHook func(entities []map[string]interface{}, m *EntityManag
 type CognitoTransformation func(user *cognitoidentityprovider.UserType) (map[string]interface{}, error)
 
 type EntityConfig struct {
-	SingularName string
-	PluralName   string
-	IdKey        string
-	Stage        string
+	SingularName        string
+	PluralName          string
+	IdKey               string
+	Stage               string
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
 type ValidateEntityRequest struct {
-	EntityName string
-	EntityType string
-	UserId     string
-	Site       string
-	Entity     map[string]interface{}
+	EntityName          string
+	EntityType          string
+	UserId              string
+	Site                string
+	Entity              map[string]interface{}
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
 type EntityDataRequest struct {
@@ -106,23 +108,24 @@ type EntityDataResponse struct {
 }
 
 type DefaultManagerConfig struct {
-	EsClient       *elasticsearch7.Client
-	OsClient       *opensearch.Client
-	GithubV4Client *githubv4.Client
-	Session        *session.Session
-	Lambda         *lambda.Lambda
-	Template       *template.Template
-	UserId         string
-	SingularName   string
-	PluralName     string
-	Index          string
-	BucketName     string
-	Stage          string
-	Site           string
-	BeforeSave     EntityHook
-	AfterSave      EntityHook
-	BeforeFind     EntityCollectionHook
-	AfterFind      EntityCollectionHook
+	EsClient            *elasticsearch7.Client
+	OsClient            *opensearch.Client
+	GithubV4Client      *githubv4.Client
+	Session             *session.Session
+	Lambda              *lambda.Lambda
+	Template            *template.Template
+	UserId              string
+	SingularName        string
+	PluralName          string
+	Index               string
+	BucketName          string
+	Stage               string
+	Site                string
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
+	BeforeSave          EntityHook
+	AfterSave           EntityHook
+	BeforeFind          EntityCollectionHook
+	AfterFind           EntityCollectionHook
 }
 
 type EntityAdaptorConfig struct {
@@ -912,6 +915,7 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 		Operation:           gov.Write,
 		Asset:               a.Config.Asset,
 		AdditionalResources: *a.Config.AdditionalResources,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
 	}
 
 	payload, err := json.Marshal(grantAccessRequest)
@@ -950,10 +954,11 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
 	request := ValidateEntityRequest{
-		EntityName: m.Config.SingularName,
-		Entity:     entity,
-		UserId:     c.Config.UserId,
-		Site:       c.Config.Site,
+		EntityName:          m.Config.SingularName,
+		Entity:              entity,
+		UserId:              c.Config.UserId,
+		Site:                c.Config.Site,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
 	}
 
 	write, _ := m.Allow("", "write", "default")
@@ -1035,9 +1040,10 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
 	request := ValidateEntityRequest{
-		EntityName: m.Config.SingularName,
-		Entity:     entity,
-		UserId:     c.Config.UserId,
+		EntityName:          m.Config.SingularName,
+		Entity:              entity,
+		UserId:              c.Config.UserId,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
 	}
 
 	write, _ := m.Allow(entity[m.Config.IdKey].(string), "write", "default")
@@ -1574,10 +1580,11 @@ func GetManager(entityName string, c map[string]interface{}, s *EntityAdaptorCon
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 	return EntityManager{
 		Config: EntityConfig{
-			SingularName: config.SingularName,
-			PluralName:   config.PluralName,
-			IdKey:        "id",
-			Stage:        config.Stage,
+			SingularName:        config.SingularName,
+			PluralName:          config.PluralName,
+			IdKey:               "id",
+			Stage:               config.Stage,
+			LogUsageLambdaInput: config.LogUsageLambdaInput,
 		},
 		Creator: DefaultCreatorAdaptor{
 			Config: DefaultCreatorConfig{
@@ -1637,10 +1644,11 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 	return EntityManager{
 		Config: EntityConfig{
-			SingularName: "type",
-			PluralName:   "types",
-			IdKey:        "id",
-			Stage:        config.Stage,
+			SingularName:        "type",
+			PluralName:          "types",
+			IdKey:               "id",
+			Stage:               config.Stage,
+			LogUsageLambdaInput: config.LogUsageLambdaInput,
 		},
 		Creator: EntityTypeCreatorAdaptor{
 			Config: DefaultCreatorConfig{

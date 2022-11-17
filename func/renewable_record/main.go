@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -20,29 +21,38 @@ import (
 )
 
 type RenewableRecord struct {
-	Id             string  `json:"id"`
-	RequestId      string  `json:"request_id"`
-	AwsRegion      string  `json:"aws_region"`
-	Region         string  `json:"region"`
-	Duration       uint16  `json:"duration"`
-	BilledDuration uint16  `json:"billed_duration"`
-	MemorySize     uint16  `json:"memory_size"`
-	MaxMemoryUsed  uint16  `json:"max_memory_used"`
-	InitDuration   uint16  `json:"init_duration"`
-	Intensity      uint16  `json:"intensity"`
-	Electricity    float64 `json:"electricity"`
-	Carbon         float64 `json:"carbon"`
-	Function       string  `json:"function"`
-	Path           string  `json:"path"`
-	Called         bool    `json:"called"`
-	Organization   string  `json:"organization"`
-	Repository     string  `json:"repository"`
-	Service        string  `json:"service"`
-	Resource       string  `json:"resource"`
+	Id             string    `json:"id"`
+	RequestId      string    `json:"request_id"`
+	AwsRegion      string    `json:"aws_region"`
+	Region         string    `json:"region"`
+	Duration       uint16    `json:"duration"`
+	BilledDuration uint16    `json:"billed_duration"`
+	MemorySize     uint16    `json:"memory_size"`
+	MaxMemoryUsed  uint16    `json:"max_memory_used"`
+	InitDuration   uint16    `json:"init_duration"`
+	Intensity      uint16    `json:"intensity"`
+	Electricity    float64   `json:"electricity"`
+	Carbon         float64   `json:"carbon"`
+	Function       string    `json:"function"`
+	Path           string    `json:"path"`
+	Called         bool      `json:"called"`
+	Organization   string    `json:"organization"`
+	Repository     string    `json:"repository"`
+	Service        string    `json:"service"`
+	Resource       string    `json:"resource"`
+	UserId         string    `json:"userId"`
+	Username       string    `json:"username"`
+	Hedged         bool      `json:"hedged"`
+	CreatedDate    time.Time `json:"created_date"`
 }
 
 type RenewableRecordEntityManagerInput struct {
 	OsClient *opensearch.Client
+}
+
+type RenewableReportEntityManagerInput struct {
+	Session    *session.Session
+	BucketName string
 }
 
 type CalulcateCarbonInput struct {
@@ -56,14 +66,29 @@ type CalulcateCarbonOutput struct {
 	Electricity float64 `json:"electricity"`
 }
 
+type Report struct {
+	Id          string             `json:"id"`
+	Intensities map[string]float64 `json:"intensities"`
+	UserId      string             `json:"userId"`
+	StartDate   time.Time          `json:"startDate"`
+	EndDate     time.Time          `json:"endDate"`
+	CreatedDate time.Time          `json:"createdDate"`
+}
+
+var AWS_REGIONS map[string]string
+
 func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
-	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+	AWS_REGIONS = make(map[string]string, 4)
+	AWS_REGIONS["us-east-1"] = "eastus"
 
 	data, _ := logsEvent.AWSLogs.Parse()
 	record := RenewableRecord{
-		Id:        utils.GenerateId(),
-		AwsRegion: os.Getenv("AWS_REGION"),
-		Called:    true,
+		Id:          utils.GenerateId(),
+		AwsRegion:   os.Getenv("AWS_REGION"),
+		Region:      "",
+		Called:      true,
+		CreatedDate: time.Now(),
 	}
 	regions := make([]string, 0)
 	intensities := make([]uint16, 0)
@@ -91,61 +116,83 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 					record.InitDuration = uint16(ival)
 				}
 				lastNumberIndex = index
-			} else if field == "RequestId:" && len(pieces) >= index {
+			} else if field == "RequestId:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.RequestId = pieces[index+1]
-			} else if field == "Duration:" && len(pieces) >= index {
-				if pieces[index-1] == "Billed" {
+			} else if field == "Duration:" && len(pieces) >= index && pieces[index+1] != "null" {
+				if pieces[index-1] == "Billed" && pieces[index+1] != "null" {
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.BilledDuration = uint16(math.Round(f))
-				} else if pieces[index-1] == "Init" {
+				} else if pieces[index-1] == "Init" && pieces[index+1] != "null" {
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.InitDuration = uint16(math.Round(f))
-				} else {
+				} else if pieces[index+1] != "null" {
 					f, _ := strconv.ParseFloat(pieces[index+1], 32)
 					record.Duration = uint16(math.Round(f))
 				}
-			} else if field == "Function:" && len(pieces) >= index {
+			} else if field == "Function:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Function = pieces[index+1]
-			} else if field == "Path:" && len(pieces) >= index {
+			} else if field == "Path:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Path = pieces[index+1]
-			} else if field == "Path:" && len(pieces) >= index {
+			} else if field == "Path:" && len(pieces) >= index && pieces[index+1] != "null" {
 				f, _ := strconv.ParseFloat(pieces[index+1], 32)
 				record.Intensity = uint16(math.Round(f))
-			} else if field == "X-HEDGE-REGIONS:" && len(pieces) >= index {
+			} else if field == "X-HEDGE-REGIONS:" && len(pieces) >= index && pieces[index+1] != "null" {
 				for _, region := range strings.Split(pieces[index+1], ",") {
 					regions = append(regions, region)
 				}
-			} else if field == "X-HEDGE-INTENSITIES:" && len(pieces) >= index {
+			} else if field == "X-HEDGE-INTENSITIES:" && len(pieces) >= index && pieces[index+1] != "null" {
 				for _, intensity := range strings.Split(pieces[index+1], ",") {
 					f, _ := strconv.ParseFloat(intensity, 32)
 					intensities = append(intensities, uint16(math.Round(f)))
 				}
-			} else if field == "X-HEDGE-REGION:" && len(pieces) >= index {
+			} else if field == "X-HEDGE-REGION:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Region = pieces[index+1]
-			} else if field == "Organization:" && len(pieces) >= index {
+				record.Hedged = true
+			} else if field == "Organization:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Organization = pieces[index+1]
-			} else if field == "Repository:" && len(pieces) >= index {
+			} else if field == "Repository:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Repository = pieces[index+1]
-			} else if field == "X-HEDGE-SERVICE:" && len(pieces) >= index {
+			} else if field == "X-HEDGE-SERVICE:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Service = pieces[index+1]
-			} else if field == "Resource:" && len(pieces) >= index {
+			} else if field == "Resource:" && len(pieces) >= index && pieces[index+1] != "null" {
 				record.Resource = pieces[index+1]
+			} else if field == "UserId:" && len(pieces) >= index && pieces[index+1] != "null" {
+				record.UserId = pieces[index+1]
+			} else if field == "Username:" && len(pieces) >= index && pieces[index+1] != "null" {
+				record.Username = pieces[index+1]
 			}
 		}
 	}
 
-	b, err := json.Marshal(record)
-	if err == nil {
-		log.Print(string(b))
-	} else {
-		log.Print("json marshall failure")
-	}
-
-	if len(regions) == 1 {
-
+	_, hasRegion := AWS_REGIONS[os.Getenv("AWS_REGION")]
+	if record.Region == "" && hasRegion {
+		record.Region = AWS_REGIONS[os.Getenv("AWS_REGION")]
 	}
 
 	sess := session.Must(session.NewSession())
+
+	log.Printf("Number of parsed regions %d", len(regions))
+	if len(regions) == 0 {
+		reportInput := &RenewableReportEntityManagerInput{
+			Session:    sess,
+			BucketName: os.Getenv("BUCKET_NAME"),
+		}
+		reportManager := RenewableReportEntityManager(reportInput)
+		reportJson := reportManager.Load("report", "default")
+		var report Report
+		reportByte, err := json.Marshal(reportJson)
+		if err != nil {
+			log.Print("ERROR: Marshalling report json")
+		}
+		err = json.Unmarshal(reportByte, &report)
+		if err != nil {
+			log.Print("ERROR: Unmarshalling report json")
+		}
+		for region, intensity := range report.Intensities {
+			intensities = append(intensities, uint16(math.Round(intensity)))
+			regions = append(regions, region)
+		}
+	}
 
 	userPasswordAwsSigner := sign.UserPasswordAwsSigner{
 		Service:            "es",
@@ -190,6 +237,14 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 
 	recordEntity, _ := RenewableRecordToEntity(&record)
 	recordManager.Save(recordEntity, "default")
+
+	b, err := json.Marshal(record)
+	if err == nil {
+		log.Print(string(b))
+	} else {
+		log.Print("json marshall failure")
+	}
+
 	for index, item := range regions {
 		if item != record.Region {
 			record2 := RenewableRecord{
@@ -210,6 +265,10 @@ func handler(ctx context.Context, logsEvent events.CloudwatchLogsEvent) {
 				Repository:     record.Repository,
 				Resource:       record.Resource,
 				Service:        record.Service,
+				Username:       record.Username,
+				UserId:         record.UserId,
+				Hedged:         record.Hedged,
+				CreatedDate:    record.CreatedDate,
 			}
 			ccInput := &CalulcateCarbonInput{
 				Intensity:  record2.Intensity,
@@ -253,7 +312,17 @@ func RenewableRecordEntityManager(input *RenewableRecordEntityManagerInput) *ent
 			Client: input.OsClient,
 		},
 	})
-	log.Print("create renewable record manager")
+	return &manager
+}
+
+func RenewableReportEntityManager(input *RenewableReportEntityManagerInput) *entity.EntityManager {
+	manager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+		SingularName: "renewable_report",
+		PluralName:   "renewable_reports",
+		Stage:        os.Getenv("STAGE"),
+		Session:      input.Session,
+		BucketName:   input.BucketName,
+	})
 	return &manager
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"goclassifieds/lib/gov"
 	"goclassifieds/lib/repo"
+	"goclassifieds/lib/utils"
 	"io"
 	"io/ioutil"
 	"log"
@@ -251,12 +252,37 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(ac ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		usageLog := &utils.LogUsageLambdaInput{
+			UserId: GetUserId(req),
+			//Username:     GetUsername(req),
+			Username:     "null",
+			Resource:     req.Resource,
+			Path:         req.Path,
+			RequestId:    req.RequestContext.RequestID,
+			Intensities:  "null",
+			Regions:      "null",
+			Region:       "null",
+			Service:      "null",
+			Repository:   "null",
+			Organization: "null",
+		}
 		_, hedged := req.Headers["x-hedge-region"]
 		if hedged {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
-		} else {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+			usageLog.Intensities = req.Headers["x-hedge-intensities"]
+			usageLog.Regions = req.Headers["x-hedge-regions"]
+			usageLog.Region = req.Headers["x-hedge-region"]
+			usageLog.Service = req.Headers["x-hedge-service"]
 		}
+		_, hasOwner := req.PathParameters["owner"]
+		if hasOwner {
+			usageLog.Organization = req.PathParameters["owner"]
+		}
+		_, hasRepo := req.PathParameters["repo"]
+		if hasRepo {
+			usageLog.Repository = req.PathParameters["repo"]
+		}
+
+		utils.LogUsageForLambdaWithInput(usageLog)
 
 		if req.HTTPMethod == "POST" {
 			return UploadMediaFile(req, &ac)
@@ -302,5 +328,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

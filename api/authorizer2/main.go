@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
+	"goclassifieds/lib/utils"
 	"log"
 	"os"
 
+	"github.com/MicahParks/keyfunc"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/lestrrat-go/jwx/jwk"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 var handler Handler
@@ -23,12 +23,7 @@ type ActionContext struct {
 func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token1 := request.Headers["authorization"]
 
-	_, hedged := request.Headers["x-hedge-region"]
-	if hedged {
-		log.Print("REPORT RequestId: " + request.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + request.Path + " Resource: " + request.Resource + " X-HEDGE-REGIONS: " + request.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + request.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + request.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + request.Headers["x-hedge-service"])
-	} else {
-		log.Print("REPORT RequestId: " + request.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + request.Path + " Resource: " + request.Resource)
-	}
+	utils.LogUsageForHttpRequest(request)
 
 	log.Printf("%v", request)
 	log.Printf("token is %s", token1)
@@ -54,32 +49,28 @@ func Authorizer(request *events.APIGatewayProxyRequest, ac *ActionContext) (even
 	token := token1[7:]
 	log.Printf("token after is %s", token)
 
-	// Fetch all keys
-	jwkSet, err := jwk.Fetch(context.Background(), "https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json")
+	jwks, err := keyfunc.Get("https://cognito-idp.us-east-1.amazonaws.com/"+ac.UserPoolId+"/.well-known/jwks.json", keyfunc.Options{})
 	if err != nil {
 		log.Fatalln("Unable to fetch keys")
 	}
 
+	log.Print("fectehd keys")
+
 	// Verify
-	t, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		key, _ := jwkSet.LookupKeyID(t.Header["kid"].(string))
-		var k interface{}
-		err = key.Raw(&k)
-		if err != nil {
-			return nil, err
-		}
-		return k, nil
-	})
+	t, err := jwt.Parse(token, jwks.Keyfunc)
 	if err != nil || !t.Valid {
 		log.Print(err)
 		log.Fatalln("Unauthorized")
 	}
 
-	claims := t.Claims.(jwt.MapClaims)
-	// claimsMap := make(map[string]interface{})
-	// claimsMap["claims"] = claims
+	log.Print("authorized")
 
-	log.Printf("users claims %v", claims)
+	claims := t.Claims.(jwt.MapClaims)
+
+	log.Print("got claims")
+
+	claims["cognito:groups"] = nil //claims["cognito:groups"]
+	claims["cognito:roles"] = nil  //claims["cognito:groups"]
 
 	return events.APIGatewayCustomAuthorizerResponse{
 		PrincipalID: "me",
@@ -113,5 +104,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

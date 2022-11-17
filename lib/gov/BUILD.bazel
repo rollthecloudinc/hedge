@@ -6,5 +6,6 @@ go_library(
     importpath = "goclassifieds/lib/gov",
     visibility = ["//visibility:public"],
     deps = [
+        "//lib/utils"
     ],
 )

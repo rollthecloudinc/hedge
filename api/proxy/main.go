@@ -1,6 +1,7 @@
 package main
 
 import (
+	"goclassifieds/lib/utils"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -51,12 +52,30 @@ func GetRequest(domain string, req *events.APIGatewayProxyRequest) (string, erro
 
 func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+	usageLog := &utils.LogUsageLambdaInput{
+		// UserId: GetUserId(req),
+		//Username:     GetUsername(req),
+		UserId:       "null",
+		Username:     "null",
+		Resource:     req.Resource,
+		Path:         req.Path,
+		RequestId:    req.RequestContext.RequestID,
+		Intensities:  "null",
+		Regions:      "null",
+		Region:       "null",
+		Service:      "null",
+		Repository:   "null",
+		Organization: "null",
+	}
 	_, hedged := req.Headers["x-hedge-region"]
 	if hedged {
-		log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
-	} else {
-		log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+		usageLog.Intensities = req.Headers["x-hedge-intensities"]
+		usageLog.Regions = req.Headers["x-hedge-regions"]
+		usageLog.Region = req.Headers["x-hedge-region"]
+		usageLog.Service = req.Headers["x-hedge-service"]
 	}
+
+	utils.LogUsageForLambdaWithInput(usageLog)
 
 	if strings.Index(req.Path, "cities") > -1 {
 		body, err := GetCities(req.PathParameters["country"], req.PathParameters["state"], req.PathParameters["city"])
@@ -81,6 +100,7 @@ func ProxyRequest(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 }
 
 func main() {
+	log.SetFlags(0)
 	aveDomain = os.Getenv("PROXY_AVE_DOMAIN")
 	aveApiKey = os.Getenv("PROXY_AVE_APIKEY")
 	carbonAwareDomain = os.Getenv("PROXY_CARBONAWARE_DOMAIN")

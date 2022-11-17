@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/utils"
 	"log"
 	"os"
 
@@ -51,17 +52,43 @@ func Disconnect(req *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) 
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		usageLog := &utils.LogUsageLambdaInput{
+			UserId: GetUserId(req),
+			//Username:     GetUsername(req),
+			Username:     "null",
+			Resource:     req.RequestContext.RouteKey,
+			Path:         req.RequestContext.EventType,
+			RequestId:    req.RequestContext.RequestID,
+			Intensities:  "null",
+			Regions:      "null",
+			Region:       "null",
+			Service:      "null",
+			Repository:   "null",
+			Organization: "null",
+		}
 		_, hedged := req.Headers["x-hedge-region"]
 		if hedged {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
-		} else {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+			usageLog.Intensities = req.Headers["x-hedge-intensities"]
+			usageLog.Regions = req.Headers["x-hedge-regions"]
+			usageLog.Region = req.Headers["x-hedge-region"]
+			usageLog.Service = req.Headers["x-hedge-service"]
 		}
+		/*_, hasOwner := req.PathParameters["owner"]
+		if hasOwner {
+			usageLog.Organization = req.PathParameters["owner"]
+		}
+		_, hasRepo := req.PathParameters["repo"]
+		if hasRepo {
+			usageLog.Repository = req.PathParameters["repo"]
+		}*/
+
+		utils.LogUsageForLambdaWithInput(usageLog)
 
 		ac := RequestActionContext(c)
 
 		ac.UserId = GetUserId(req)
 		ac.ConnManager = CreateConnectionManager(ac)
+		ac.ConnManager.Config.LogUsageLambdaInput = usageLog
 
 		b, _ := json.Marshal(req)
 		log.Print(string(b))
@@ -154,6 +181,7 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	log.Print("start xxx")
 	lambda.Start(handler)
 }

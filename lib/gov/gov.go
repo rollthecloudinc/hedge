@@ -1,5 +1,7 @@
 package gov
 
+import "goclassifieds/lib/utils"
+
 const (
 	User ResourceUserTypes = iota
 	Site
@@ -49,6 +51,7 @@ type GrantAccessRequest struct {
 	Asset               string
 	Operation           ResourceOperations
 	AdditionalResources []Resource
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
 type Resource struct {

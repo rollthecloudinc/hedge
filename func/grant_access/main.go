@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/gov"
+	"goclassifieds/lib/utils"
 	"log"
 	"os"
 	"text/template"
@@ -25,7 +26,7 @@ type ResourceManagerParams struct {
 
 func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAccessResponse, error) {
 
-	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
+	utils.LogUsageForLambdaWithInput(payload.LogUsageLambdaInput)
 
 	cluster := gocql.NewCluster("cassandra.us-east-1.amazonaws.com")
 	cluster.Keyspace = "ClassifiedsDev"
@@ -162,6 +163,7 @@ func Query() string {
 }
 
 func main() {
+	log.SetFlags(0)
 	// Make the handler available for Remote Procedure Call by AWS Lambda
 	lambda.Start(handler)
 }

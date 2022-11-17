@@ -40,6 +40,7 @@ package:
   patterns:
     - '!./**'
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/job/renewable_report/renewable_report_/renewable_report
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
     - bazel-bin/edge/renewable_redirect/renewable_redirect.js
     - job/renewable_report/regions.json
     - api/entity/rtc-vertigo-dev.private-key.pem
@@ -137,6 +138,7 @@ functions:
       DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       GITHUB_APP_ID: ${self:custom.githubAppId}
+      BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
     events:
     - schedule:
@@ -172,3 +174,22 @@ functions:
             - 'GET'
             - 'HEAD'
             - 'OPTIONS'
+  RenewableRecord:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
+    role: HedgeRole
+    environment:
+      COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
+      ELASTIC_URL: ${self:custom.elasticUrl}
+      IDENTITY_POOL_ID: ${self:custom.identityPoolId}
+      ISSUER: ${self:custom.issuer}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
+      BUCKET_NAME: ${self:custom.bucketName}
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/hedge-${opt:stage, 'dev'}-RenewableReport"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/${opt:region, 'us-east-1'}.hedge-${opt:stage, 'dev'}-RenewableRedirect"
+          filter: '[type=REPORT, request_id, duration, billed_duration, memory_size, max_memory_used]'

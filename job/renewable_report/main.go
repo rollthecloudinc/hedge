@@ -69,6 +69,8 @@ type EnergyGridCarbonIntensity struct {
 }
 
 type ReportEntityManagerInput struct {
+	Session    *session.Session
+	BucketName string
 }
 
 type EnergyGridCarbonIntensityEntityManagerInput struct {
@@ -76,7 +78,8 @@ type EnergyGridCarbonIntensityEntityManagerInput struct {
 }
 
 func handler(ctx context.Context, b json.RawMessage) {
-	log.Print("REPORT Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+	utils.LogUsageForLambda()
 
 	frequency := 5 * time.Minute
 	startDate := time.Now()
@@ -134,7 +137,10 @@ func handler(ctx context.Context, b json.RawMessage) {
 		log.Printf("Opensearch Error: %s", err.Error())
 	}
 
-	manageInput := &ReportEntityManagerInput{}
+	manageInput := &ReportEntityManagerInput{
+		Session:    sess,
+		BucketName: os.Getenv("BUCKET_NAME"),
+	}
 	manager := ReportEntityManager(manageInput)
 	entity, err := ReportToEntity(&report)
 
@@ -146,7 +152,8 @@ func handler(ctx context.Context, b json.RawMessage) {
 	if err != nil {
 		log.Print("Failure converting report to entity", err.Error())
 	} else {
-		manager.Save(entity, "default")
+		manager.Save(entity, "default") // s3
+		manager.Save(entity, "github")
 		for _, gridIntensity := range gridIntensities {
 			intensitEntity, _ := EnergyGridCarbonIntensityToEntity(gridIntensity)
 			gridManager.Save(intensitEntity, "default")
@@ -182,28 +189,30 @@ func ReportEntityManager(input *ReportEntityManagerInput) *entity.EntityManager 
 		PluralName:     "renewable_reports",
 		GithubV4Client: githubV4Client,
 		Stage:          os.Getenv("STAGE"),
+		Session:        input.Session,
+		BucketName:     input.BucketName,
 	})
 	suffix := ""
 	if os.Getenv("STAGE") == "prod" {
 		suffix = "-prod"
 	}
 	manager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
-	manager.AddLoader("default", entity.GithubFileLoaderAdaptor{
+	manager.AddLoader("github", entity.GithubFileLoaderAdaptor{
 		Config: entity.GithubFileUploadConfig{
 			Client:   githubV4Client,
 			Repo:     "rollthecloudinc/hedge-objects" + suffix,
 			Branch:   os.Getenv("GITHUB_BRANCH"),
 			Path:     "renewable-report",
-			UserName: "ng-druid",
+			UserName: os.Getenv("DEFAULT_SIGNING_USERNAME"),
 		},
 	})
-	manager.AddStorage("default", entity.GithubFileUploadAdaptor{
+	manager.AddStorage("github", entity.GithubFileUploadAdaptor{
 		Config: entity.GithubFileUploadConfig{
 			Client:   githubV4Client,
 			Repo:     "rollthecloudinc/hedge-objects" + suffix,
 			Branch:   os.Getenv("GITHUB_BRANCH"),
 			Path:     "renewable-report",
-			UserName: "ng-druid",
+			UserName: os.Getenv("DEFAULT_SIGNING_USERNAME"),
 		},
 	})
 	log.Print("create report manager")
@@ -305,6 +314,7 @@ func EnergyGridCarbonIntensityToEntity(gridIntensity *EnergyGridCarbonIntensity)
 }
 
 func main() {
+	log.SetFlags(0)
 	log.Print("renewable_report start")
 	lambda.Start(handler)
 }

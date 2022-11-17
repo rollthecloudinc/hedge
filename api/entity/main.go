@@ -14,6 +14,7 @@ import (
 	"goclassifieds/lib/gov"
 	"goclassifieds/lib/repo"
 	"goclassifieds/lib/sign"
+	"goclassifieds/lib/utils"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -192,12 +193,36 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		usageLog := &utils.LogUsageLambdaInput{
+			UserId:       GetUserId(req),
+			Username:     GetUsername(req),
+			Resource:     req.Resource,
+			Path:         req.Path,
+			RequestId:    req.RequestContext.RequestID,
+			Intensities:  "null",
+			Regions:      "null",
+			Region:       "null",
+			Service:      "null",
+			Repository:   "null",
+			Organization: "null",
+		}
 		_, hedged := req.Headers["x-hedge-region"]
 		if hedged {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource + " X-HEDGE-REGIONS: " + req.Headers["x-hedge-regions"] + " X-HEDGE-INTENSITIES: " + req.Headers["x-hedge-intensities"] + " X-HEDGE-REGION: " + req.Headers["x-hedge-region"] + " X-HEDGE-SERVICE: " + req.Headers["x-hedge-service"])
-		} else {
-			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Function: " + os.Getenv("AWS_LAMBDA_FUNCTION_NAME") + " Path: " + req.Path + " Resource: " + req.Resource)
+			usageLog.Intensities = req.Headers["x-hedge-intensities"]
+			usageLog.Regions = req.Headers["x-hedge-regions"]
+			usageLog.Region = req.Headers["x-hedge-region"]
+			usageLog.Service = req.Headers["x-hedge-service"]
 		}
+		_, hasOwner := req.PathParameters["owner"]
+		if hasOwner {
+			usageLog.Organization = req.PathParameters["owner"]
+		}
+		_, hasRepo := req.PathParameters["repo"]
+		if hasRepo {
+			usageLog.Repository = req.PathParameters["repo"]
+		}
+
+		utils.LogUsageForLambdaWithInput(usageLog)
 
 		ac := RequestActionContext(c, req)
 
@@ -262,19 +287,20 @@ func InitializeHandler(c *ActionContext) Handler {
 			ac.EntityManager = ac.TypeManager
 		} else {
 			ac.EntityManager = entity.NewDefaultManager(entity.DefaultManagerConfig{
-				SingularName:   singularName,
-				PluralName:     pluralName,
-				Index:          searchIndex,
-				EsClient:       ac.EsClient,
-				OsClient:       ac.OsClient,
-				GithubV4Client: ac.GithubV4Client,
-				Session:        ac.Session,
-				Lambda:         ac.Lambda,
-				Template:       ac.Template,
-				UserId:         userId,
-				BucketName:     ac.BucketName,
-				Stage:          ac.Stage,
-				Site:           ac.Site,
+				SingularName:        singularName,
+				PluralName:          pluralName,
+				Index:               searchIndex,
+				EsClient:            ac.EsClient,
+				OsClient:            ac.OsClient,
+				GithubV4Client:      ac.GithubV4Client,
+				Session:             ac.Session,
+				Lambda:              ac.Lambda,
+				Template:            ac.Template,
+				UserId:              userId,
+				BucketName:          ac.BucketName,
+				Stage:               ac.Stage,
+				Site:                ac.Site,
+				LogUsageLambdaInput: usageLog,
 			})
 			/*manager, err := entity.GetManager(
 				singularName,
@@ -463,18 +489,21 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 			query = pieces[1]
 		}
 
+		usageLog := &utils.LogUsageLambdaInput{}
+
 		entityManager := entity.NewDefaultManager(entity.DefaultManagerConfig{
-			SingularName: singularName,
-			PluralName:   pluralName,
-			Index:        "classified_" + pluralName,
-			EsClient:     ac.EsClient,
-			OsClient:     ac.OsClient,
-			Session:      ac.Session,
-			Lambda:       ac.Lambda,
-			Template:     ac.Template,
-			UserId:       "",
-			BucketName:   ac.BucketName,
-			Stage:        ac.Stage,
+			SingularName:        singularName,
+			PluralName:          pluralName,
+			Index:               "classified_" + pluralName,
+			EsClient:            ac.EsClient,
+			OsClient:            ac.OsClient,
+			Session:             ac.Session,
+			Lambda:              ac.Lambda,
+			Template:            ac.Template,
+			UserId:              "",
+			BucketName:          ac.BucketName,
+			Stage:               ac.Stage,
+			LogUsageLambdaInput: usageLog,
 		})
 
 		/*data := entity.EntityFinderDataBag{

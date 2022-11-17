@@ -8,6 +8,7 @@ exports.handler = async (event, _, callback) => {
     console.log('region', process.env.AWS_REGION);
     console.log('event', event);
     const request = event.Records[0].cf.request;
+    console.log("REPORT " + /*"RequestId: " + req.RequestContext.RequestID + "*/ "Function: " + process.env.AWS_LAMBDA_FUNCTION_NAME + " Path: " + request.uri)
     const pieces = request.uri.split('/')
     // console.log('pieces', pieces);
     const uri = "/" + pieces.slice(2).join('/')

@@ -39,7 +39,7 @@ type UserPasswordAwsSigner struct {
 
 func (s AwsSigner) SignRequest(req *http.Request) error {
 
-	svc := cognitoidentity.New(s.Session)
+	svc := cognitoidentity.New(s.Session, aws.NewConfig().WithRegion("us-east-1"))
 
 	idRes, err := svc.GetId(&cognitoidentity.GetIdInput{
 		IdentityPoolId: aws.String(s.IdentityPoolId),
@@ -99,7 +99,7 @@ func (s AwsSigner) SignRequest(req *http.Request) error {
 
 func (s UserPasswordAwsSigner) SignRequest(req *http.Request) error {
 
-	svc := cognitoidentity.New(s.Session)
+	svc := cognitoidentity.New(s.Session, aws.NewConfig().WithRegion("us-east-1"))
 
 	authParams := &cognitoidentityprovider.InitiateAuthInput{
 		AuthFlow: aws.String("USER_PASSWORD_AUTH"),
@@ -109,7 +109,7 @@ func (s UserPasswordAwsSigner) SignRequest(req *http.Request) error {
 		},
 		ClientId: aws.String(s.CognitoAppClientId), // this is the app client ID
 	}
-	cip := cognitoidentityprovider.New(s.Session)
+	cip := cognitoidentityprovider.New(s.Session, aws.NewConfig().WithRegion("us-east-1"))
 	authResp, err := cip.InitiateAuth(authParams)
 	if err != nil {
 		log.Print("InitiateAuth() error", err.Error())

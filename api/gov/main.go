@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"goclassifieds/lib/gov"
+	"goclassifieds/lib/utils"
 	"log"
 	"os"
 
@@ -59,6 +60,38 @@ func GetGrant(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.API
 
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
+		usageLog := &utils.LogUsageLambdaInput{
+			UserId:       req.PathParameters["user"],
+			Username:     "null",
+			Resource:     req.Resource,
+			Path:         req.Path,
+			RequestId:    req.RequestContext.RequestID,
+			Intensities:  "null",
+			Regions:      "null",
+			Region:       "null",
+			Service:      "null",
+			Repository:   "null",
+			Organization: "null",
+		}
+		_, hedged := req.Headers["x-hedge-region"]
+		if hedged {
+			usageLog.Intensities = req.Headers["x-hedge-intensities"]
+			usageLog.Regions = req.Headers["x-hedge-regions"]
+			usageLog.Region = req.Headers["x-hedge-region"]
+			usageLog.Service = req.Headers["x-hedge-service"]
+		}
+		_, hasOwner := req.PathParameters["owner"]
+		if hasOwner {
+			usageLog.Organization = req.PathParameters["owner"]
+		}
+		_, hasRepo := req.PathParameters["repo"]
+		if hasRepo {
+			usageLog.Repository = req.PathParameters["repo"]
+		}
+
+		utils.LogUsageForLambdaWithInput(usageLog)
+
 		ac := RequestActionContext(c)
 
 		//ac.UserId = GetUserId(req)
@@ -102,5 +135,6 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	lambda.Start(handler)
 }

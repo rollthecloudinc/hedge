@@ -10,6 +10,8 @@
   * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Store: Repairing data storage for good.
   * Data storage that moves around the world using the cleanest energy.
+* Record: Record and reduce for good. 
+  * Record accurate carbon emissions and provide actionable intelligance for reduction.
 
 ## Proxy
 

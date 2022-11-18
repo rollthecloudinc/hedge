@@ -273,6 +273,15 @@ type ResourceOrOwnerAuthorizationConfig struct {
 	AdditionalResources *[]gov.Resource `json:"additional_resources"`
 }
 
+type ResourceAuthorizationConfig struct {
+	UserId              string `json:"userId"`
+	Site                string `json:"site"`
+	Resource            gov.ResourceTypes
+	Asset               string
+	Lambda              *lambda.Lambda  `json:"-"`
+	AdditionalResources *[]gov.Resource `json:"additional_resources"`
+}
+
 type DefaultCreatorConfig struct {
 	Lambda *lambda.Lambda `json:"-"`
 	UserId string         `json:"userId"`
@@ -364,6 +373,10 @@ type OwnerAuthorizationAdaptor struct {
 
 type ResourceOrOwnerAuthorizationAdaptor struct {
 	Config ResourceOrOwnerAuthorizationConfig `json:"config"`
+}
+
+type ResourceAuthorizationAdaptor struct {
+	Config ResourceAuthorizationConfig `json:"config"`
 }
 
 type DefaultCreatorAdaptor struct {
@@ -880,7 +893,7 @@ func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interfac
 		UserName: s.Config.UserName,
 	}
 
-	repo.CommitRest(
+	repo.CommitRestOptimized(
 		s.Config.Client,
 		&params,
 	)
@@ -947,6 +960,41 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 		return (userId == a.Config.UserId), entity
 
 	}
+
+	return grantRes.Grant, nil
+}
+
+func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
+
+	grantAccessRequest := gov.GrantAccessRequest{
+		User:                a.Config.UserId,
+		Type:                gov.User,
+		Resource:            a.Config.Resource,
+		Operation:           gov.Write,
+		Asset:               a.Config.Asset,
+		AdditionalResources: *a.Config.AdditionalResources,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
+	}
+
+	payload, err := json.Marshal(grantAccessRequest)
+	if err != nil {
+		log.Printf("Error marshalling grant access request: %s", err.Error())
+		return false, nil
+	}
+
+	log.Print("before grant access invoke")
+
+	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking grant access: %s", err.Error())
+		return false, nil
+	}
+
+	var grantRes gov.GrantAccessResponse
+	json.Unmarshal(res.Payload, &grantRes)
+
+	b, _ := json.Marshal(grantRes)
+	log.Print(string(b))
 
 	return grantRes.Grant, nil
 }

@@ -1,12 +1,14 @@
+![17](https://user-images.githubusercontent.com/73197190/202189020-3672deb5-9847-4531-8070-d5aad289e9d8.png)
+
+# Initiatives
+
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
-# Initiatives
-
 * Proxy: Rewriting the web for good.
   * Reverse proxy bouncing traffic to data centers using cleanest energy.
-* Store: Reparing data storage for good.
+* Store: Repairing data storage for good.
   * Data storage that moves around the world using the cleanest energy.
 
 ## Proxy
@@ -157,6 +159,6 @@ Roll the Cloud INC. is a registered 501(c)3 nonprofit US charity with the missio
 
 ## Contribute
 
-* [Github](github.com/rollthecloudinc)
+* [Github](https://github.com/rollthecloudinc)
 * [Paypal Giving Fund](https://www.paypal.com/fundraiser/charity/4587641)
 * [Climate Warrior Apparel](https://www.bonfire.com/store/climatewarrior/)

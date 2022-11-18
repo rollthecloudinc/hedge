@@ -187,6 +187,58 @@ func CommitRest(c *github.Client, params *CommitParams) {
 	//log.Panic("made it")
 }
 
+func CommitRestOptimized(c *github.Client, params *CommitParams) {
+	userInfo := &GithubUserInfo{
+		Name:/*"Vertigo"*/ params.UserName,
+		Email: "vertigo@rollthecloud.com",
+	}
+	pieces := strings.Split(params.Repo, "/")
+	opts := &github.RepositoryContentGetOptions{
+		Ref: params.Branch,
+	}
+	file, _, res, err := c.Repositories.GetContents(context.Background(), pieces[0], pieces[1], params.Path, opts)
+	if err != nil && res.StatusCode != 404 {
+		log.Print("Github get content failure.")
+		log.Panic(err)
+	}
+
+	if res.StatusCode == 404 {
+		createOpts := &github.RepositoryContentFileOptions{
+			Branch:  github.String(params.Branch),
+			Content: *params.Data,
+			Message: github.String("Create file " + params.Path),
+			Author: &github.CommitAuthor{
+				Name:  github.String(userInfo.Name),
+				Email: github.String(userInfo.Email),
+			},
+		}
+		_, _, err := c.Repositories.CreateFile(context.Background(), pieces[0], pieces[1], params.Path, createOpts)
+		if err != nil {
+			log.Print("Github create failure.")
+			log.Panic(err)
+		}
+		log.Print("Created github file")
+	} else {
+		updateOpts := &github.RepositoryContentFileOptions{
+			Branch:  github.String(params.Branch),
+			Content: *params.Data,
+			Message: github.String("Update file " + params.Path),
+			Author: &github.CommitAuthor{
+				Name:  github.String(userInfo.Name),
+				Email: github.String(userInfo.Email),
+			},
+			SHA: file.SHA,
+		}
+		_, _, err := c.Repositories.UpdateFile(context.Background(), pieces[0], pieces[1], params.Path, updateOpts)
+		if err != nil {
+			log.Print("Github update failure.")
+			log.Panic(err)
+		}
+		log.Print("Updated github file")
+	}
+
+}
+
 func GetUserInfo(client *github.Client) (*GithubUserInfo, error) {
 	user, _, err := client.Users.Get(context.Background(), "")
 	if err != nil {

@@ -379,8 +379,8 @@ func InitializeHandler(c *ActionContext) Handler {
 		} else if singularName == "shapeshifter" {
 			// Github Installation will indirectly enforce access to repository.
 			// ac.EntityManager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
-			ac.EntityManager.AddAuthorizer("default", entity.ResourceOrOwnerAuthorizationAdaptor{
-				Config: entity.ResourceOrOwnerAuthorizationConfig{
+			ac.EntityManager.AddAuthorizer("default", entity.ResourceAuthorizationAdaptor{
+				Config: entity.ResourceAuthorizationConfig{
 					UserId:              userId,
 					Site:                ac.Site,
 					Resource:            gov.GithubRepo,

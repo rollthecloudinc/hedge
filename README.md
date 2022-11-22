@@ -89,6 +89,18 @@ Repair data storage for good providing REST APIs that move around world between 
 
 > Globally distributed data store with variable cpu operation within the cleanest data grids.
 
+Store is distributed accross several regions to take advantage of the lowest grid intensity between them at any given point in time for cloud cpu processing.
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Montreal | https://ca-central-1.octostore.earth | canadacentral |
+| Ashburn VA  | https://us-east-1.octostore.earth  | eastus |
+| San Fransisco  | https://us-west-1.octostore.earth | westus |
+| Dublin  | https://eu-west-1.octostore.earth | ukwest |
+| London  | https://eu-west-2.octostore.earth | uknorth |
+| Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
+| Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+
 ### JSON API
 
 Store JSON using the cleanest energy resources.

@@ -1,0 +1,11 @@
+{
+  "version": "2.0",
+  "customHandler": {
+    "description": {
+      "defaultExecutablePath": "bin/func/hello_azure_world/hello_azure_world_/hello_azure_world",
+      "workingDirectory": "bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248",
+      "arguments": [ "--port", "%FUNCTIONS_CUSTOMHANDLER_PORT%" ]
+    },
+    "enableForwardingHttpRequest": false
+  }
+}

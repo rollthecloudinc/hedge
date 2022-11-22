@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "hello_azure_world",
+    embed = [":hello_azure_world_lib"],
+    goarch = "amd64",
+    goos = "windows",
+    importpath = "goclassifieds/func/hello_azure_world",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "hello_azure_world_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/hello_azure_world",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/shapeshift",
+        "@com_github_gin_gonic_gin//:go_default_library"
+    ],
+)

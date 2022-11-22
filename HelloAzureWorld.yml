@@ -1,0 +1,26 @@
+service: goclassifieds-hellworld
+provider:
+  name: azure
+  # runtime: go1.x
+  memorySize: 256
+  timeout: 10
+plugins:
+  - serverless-azure-functions
+package:
+  individually: false
+  include:
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/hello_azure_world/hello_azure_world_/hello_azure_world
+  exclude:
+    - ./**
+    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/hello_azure_world/hello_azure_world_/**
+functions:
+  HelloWorld:
+    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/hello_azure_world/hello_azure_world_/hello_azure_world
+    # role: HelloWorldRole
+    events:
+      - http: true
+        name: req #<string>, default - "req", specifies which name is available on `context.bindings`
+        methods: #<array> [GET, POST, PUT, DELETE], default - all
+          - get
+        route: example/hello #<string>, default - <function name>
+        authLevel: anonymous 

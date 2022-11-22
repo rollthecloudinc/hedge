@@ -15,3 +15,4 @@ api/entity/rtc-vertigo-dev.private-key.pem
 api/entity/rtc-vertigo-prod.private-key.pem
 
 .npmrc
+azure_credentials.json

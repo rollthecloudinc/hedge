@@ -1,0 +1,6 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobs.HttpTrigger1.Disabled": "true"
+  }
+}

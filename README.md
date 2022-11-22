@@ -87,9 +87,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions.
 
-> Globally distributed data store with variable cpu operation within the cleanest data grids.
-
-Store is distributed accross several regions to take advantage of the lowest grid intensity between them at any given point in time for cloud cpu processing.
+The HEDGE store is globally distributed across several regions to take advantage of the lowest grid intensity between them at any given point in time for cloud cpu processing.
 
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |

@@ -156,7 +156,7 @@ Store Media and other files over 100MB using cleanest energy resources.
 ## Track
 
 * **Problem:** No real time monitoring for SCI that adjusts based on grid intensity of serverless AWS lambdas exists.
-* **Solution:** Build real time monitoring for SCI based by powerful search and intelligance engine.
+* **Solution:** Build real time monitoring for SCI backed by powerful search and intelligance engine.
 
 **Resolution:**
 

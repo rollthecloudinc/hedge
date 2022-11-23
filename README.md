@@ -85,7 +85,7 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
+Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |

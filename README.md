@@ -160,7 +160,7 @@ Store Media and other files over 100MB using cleanest energy resources.
 
 **Resolution:**
 
-Lambda created as AWS log subscriber that runs after each execution of lambdas within an account. The lambda collects key info and metrics of each lambda run including electricity usage and carbon production. Carbon production is calculated bsed on the Cloud Jewels algorithm but adjusted for real time grid intensity which the Lambda is being executed. This info is stored inside AWS open search where we can than search and perform analyst like machine learning and AI to understand, improve the systems efficiency with less carbon output.
+Lambda created as AWS log subscriber that runs after each execution of lambdas within an account. The lambda collects key info and metrics of each lambda run including electricity usage and carbon production. Carbon production is calculated based on the Cloud Jewels algorithm but adjusted for real time grid intensity which region the Lambda is being executed. The info is stored inside AWS Open Search where we than apply analysys using machine learning and AI to lower the overall carbon output.
 
 # Support
 

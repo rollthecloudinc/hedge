@@ -145,13 +145,22 @@ Future Features:
 
 > Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
 
-### Smalls API
+### File API
 
 Store Media and other files under 100MB using cleanest energy resources.
 
-### Bigs API
+### Big File API
 
 Store Media and other files over 100MB using cleanest energy resources.
+
+## Track
+
+* **Problem:** No real time monitoring for SCI that adjusts based on grid intensity of serverless AWS lambdas exists.
+* **Solution:** Build real time monitoring for SCI based by powerful search and intelligance engine.
+
+**Resolution:**
+
+@todo
 
 # Support
 

@@ -201,7 +201,6 @@ func CommitRestOptimized(c *github.Client, params *CommitParams) {
 		log.Print("Github get content failure.")
 		log.Panic(err)
 	}
-
 	if res.StatusCode == 404 {
 		createOpts := &github.RepositoryContentFileOptions{
 			Branch:  github.String(params.Branch),

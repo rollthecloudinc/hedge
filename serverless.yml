@@ -264,17 +264,30 @@ functions:
       STAGE: ${opt:stage, 'dev'}
       GITHUB_TOKEN: ${self:custom.githubToken}
       GITHUB_BRANCH: ${self:custom.githubBranch}
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
     events:
       - httpApi:
-          path: /{site}/media/{prefix}
-          method: GET
+          path: /{owner}/{repo}/media
+          method: POST
+          authorizer:
+            name: cognito
+            #scopes:
+              #- media_api/media_api
       - httpApi:
           path: /{site}/media
           method: POST
           authorizer:
             name: cognito
-            scopes:
-              - media_api/media_api
+            #scopes:
+              #- media_api/media_api
+      - httpApi:
+          path: /{owner}/{repo}/media/{prefix}
+          method: GET
+      - httpApi:
+          path: /{site}/media/{prefix}
+          method: GET
   UserApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
     role: EntityApiRole

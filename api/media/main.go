@@ -34,30 +34,43 @@ var handler Handler
 type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error)
 
 type ActionContext struct {
-	Session          *session.Session
-	BucketName       string
-	GithubV4Client   *githubv4.Client
-	GithubRestClient *github.Client
-	Lambda           *lambda2.Lambda
-	Stage            string
+	Session             *session.Session
+	BucketName          string
+	GithubV4Client      *githubv4.Client
+	GithubRestClient    *github.Client
+	Lambda              *lambda2.Lambda
+	Stage               string
+	Site                string
+	GithubAppPem        []byte
+	AdditionalResources *[]gov.Resource
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
 func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 
 	res := events.APIGatewayProxyResponse{StatusCode: 403}
+	var asset string
 
 	suffix := ""
 	if os.Getenv("GITHUB_BRANCH") == "master" {
 		suffix = "-prod"
 	}
 
-	asset := "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix
+	_, hasOwner := req.PathParameters["owner"]
+	_, hasRepo := req.PathParameters["repo"]
+	if hasOwner && hasRepo {
+		asset = req.PathParameters["owner"] + "/" + req.PathParameters["repo"]
+	} else {
+		asset = "rollthecloudinc/" + req.PathParameters["site"] + "-objects" + suffix
+	}
 	grantAccessRequest := gov.GrantAccessRequest{
-		User:      GetUserId(req),
-		Type:      gov.User,
-		Resource:  gov.GithubRepo,
-		Operation: gov.Write,
-		Asset:     asset,
+		User:                GetUserId(req),
+		Type:                gov.User,
+		Resource:            gov.GithubRepo,
+		Operation:           gov.Write,
+		Asset:               asset,
+		AdditionalResources: *ac.AdditionalResources,
+		LogUsageLambdaInput: ac.LogUsageLambdaInput,
 	}
 
 	payload, err := json.Marshal(grantAccessRequest)
@@ -102,8 +115,6 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		return res, err
 	}
 
-	// contentType := header.Header.Get("Content-Type")
-	//ext, _ := mime.ExtensionsByType(contentType)
 	id := header.Filename
 	ext := ""
 	contentType := ""
@@ -118,7 +129,6 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		ext = "md"
 	}
 
-	// Necessary to commit to github but not for s3
 	dataBuffer := bytes.NewBuffer(nil)
 	if _, err := io.Copy(dataBuffer, file); err != nil {
 		return res, err
@@ -126,29 +136,17 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 
 	d := []byte(dataBuffer.String())
 	params := repo.CommitParams{
-		Repo:   asset,
-		Branch: os.Getenv("GITHUB_BRANCH"),
-		Path:   "media/" + id + "." + ext,
-		Data:   &d,
+		Repo:     asset,
+		Branch:   os.Getenv("GITHUB_BRANCH"),
+		Path:     "media/" + id + "." + ext,
+		Data:     &d,
+		UserName: GetUsername(req),
 	}
 
-	repo.Commit(
-		ac.GithubV4Client,
+	repo.CommitRestOptimized(
+		ac.GithubRestClient,
 		&params,
 	)
-
-	/*userId := GetUserId(req)
-	uploader := s3manager.NewUploader(ac.Session)
-	_, err = uploader.Upload(&s3manager.UploadInput{
-		Bucket:      aws.String(ac.BucketName),
-		Key:         aws.String(data["path"]),
-		Body:        file,
-		ContentType: aws.String(data["contentType"]),
-		Metadata:    map[string]*string{"userId": &userId},
-	})
-	if err != nil {
-		return res, err
-	}*/
 
 	data := map[string]string{
 		"id":                 id,
@@ -172,25 +170,30 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 
+	_, hasOwner := req.PathParameters["owner"]
+	_, hasRepo := req.PathParameters["repo"]
+
 	pathPieces := strings.Split(req.Path, "/")
-	siteName := pathPieces[1]
-	file, _ := url.QueryUnescape(pathPieces[3]) // pathPieces[2]
 
-	log.Print("requested media site: " + siteName)
+	var file string
+	var owner string
+	var repo string
+
+	if hasOwner && hasRepo {
+		file, _ = url.QueryUnescape(pathPieces[4])
+		repo = req.PathParameters["repo"]
+		owner = req.PathParameters["owner"]
+	} else {
+		file, _ = url.QueryUnescape(pathPieces[3])
+		owner = "rollthecloudinc"
+		suffix := ""
+		if os.Getenv("GITHUB_BRANCH") == "master" {
+			suffix = "-prod"
+		}
+		repo = pathPieces[1] + "-objects" + suffix
+	}
+
 	log.Print("requested media file: " + file)
-
-	// buf := aws.NewWriteAtBuffer([]byte{})
-
-	// downloader := s3manager.NewDownloader(ac.Session)
-
-	/*_, err := downloader.Download(buf, &s3.GetObjectInput{
-		Bucket: aws.String(ac.BucketName),
-		Key:    aws.String("media/" + file),
-	})
-
-	if err != nil {
-		return res, err
-	}*/
 
 	ext := strings.Split(pathPieces[len(pathPieces)-1], ".")
 	contentType := mime.TypeByExtension(ext[len(ext)-1])
@@ -202,50 +205,23 @@ func GetMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		contentType = "image/svg+xml"
 	}
 
-	suffix := ""
-	if os.Getenv("GITHUB_BRANCH") == "master" {
-		suffix = "-prod"
-	}
+	path := "media/" + file
 
-	owner := "rollthecloudinc"
-	repo := siteName + "-objects" + suffix
-
-	var q struct {
-		Repository struct {
-			Object struct {
-				ObjectFragment struct {
-					Oid githubv4.GitObjectID
-				} `graphql:"... on Blob"`
-			} `graphql:"object(expression: $exp)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
+	opts := &github.RepositoryContentGetOptions{
+		Ref: os.Getenv("GITHUB_BRANCH"),
 	}
-	qVars := map[string]interface{}{
-		"exp":   githubv4.String(os.Getenv("GITHUB_BRANCH") + ":media/" + file),
-		"owner": githubv4.String(owner),
-		"name":  githubv4.String(repo),
+	content, _, resContent, err := ac.GithubRestClient.Repositories.GetContents(context.Background(), owner, repo, path, opts)
+	if err != nil && resContent.StatusCode != 404 {
+		log.Print("Github get content failure.")
+		res.StatusCode = 400
+	} else {
+		res.StatusCode = 200
+		res.Headers = map[string]string{
+			"Content-Type": contentType,
+		}
+		res.Body = *content.Content
+		res.IsBase64Encoded = true
 	}
-
-	err := ac.GithubV4Client.Query(context.Background(), &q, qVars)
-	if err != nil {
-		log.Print("Github latest file failure.")
-		log.Panic(err)
-	}
-
-	oid := q.Repository.Object.ObjectFragment.Oid
-	log.Print("Github file object id " + oid)
-
-	blob, _, err := ac.GithubRestClient.Git.GetBlob(context.Background(), owner, repo, string(oid))
-	if err != nil {
-		log.Print("Github get blob failure.")
-		log.Panic(err)
-	}
-
-	res.StatusCode = 200
-	res.Headers = map[string]string{
-		"Content-Type": contentType,
-	}
-	res.Body = blob.GetContent()
-	res.IsBase64Encoded = true
 	return res, nil
 }
 
@@ -253,9 +229,8 @@ func InitializeHandler(ac ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
 		usageLog := &utils.LogUsageLambdaInput{
-			UserId: GetUserId(req),
-			//Username:     GetUsername(req),
-			Username:     "null",
+			UserId:       GetUserId(req),
+			Username:     GetUsername(req),
 			Resource:     req.Resource,
 			Path:         req.Path,
 			RequestId:    req.RequestContext.RequestID,
@@ -282,29 +257,147 @@ func InitializeHandler(ac ActionContext) Handler {
 			usageLog.Repository = req.PathParameters["repo"]
 		}
 
+		ac.LogUsageLambdaInput = usageLog
 		utils.LogUsageForLambdaWithInput(usageLog)
 
+		ac := RequestActionContext(&ac, req)
+
+		log.Print("http method " + req.HTTPMethod)
+
 		if req.HTTPMethod == "POST" {
-			return UploadMediaFile(req, &ac)
+			log.Print("UploadMediaFile")
+			return UploadMediaFile(req, ac)
 		} else {
-			return GetMediaFile(req, &ac)
+			log.Print("GetMediaFile2")
+			return GetMediaFile(req, ac)
 		}
+	}
+}
+
+func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest) *ActionContext {
+
+	var githubToken string
+	var githubRestClient *github.Client
+	var srcToken oauth2.TokenSource
+	additionalResources := make([]gov.Resource, 0)
+
+	_, hasOwner := req.PathParameters["owner"]
+	_, hasRepo := req.PathParameters["repo"]
+	if !hasOwner || !hasRepo || req.HTTPMethod == "GET" {
+		githubToken = os.Getenv("GITHUB_TOKEN")
+		srcToken = oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: githubToken},
+		)
+		httpClient := oauth2.NewClient(context.Background(), srcToken)
+		githubRestClient = github.NewClient(httpClient)
+	} else {
+		getTokenInput := &repo.GetInstallationTokenInput{
+			GithubAppPem: ac.GithubAppPem,
+			Owner:        req.PathParameters["owner"],
+			GithubAppId:  os.Getenv("GITHUB_APP_ID"),
+		}
+		installationToken, err := repo.GetInstallationToken(getTokenInput)
+		if err != nil {
+			log.Print("Error generating installation token", err.Error())
+		}
+		srcToken := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: *installationToken.Token},
+		)
+
+		username := GetUsername(req)
+		if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
+			log.Print("Granting explicit permission for " + username + " to " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"])
+			resource := gov.Resource{
+				User:      GetUserId(req),
+				Type:      gov.User,
+				Resource:  gov.GithubRepo,
+				Asset:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+				Operation: gov.Write,
+			}
+			additionalResources = append(additionalResources, resource)
+		}
+
+		httpClient := oauth2.NewClient(context.Background(), srcToken)
+		githubRestClient = github.NewClient(httpClient)
+	}
+
+	httpClient := oauth2.NewClient(context.Background(), srcToken)
+	githubV4Client := githubv4.NewClient(httpClient)
+	//githubRestClient := github.NewClient(httpClient)
+
+	//token := req.Headers["authorization"][7:]
+	//log.Print("token: " + token)
+
+	/*awsSigner := sign.AwsSigner{
+		Service:        "es",
+		Region:         "us-east-1",
+		Session:        ac.Session,
+		IdentityPoolId: os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:         os.Getenv("ISSUER"),
+		Token:          token,
+	}*/
+
+	/*opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Signer:    awsSigner,
+	}*/
+
+	/*osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Error: %s", err.Error())
+	}*/
+
+	return &ActionContext{
+		//EsClient:            ac.EsClient,
+		//OsClient:            osClient,
+		GithubV4Client:   githubV4Client,
+		GithubRestClient: githubRestClient,
+		Session:          ac.Session,
+		Lambda:           ac.Lambda,
+		//Template:            ac.Template,
+		// Implementation:      "default",
+		BucketName:          ac.BucketName,
+		Stage:               ac.Stage,
+		Site:                req.PathParameters["site"],
+		LogUsageLambdaInput: ac.LogUsageLambdaInput,
+		AdditionalResources: &additionalResources,
 	}
 }
 
 func GetUserId(req *events.APIGatewayProxyRequest) string {
 	userId := ""
+	log.Printf("claims are %v", req.RequestContext.Authorizer["claims"])
 	if req.RequestContext.Authorizer["claims"] != nil {
 		userId = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})["sub"])
 		if userId == "<nil>" {
 			userId = ""
 		}
+	} else if req.RequestContext.Authorizer["sub"] != nil {
+		userId = req.RequestContext.Authorizer["sub"].(string)
 	}
 	return userId
 }
 
+func GetUsername(req *events.APIGatewayProxyRequest) string {
+	username := ""
+	field := "cognito:username"
+	/*if os.Getenv("STAGE") == "prod" {
+		field = "cognito:username"
+	}*/
+	log.Printf("claims are %v", req.RequestContext.Authorizer["claims"])
+	if req.RequestContext.Authorizer["claims"] != nil {
+		username = fmt.Sprint(req.RequestContext.Authorizer["claims"].(map[string]interface{})[field])
+		if username == "<nil>" {
+			username = ""
+		}
+	} else if req.RequestContext.Authorizer[field] != nil {
+		username = req.RequestContext.Authorizer[field].(string)
+	}
+	return username
+}
+
 func init() {
-	log.Printf("Gin cold start")
+	log.Printf("Gin cold start 123")
 	sess := session.Must(session.NewSession())
 	lClient := lambda2.New(sess)
 
@@ -316,6 +409,11 @@ func init() {
 	githubV4Client := githubv4.NewClient(httpClient)
 	githubRestClient := github.NewClient(httpClient)
 
+	pem, err := os.ReadFile("api/entity/rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
+	if err != nil {
+		log.Print("Error reading github app pem file", err.Error())
+	}
+
 	actionContext := ActionContext{
 		Session:          sess,
 		BucketName:       os.Getenv("BUCKET_NAME"),
@@ -323,6 +421,7 @@ func init() {
 		GithubRestClient: githubRestClient,
 		Stage:            os.Getenv("STAGE"),
 		Lambda:           lClient,
+		GithubAppPem:     pem,
 	}
 	handler = InitializeHandler(actionContext)
 }

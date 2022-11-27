@@ -738,7 +738,7 @@ func init() {
 		GithubAppPem: pem,
 	}
 
-	log.Printf("entity bucket storage: %s", actionContext.BucketName)
+	log.Printf("entity bucket storage s: %s", actionContext.BucketName)
 
 	funcMap := template.FuncMap{
 		"query":  TemplateQuery(&actionContext),

@@ -10,6 +10,8 @@
   * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Store: Repairing data storage for good.
   * Data storage that moves around the world using the cleanest energy.
+* Track: Record and reduce for good. 
+  * Record emissions providing actionable intelligance for reduction and offseting.
 
 ## Proxy
 
@@ -83,9 +85,17 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions.
+Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
-> Globally distributed data store with variable cpu operation within the cleanest data grids.
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Montreal | https://ca-central-1.octostore.earth | canadacentral |
+| Ashburn VA  | https://us-east-1.octostore.earth  | eastus |
+| San Fransisco  | https://us-west-1.octostore.earth | westus |
+| Dublin  | https://eu-west-1.octostore.earth | ukwest |
+| London  | https://eu-west-2.octostore.earth | uknorth |
+| Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
+| Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
 
 ### JSON API
 

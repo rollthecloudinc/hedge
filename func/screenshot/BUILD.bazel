@@ -1,0 +1,17 @@
+load("@npm//@bazel/esbuild:index.bzl", "esbuild")
+
+esbuild(
+    name = "screenshot",
+    entry_point = "index.js",
+    platform = "node",
+    target = "node12",
+    tool = select({
+        "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
+        "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",
+        "@bazel_tools//src/conditions:linux_x86_64": "@esbuild_linux//:bin/esbuild",
+    }),
+    deps = [
+      "@npm//chrome-remote-interface",
+      "@npm//@serverless-chrome/lambda"
+    ],
+)

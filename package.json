@@ -5,7 +5,12 @@
     "@bazel/esbuild": "^3.6.0",
     "@bazel/ibazel": "^0.15.10",
     "@bazel/typescript": "3.8.0",
+    "chrome-remote-interface": "^0.31.3",
     "cssjson": "^2.1.3",
-    "serverless-prune-plugin": "^2.0.1"
+    "serverless-plugin-chrome": "^1.0.0-55.3",
+    "serverless-prune-plugin": "^2.0.1",
+    "@serverless-chrome/lambda": "^1.0.0-57.2"
+  },
+  "dependencies": {
   }
 }

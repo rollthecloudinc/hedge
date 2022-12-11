@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "watttime_demo",
+    embed = [":watttime_demo_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/func/watttime_demo",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "watttime_demo_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/watttime_demo",
+    visibility = ["//visibility:private"],
+    deps = [
+      "//lib/watttime",
+      "@com_github_aws_aws_lambda_go//lambda",
+    ],
+)

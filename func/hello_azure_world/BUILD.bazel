@@ -16,6 +16,8 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//lib/shapeshift",
-        "@com_github_gin_gonic_gin//:go_default_library"
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_golang_jwt_jwt_v4//:go_default_library",
+        "@com_github_micahparks_keyfunc//:go_default_library"
     ],
 )

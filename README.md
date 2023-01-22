@@ -4,6 +4,8 @@
 
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
+HEDGE reimagines the way websites are built using the best sustainable technology solutions the industry has to offer.
+
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
 * Proxy: Rewriting the web for good.

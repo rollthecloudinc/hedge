@@ -103,7 +103,7 @@ AWS
 
 Azure
 
-The next deployment of HEDGE will cover Microsoft data center regions like Norway. Regions that aws data centers don't exist but have clean energy grids.
+The next deployment of HEDGE will cover Microsoft data center regions like Norway. Regions that aws data centers don't cover but have clean energy grids exist for azure.
 
 ### JSON API
 

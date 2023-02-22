@@ -103,7 +103,7 @@ AWS
 
 Azure
 
-The next deployment of HEDGE will cover Microsft data center regions like Norway.
+The next deployment of HEDGE will cover Microsoft data center regions like Norway.
 
 ### JSON API
 

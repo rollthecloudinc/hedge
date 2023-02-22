@@ -17,13 +17,6 @@ import (
 
 type TemplateBindValueFunc func(value interface{}) string
 
-type ResourceManagerParams struct {
-	Session *gocql.Session
-	Request *gov.GrantAccessRequest
-	// Resource  string
-	// Operation string
-}
-
 func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAccessResponse, error) {
 
 	utils.LogUsageForLambdaWithInput(payload.LogUsageLambdaInput)
@@ -40,7 +33,7 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 		log.Fatal(err)
 	}
 
-	resourceParams := &ResourceManagerParams{
+	resourceParams := &gov.ResourceManagerParams{
 		Session: cSession,
 		Request: payload,
 		// Resource:  fmt.Sprint(payload.Resource),
@@ -59,7 +52,7 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 			"op":       payload.Operation,
 		},
 	}
-	results := resourceManager.Find("default", "default", data)
+	results := resourceManager.Find("default", "grant_access", data)
 
 	/*b, _ := json.Marshal(results)
 	log.Print(string(b))*/
@@ -81,13 +74,13 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 
 }
 
-func ResourceManager(params *ResourceManagerParams) (entity.EntityManager, error) {
+func ResourceManager(params *gov.ResourceManagerParams) (entity.Manager, error) {
 	entityName := "resource"
 	bindings := &entity.VariableBindings{Values: make([]interface{}, 0)}
 	funcMap := template.FuncMap{
 		"bindValue": TemplateBindValue(bindings),
 	}
-	t, err := template.New("").Funcs(funcMap).Parse(Query())
+	t, err := template.New("").Funcs(funcMap).Parse(gov.Query())
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 		return entity.EntityManager{}, err
@@ -113,22 +106,7 @@ func ResourceManager(params *ResourceManagerParams) (entity.EntityManager, error
 			},
 		},
 		Hooks:           map[entity.Hooks]entity.EntityHook{},
-		CollectionHooks: map[string]entity.EntityCollectionHook{
-			/*"default/default": entity.PipeCollectionHooks(
-			entity.FilterEntities(func(ent map[string]interface{}) bool {
-				resource := fmt.Sprint(ent["resource"])
-				op := fmt.Sprint(ent["op"])*/
-			/*b, _ := json.Marshal(ent)
-			log.Print(string(b))
-			b2, _ := json.Marshal(params.Request)
-			log.Print(string(b2))
-			log.Print(resource == params.Resource)
-			log.Print(ent["asset"] == params.Request.Asset)
-			log.Print(op == params.Operation)*/
-			/*return resource == params.Resource && ent["asset"] == params.Request.Asset && op == params.Operation
-				}),
-			),*/
-		},
+		CollectionHooks: map[string]entity.EntityCollectionHook{},
 	}
 
 	return manager, nil
@@ -139,27 +117,6 @@ func TemplateBindValue(bindings *entity.VariableBindings) TemplateBindValueFunc 
 		bindings.Values = append(bindings.Values, value)
 		return "?"
 	}
-}
-
-func Query() string {
-	return `
-	{{ define "default" }}
-	SELECT
-       op
-	 FROM
-			 resources2
-	WHERE 
-			 user = {{ bindValue (index .Metadata "user" ) }}
-		 AND
-		   type = {{ bindValue (index .Metadata "type" ) }}
-		 AND
-		   resource = {{ bindValue (index .Metadata "resource" ) }}
-		 AND
-		   asset = {{ bindValue (index .Metadata "asset" ) }}
-		 AND
-		   op = {{ bindValue (index .Metadata "op" ) }}
-	{{end}}
-	`
 }
 
 func main() {

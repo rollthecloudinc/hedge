@@ -56,21 +56,24 @@ func EntityHandler(w http.ResponseWriter, r *http.Request) {
 
 	awsRequest, _ := AzureRequestToAws(&reqData)
 
-	token, _ := awsRequest.Headers["Authorization"]
+	token, _ := awsRequest.Headers["authorization"]
 	authInput := &AuthenticateInput{
 		Token: token,
 	}
 
-	_, err := Authenticate(authInput)
+	authRes, err := Authenticate(authInput)
 	if err != nil {
 
 		w.WriteHeader(http.StatusUnauthorized)
 
 	} else {
 
-		/*for k, v := range authRes.Claims {
-			log.Print("claim " + k + " = " + v.(string))
-		}*/
+		// awsRequest.RequestContext.Authorizer = authRes.Claims
+
+		for k, v := range authRes.Claims {
+			//log.Print("claim " + k + " = " + v.(string))
+			awsRequest.RequestContext.Authorizer[k] = v
+		}
 
 		outputs := make(map[string]interface{})
 		//outputs["message"] = reqData["Body"]
@@ -126,11 +129,15 @@ func AzureRequestToAws(req *AzureHttpTriggerRequest) (*events.APIGatewayProxyReq
 	params := make(map[string]string)
 	for header, values := range req.Headers {
 		v := ""
+		h := header
 		if values != nil && len(values) != 0 {
 			v = values[0]
 		}
-		headers[header] = v
-		multiHeaders[header] = values
+		if h == "Authorization" {
+			h = "authorization"
+		}
+		headers[h] = v
+		multiHeaders[h] = values
 	}
 	for param, value := range req.Params {
 		params[param] = value
@@ -142,6 +149,9 @@ func AzureRequestToAws(req *AzureHttpTriggerRequest) (*events.APIGatewayProxyReq
 		Headers:           headers,
 		MultiValueHeaders: multiHeaders,
 		PathParameters:    params,
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: make(map[string]interface{}),
+		},
 	}
 	return awsRequest, nil
 }

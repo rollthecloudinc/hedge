@@ -3,6 +3,7 @@ package shapeshift
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	"github.com/gocql/gocql"
 	"github.com/google/go-github/v46/github"
 	"github.com/mitchellh/mapstructure"
 	opensearch "github.com/opensearch-project/opensearch-go"
@@ -34,10 +36,12 @@ type Handler func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 type TemplateQueryFunc func(e string, data *entity.EntityFinderDataBag) []map[string]interface{}
 type TemplateLambdaFunc func(e string, userId string, data []map[string]interface{}) entity.EntityDataResponse
 type TemplateUserIdFunc func(req *events.APIGatewayProxyRequest) string
+type TemplateBindValueFunc func(value interface{}) string
 
 type ActionContext struct {
 	EsClient            *elasticsearch7.Client
 	OsClient            *opensearch.Client
+	CassSession         *gocql.Session
 	GithubV4Client      *githubv4.Client
 	GithubRestClient    *github.Client
 	Session             *session.Session
@@ -45,6 +49,7 @@ type ActionContext struct {
 	Cognito             *cognitoidentityprovider.CognitoIdentityProvider
 	TypeManager         entity.Manager
 	EntityManager       entity.Manager
+	GrantAccessManager  entity.Manager
 	EntityName          string
 	Template            *template.Template
 	TemplateName        string
@@ -55,6 +60,8 @@ type ActionContext struct {
 	UserPoolId          string
 	GithubAppPem        []byte
 	AdditionalResources *[]gov.Resource
+	CloudName           string
+	Bindings            *entity.VariableBindings
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -258,18 +265,20 @@ func InitializeHandler(c *ActionContext) Handler {
 		log.Printf("entity singular name: %s", singularName)
 
 		ac.TypeManager = entity.NewEntityTypeManager(entity.DefaultManagerConfig{
-			SingularName:   "type",
-			PluralName:     "types",
-			Index:          "classified_types",
-			EsClient:       ac.EsClient,
-			OsClient:       ac.OsClient,
-			GithubV4Client: ac.GithubV4Client,
-			Session:        ac.Session,
-			Lambda:         ac.Lambda,
-			Template:       ac.Template,
-			UserId:         userId,
-			BucketName:     ac.BucketName,
-			Stage:          ac.Stage,
+			SingularName:        "type",
+			PluralName:          "types",
+			Index:               "classified_types",
+			EsClient:            ac.EsClient,
+			OsClient:            ac.OsClient,
+			GithubV4Client:      ac.GithubV4Client,
+			Session:             ac.Session,
+			Lambda:              ac.Lambda,
+			Template:            ac.Template,
+			UserId:              userId,
+			BucketName:          ac.BucketName,
+			Stage:               ac.Stage,
+			CloudName:           ac.CloudName,
+			LogUsageLambdaInput: usageLog,
 		})
 
 		searchIndex := "classified_" + pluralName
@@ -296,6 +305,7 @@ func InitializeHandler(c *ActionContext) Handler {
 				BucketName:          ac.BucketName,
 				Stage:               ac.Stage,
 				Site:                ac.Site,
+				CloudName:           ac.CloudName,
 				LogUsageLambdaInput: usageLog,
 			})
 			/*manager, err := entity.GetManager(
@@ -375,16 +385,31 @@ func InitializeHandler(c *ActionContext) Handler {
 		} else if singularName == "shapeshifter" {
 			// Github Installation will indirectly enforce access to repository.
 			// ac.EntityManager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
-			ac.EntityManager.AddAuthorizer("default", entity.ResourceAuthorizationAdaptor{
-				Config: entity.ResourceAuthorizationConfig{
-					UserId:              userId,
-					Site:                ac.Site,
-					Resource:            gov.GithubRepo,
-					Asset:               req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
-					Lambda:              ac.Lambda,
-					AdditionalResources: ac.AdditionalResources,
-				},
-			})
+			if ac.CloudName == "azure" {
+				ac.EntityManager.AddAuthorizer("default", entity.ResourceAuthorizationEmbeddedAdaptor{
+					Config: entity.ResourceAuthorizationEmbeddedConfig{
+						UserId:              userId,
+						Site:                ac.Site,
+						Resource:            gov.GithubRepo,
+						Asset:               req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+						Lambda:              ac.Lambda,
+						CassSession:         ac.CassSession,
+						GrantAccessManager:  ac.GrantAccessManager,
+						AdditionalResources: ac.AdditionalResources,
+					},
+				})
+			} else {
+				ac.EntityManager.AddAuthorizer("default", entity.ResourceAuthorizationAdaptor{
+					Config: entity.ResourceAuthorizationConfig{
+						UserId:              userId,
+						Site:                ac.Site,
+						Resource:            gov.GithubRepo,
+						Asset:               req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+						Lambda:              ac.Lambda,
+						AdditionalResources: ac.AdditionalResources,
+					},
+				})
+			}
 		} else {
 			ac.EntityManager.AddAuthorizer("default", entity.OwnerAuthorizationAdaptor{
 				Config: entity.OwnerAuthorizationConfig{
@@ -500,6 +525,7 @@ func TemplateQuery(ac *ActionContext) TemplateQueryFunc {
 			BucketName:          ac.BucketName,
 			Stage:               ac.Stage,
 			LogUsageLambdaInput: usageLog,
+			CloudName:           ac.CloudName,
 		})
 
 		/*data := entity.EntityFinderDataBag{
@@ -556,6 +582,13 @@ func TemplateLambda(ac *ActionContext) TemplateLambdaFunc {
 func TemplateUserId(ac *ActionContext) TemplateUserIdFunc {
 	return func(req *events.APIGatewayProxyRequest) string {
 		return GetUserId(req)
+	}
+}
+
+func TemplateBindValue(ac *ActionContext) TemplateBindValueFunc {
+	return func(value interface{}) string {
+		ac.Bindings.Values = append(ac.Bindings.Values, value)
+		return "?"
 	}
 }
 
@@ -630,9 +663,22 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 		log.Printf("Opensearch Error: %s", err.Error())
 	}
 
+	var grantAccessManager entity.Manager
+	if ac.CloudName == "azure" {
+		grantAccessResourceParams := &gov.ResourceManagerParams{
+			Session:  ac.CassSession,
+			Request:  &gov.GrantAccessRequest{},
+			Template: ac.Template,
+			// Resource:  fmt.Sprint(payload.Resource),
+			// Operation: fmt.Sprint(payload.Operation),
+		}
+		grantAccessManager, _ = GrantAccessManager(grantAccessResourceParams, ac.Bindings)
+	}
+
 	return &ActionContext{
 		EsClient:            ac.EsClient,
 		OsClient:            osClient,
+		CassSession:         ac.CassSession,
 		GithubV4Client:      githubV4Client,
 		GithubRestClient:    githubRestClient,
 		Session:             ac.Session,
@@ -644,6 +690,9 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 		Site:                req.PathParameters["site"],
 		UserPoolId:          ac.UserPoolId,
 		AdditionalResources: &additionalResources,
+		CloudName:           ac.CloudName,
+		GrantAccessManager:  grantAccessManager,
+		Bindings:            ac.Bindings,
 	}
 }
 
@@ -679,6 +728,35 @@ func GetUsername(req *events.APIGatewayProxyRequest) string {
 	return username
 }
 
+func GrantAccessManager(params *gov.ResourceManagerParams, bindings *entity.VariableBindings) (entity.Manager, error) {
+	entityName := "resource"
+	manager := entity.EntityManager{
+		Config: entity.EntityConfig{
+			SingularName: entityName,
+			PluralName:   inflector.Pluralize(entityName),
+			IdKey:        "id",
+			Stage:        os.Getenv("STAGE"),
+		},
+		Creator:  entity.DefaultCreatorAdaptor{},
+		Storages: map[string]entity.Storage{},
+		Finders: map[string]entity.Finder{
+			"default": entity.CqlTemplateFinder{
+				Config: entity.CqlTemplateFinderConfig{
+					Session:  params.Session,
+					Template: params.Template,
+					Table:    inflector.Pluralize(entityName) + "2",
+					Bindings: bindings,
+					Aliases:  map[string]string{},
+				},
+			},
+		},
+		Hooks:           map[entity.Hooks]entity.EntityHook{},
+		CollectionHooks: map[string]entity.EntityCollectionHook{},
+	}
+
+	return manager, nil
+}
+
 func ShapeshiftActionContext() *ActionContext {
 	log.Printf("Gin cold start")
 
@@ -694,6 +772,22 @@ func ShapeshiftActionContext() *ActionContext {
 	lClient := lambda2.New(sess)
 	cogClient := cognitoidentityprovider.New(sess)
 
+	var cassSession *gocql.Session
+	if os.Getenv("CLOUD_NAME") == "azure" {
+		cluster := gocql.NewCluster("cassandra.us-east-1.amazonaws.com")
+		cluster.Keyspace = "ClassifiedsDev"
+		cluster.Port = 9142
+		cluster.Consistency = gocql.LocalOne // gocql.LocalQuorum
+		cluster.Authenticator = &gocql.PasswordAuthenticator{Username: os.Getenv("KEYSPACE_USERNAME"), Password: os.Getenv("KEYSPACE_PASSWORD")}
+		cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "api/chat/AmazonRootCA1.pem", EnableHostVerification: true}
+		cluster.PoolConfig = gocql.PoolConfig{HostSelectionPolicy: /*gocql.TokenAwareHostPolicy(*/ gocql.DCAwareRoundRobinPolicy("us-east-1") /*)*/}
+		cassSession, err = cluster.CreateSession()
+		if err != nil {
+			log.Print("Error connecting to keyspaces cassandra cluster.")
+			log.Fatal(err)
+		}
+	}
+
 	pem, err := os.ReadFile("api/entity/rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
 	if err != nil {
 		log.Print("Error reading github app pem file", err.Error())
@@ -702,23 +796,33 @@ func ShapeshiftActionContext() *ActionContext {
 	actionContext := &ActionContext{
 		EsClient:     esClient,
 		Session:      sess,
+		CassSession:  cassSession,
 		Lambda:       lClient,
 		Cognito:      cogClient,
 		BucketName:   os.Getenv("BUCKET_NAME"),
 		Stage:        os.Getenv("STAGE"),
 		UserPoolId:   os.Getenv("USER_POOL_ID"),
 		GithubAppPem: pem,
+		CloudName:    os.Getenv("CLOUD_NAME"),
+		Bindings:     &entity.VariableBindings{Values: make([]interface{}, 0)},
 	}
 
 	log.Printf("entity bucket storage: %s", actionContext.BucketName)
 
 	funcMap := template.FuncMap{
-		"query":  TemplateQuery(actionContext),
-		"lambda": TemplateLambda(actionContext),
-		"userId": TemplateUserId(actionContext),
+		"query":     TemplateQuery(actionContext),
+		"lambda":    TemplateLambda(actionContext),
+		"userId":    TemplateUserId(actionContext),
+		"bindValue": TemplateBindValue(actionContext),
 	}
 
 	t, err := template.New("").Funcs(funcMap).ParseFiles("api/entity/types.json.tmpl", "api/entity/queries.json.tmpl")
+	if os.Getenv("CLOUD_NAME") == "azure" {
+		t, err = t.Parse(gov.Query())
+		if err != nil {
+			log.Print("Error parsing gov.Query() template.")
+		}
+	}
 
 	if err != nil {
 		log.Printf("Error: %s", err.Error())

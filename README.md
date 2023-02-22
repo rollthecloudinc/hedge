@@ -89,6 +89,8 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
+AWS
+
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |
 | Montreal | https://ca-central-1.octostore.earth | canadacentral |
@@ -98,6 +100,10 @@ Repair data storage for good providing REST APIs that move around world between 
 | London  | https://eu-west-2.octostore.earth | uknorth |
 | Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
 | Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+
+Azure
+
+The next deployment of HEDGE will cover Microsft data center regions like Norway.
 
 ### JSON API
 

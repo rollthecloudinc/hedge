@@ -1077,14 +1077,28 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
-	if err != nil {
-		log.Printf("error invoking entity validation: %s", err.Error())
-		return entity, errors.New("Error invoking validation")
-	}
-
 	var validateRes ValidateEntityResponse
-	json.Unmarshal(res.Payload, &validateRes)
+
+	if m.Config.CloudName == "azure" {
+
+		entity["userId"] = request.UserId
+
+		validateRes = ValidateEntityResponse{
+			Entity:       entity,
+			Valid:        true,
+			Unauthorized: false,
+		}
+
+	} else {
+
+		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
+		if err != nil {
+			log.Printf("error invoking entity validation: %s", err.Error())
+			return entity, errors.New("Error invoking validation")
+		}
+
+		json.Unmarshal(res.Payload, &validateRes)
+	}
 
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to create entity")
@@ -1162,14 +1176,28 @@ func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
-	if err != nil {
-		log.Printf("error invoking entity validation: %s", err.Error())
-		return entity, errors.New("Error invoking validation")
-	}
-
 	var validateRes ValidateEntityResponse
-	json.Unmarshal(res.Payload, &validateRes)
+
+	if m.Config.CloudName == "azure" {
+
+		entity["userId"] = request.UserId
+
+		validateRes = ValidateEntityResponse{
+			Entity:       entity,
+			Valid:        true,
+			Unauthorized: false,
+		}
+
+	} else {
+
+		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
+		if err != nil {
+			log.Printf("error invoking entity validation: %s", err.Error())
+			return entity, errors.New("Error invoking validation")
+		}
+
+		json.Unmarshal(res.Payload, &validateRes)
+	}
 
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to update entity")

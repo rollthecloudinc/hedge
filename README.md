@@ -4,6 +4,8 @@
 
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
+HEDGE reimagines the way websites are built using the best sustainable technology solutions the industry has to offer.
+
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
 * Proxy: Rewriting the web for good.
@@ -85,7 +87,9 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 **Resolution:**
 
-Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Energy optimized CDNs becomes the master storage solution with automatic hsitorical retention and sustainaible content distribution. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
+Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
+
+AWS
 
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |
@@ -96,6 +100,13 @@ Repair data storage for good providing REST APIs that move around world between 
 | London  | https://eu-west-2.octostore.earth | uknorth |
 | Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
 | Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+
+Azure
+
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
 
 ### JSON API
 
@@ -143,15 +154,22 @@ Future Features:
 * Webhooks
   * Developers will be able to alter incoming and outgoing data using their own custom webhooks. Including implementing their own validation strategy when JSON Schema doesn't fit the bill.
 
-> Shapeshifter original intent was efficient cost effective means of storing [NxRx Data](https://v8.ngrx.io/guide/data) Entities. The API is being used exclusively with [Quell](https://github.com/rollthecloudinc/quell) our nonprofits carbon free low code editor on Reactive Angular. Quell relies heavily on NxRx Data to streamline managing data between the server and browser. Quell entities are currently hard coded into emissionless. Shapshifters goal is to enable a free flow of JSON of all entity types without needing to redeploy, modify emissionless.
-
-### Smalls API
+### File API
 
 Store Media and other files under 100MB using cleanest energy resources.
 
-### Bigs API
+### Big File API
 
 Store Media and other files over 100MB using cleanest energy resources.
+
+## Track
+
+* **Problem:** No real time monitoring for SCI that adjusts based on grid intensity of serverless AWS lambdas exists.
+* **Solution:** Build real time monitoring for SCI backed by powerful search and intelligance engine.
+
+**Resolution:**
+
+Lambda created as AWS log subscriber that runs after each execution of lambdas within an account. The lambda collects key info and metrics of each lambda run including electricity usage and carbon production. Carbon production is calculated based on the Cloud Jewels algorithm but adjusted for real time grid intensity which region the Lambda is being executed. The info is stored inside AWS Open Search where we than apply analysys using machine learning and AI to lower the overall carbon output.
 
 # Support
 

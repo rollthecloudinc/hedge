@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "azure_hedge",
+    embed = [":azure_hedge_lib"],
+    goarch = "amd64",
+    goos = "windows",
+    importpath = "goclassifieds/func/azure_hedge",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "azure_hedge_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/func/azure_hedge",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/shapeshift",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_golang_jwt_jwt_v4//:go_default_library",
+        "@com_github_micahparks_keyfunc//:go_default_library"
+    ],
+)

@@ -4,6 +4,8 @@
 
 ![hedge_earth_identity_small](https://user-images.githubusercontent.com/73197190/199803427-1e5818d0-a925-462b-b8c1-27fb9588ba7b.png)
 
+HEDGE reimagines the way websites are built using the best sustainable technology solutions the industry has to offer.
+
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
 * Proxy: Rewriting the web for good.
@@ -87,6 +89,8 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 
 Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
+AWS
+
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |
 | Montreal | https://ca-central-1.octostore.earth | canadacentral |
@@ -96,6 +100,13 @@ Repair data storage for good providing REST APIs that move around world between 
 | London  | https://eu-west-2.octostore.earth | uknorth |
 | Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
 | Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+
+Azure
+
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
 
 ### JSON API
 

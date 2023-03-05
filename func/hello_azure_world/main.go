@@ -113,6 +113,9 @@ func EntityHandler(w http.ResponseWriter, r *http.Request) {
 			log.Print(err.Error())
 		} else {
 			log.Printf("AWS Response Status Code: %d", awsRes.StatusCode)
+			resData["body"] = awsRes.Body
+			outputs["res"] = resData
+			invokeResponse = InvokeResponse{outputs, nil, nil}
 		}
 
 		responseJson, _ := json.Marshal(invokeResponse)

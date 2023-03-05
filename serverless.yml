@@ -24,7 +24,7 @@ custom:
   awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
   defaultSigningUsername: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningUsername}
   defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
-  cloudName: ${file(./private.${opt:stage, 'aws'}.json):cloudName}
+  cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
   runtime: go1.x

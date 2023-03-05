@@ -67,6 +67,7 @@ type EntityConfig struct {
 	PluralName          string
 	IdKey               string
 	Stage               string
+	CloudName           string
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
@@ -121,6 +122,7 @@ type DefaultManagerConfig struct {
 	BucketName          string
 	Stage               string
 	Site                string
+	CloudName           string
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
 	BeforeSave          EntityHook
 	AfterSave           EntityHook
@@ -282,6 +284,17 @@ type ResourceAuthorizationConfig struct {
 	AdditionalResources *[]gov.Resource `json:"additional_resources"`
 }
 
+type ResourceAuthorizationEmbeddedConfig struct {
+	UserId              string `json:"userId"`
+	Site                string `json:"site"`
+	Resource            gov.ResourceTypes
+	Asset               string
+	Lambda              *lambda.Lambda `json:"-"`
+	CassSession         *gocql.Session
+	GrantAccessManager  Manager
+	AdditionalResources *[]gov.Resource `json:"additional_resources"`
+}
+
 type DefaultCreatorConfig struct {
 	Lambda *lambda.Lambda `json:"-"`
 	UserId string         `json:"userId"`
@@ -377,6 +390,10 @@ type ResourceOrOwnerAuthorizationAdaptor struct {
 
 type ResourceAuthorizationAdaptor struct {
 	Config ResourceAuthorizationConfig `json:"config"`
+}
+
+type ResourceAuthorizationEmbeddedAdaptor struct {
+	Config ResourceAuthorizationEmbeddedConfig `json:"config"`
 }
 
 type DefaultCreatorAdaptor struct {
@@ -1000,6 +1017,45 @@ func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (boo
 	return grantRes.Grant, nil
 }
 
+func (a ResourceAuthorizationEmbeddedAdaptor) CanWrite(id string, m *EntityManager) (bool, map[string]interface{}) {
+
+	grantAccessRequest := gov.GrantAccessRequest{
+		User:                a.Config.UserId,
+		Type:                gov.User,
+		Resource:            a.Config.Resource,
+		Operation:           gov.Write,
+		Asset:               a.Config.Asset,
+		AdditionalResources: *a.Config.AdditionalResources,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
+	}
+
+	allAttributes := make([]EntityAttribute, 0)
+	data := &EntityFinderDataBag{
+		Attributes: allAttributes,
+		Metadata: map[string]interface{}{
+			"user":     grantAccessRequest.User,
+			"type":     grantAccessRequest.Type,
+			"resource": grantAccessRequest.Resource,
+			"asset":    grantAccessRequest.Asset,
+			"op":       grantAccessRequest.Operation,
+		},
+	}
+	results := a.Config.GrantAccessManager.Find("default", "grant_access", data)
+
+	grant := len(results) != 0
+
+	if len(grantAccessRequest.AdditionalResources) != 0 {
+		for _, r := range grantAccessRequest.AdditionalResources {
+			if r.User == grantAccessRequest.User && r.Type == grantAccessRequest.Type && r.Resource == grantAccessRequest.Resource && r.Asset == grantAccessRequest.Asset && r.Operation == grantAccessRequest.Operation {
+				grant = true
+				break
+			}
+		}
+	}
+
+	return grant, nil
+}
+
 func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
 	request := ValidateEntityRequest{
@@ -1022,14 +1078,28 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
-	if err != nil {
-		log.Printf("error invoking entity validation: %s", err.Error())
-		return entity, errors.New("Error invoking validation")
-	}
-
 	var validateRes ValidateEntityResponse
-	json.Unmarshal(res.Payload, &validateRes)
+
+	if m.Config.CloudName == "azure" {
+
+		entity["userId"] = request.UserId
+
+		validateRes = ValidateEntityResponse{
+			Entity:       entity,
+			Valid:        true,
+			Unauthorized: false,
+		}
+
+	} else {
+
+		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
+		if err != nil {
+			log.Printf("error invoking entity validation: %s", err.Error())
+			return entity, errors.New("Error invoking validation")
+		}
+
+		json.Unmarshal(res.Payload, &validateRes)
+	}
 
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to create entity")
@@ -1107,14 +1177,28 @@ func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("Error marshalling entity validation request")
 	}
 
-	res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
-	if err != nil {
-		log.Printf("error invoking entity validation: %s", err.Error())
-		return entity, errors.New("Error invoking validation")
-	}
-
 	var validateRes ValidateEntityResponse
-	json.Unmarshal(res.Payload, &validateRes)
+
+	if m.Config.CloudName == "azure" {
+
+		entity["userId"] = request.UserId
+
+		validateRes = ValidateEntityResponse{
+			Entity:       entity,
+			Valid:        true,
+			Unauthorized: false,
+		}
+
+	} else {
+
+		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
+		if err != nil {
+			log.Printf("error invoking entity validation: %s", err.Error())
+			return entity, errors.New("Error invoking validation")
+		}
+
+		json.Unmarshal(res.Payload, &validateRes)
+	}
 
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to update entity")
@@ -1633,6 +1717,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			PluralName:          config.PluralName,
 			IdKey:               "id",
 			Stage:               config.Stage,
+			CloudName:           config.CloudName,
 			LogUsageLambdaInput: config.LogUsageLambdaInput,
 		},
 		Creator: DefaultCreatorAdaptor{
@@ -1697,6 +1782,7 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			PluralName:          "types",
 			IdKey:               "id",
 			Stage:               config.Stage,
+			CloudName:           config.CloudName,
 			LogUsageLambdaInput: config.LogUsageLambdaInput,
 		},
 		Creator: EntityTypeCreatorAdaptor{

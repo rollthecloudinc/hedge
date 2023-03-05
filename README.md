@@ -100,11 +100,13 @@ AWS
 | London  | https://eu-west-2.octostore.earth | uknorth |
 | Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
 | Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
-| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
 
 Azure
 
-The next deployment of HEDGE will cover Microsoft data center regions like Norway. Regions that aws data centers don't cover but clean energy grids exist for azure.
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
 
 ### JSON API
 

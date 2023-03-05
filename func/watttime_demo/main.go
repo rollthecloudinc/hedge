@@ -60,6 +60,7 @@ func handler(ctx context.Context, b json.RawMessage) {
 		} else {
 			intensity.Intensity = indexRes.Percent
 			log.Printf("Grid Intensity: %d", indexRes.Percent)
+			log.Printf("Grid MOER: %f", indexRes.Moer)
 		}
 	}
 }

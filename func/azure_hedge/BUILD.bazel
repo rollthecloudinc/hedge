@@ -1,18 +1,18 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
-    name = "hello_azure_world",
-    embed = [":hello_azure_world_lib"],
+    name = "azure_hedge",
+    embed = [":azure_hedge_lib"],
     goarch = "amd64",
     goos = "windows",
-    importpath = "goclassifieds/func/hello_azure_world",
+    importpath = "goclassifieds/func/azure_hedge",
     visibility = ["//visibility:public"],
 )
 
 go_library(
-    name = "hello_azure_world_lib",
+    name = "azure_hedge_lib",
     srcs = ["main.go"],
-    importpath = "goclassifieds/func/hello_azure_world",
+    importpath = "goclassifieds/func/azure_hedge",
     visibility = ["//visibility:private"],
     deps = [
         "//lib/shapeshift",

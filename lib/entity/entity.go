@@ -900,6 +900,7 @@ func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interfac
 	dataBuffer := bytes.Buffer{}
 	encoder := json.NewEncoder(&dataBuffer)
 	encoder.SetIndent("", "\t")
+	encoder.SetEscapeHTML(false)
 	encoder.Encode(entity)
 	data := []byte(dataBuffer.String())
 	params := repo.CommitParams{

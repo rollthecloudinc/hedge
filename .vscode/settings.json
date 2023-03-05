@@ -1,8 +1,4 @@
 {
     "editor.codeActionsOnSave": null,
-    "git.ignoreLimitWarning": true,
-    "azureFunctions.deploySubpath": ".",
-    "azureFunctions.projectLanguage": "Custom",
-    "azureFunctions.projectRuntime": "~4",
-    "debug.internalConsoleOptions": "neverOpen"
+    "git.ignoreLimitWarning": true
 }

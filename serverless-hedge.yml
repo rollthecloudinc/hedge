@@ -30,6 +30,8 @@ custom:
   awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
   defaultSigningUsername: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningUsername}
   defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
+  wattTimeUsername: ${file(./private.${opt:stage, 'dev'}.json):wattTimeUsername}
+  wattTimePassword: ${file(./private.${opt:stage, 'dev'}.json):wattTimePassword}
 provider:
   name: aws
   runtime: go1.x
@@ -139,6 +141,8 @@ functions:
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       GITHUB_APP_ID: ${self:custom.githubAppId}
       BUCKET_NAME: ${self:custom.bucketName}
+      WATTTIME_USERNAME: ${self:custom.wattTimeUsername}
+      WATTTIME_PASSWORD: ${self:custom.wattTimePassword}
       STAGE: ${opt:stage, 'dev'}
     events:
     - schedule:

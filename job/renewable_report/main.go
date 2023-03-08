@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/repo"
 	"goclassifieds/lib/sign"
 	"goclassifieds/lib/utils"
+	"goclassifieds/lib/watttime"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -263,11 +265,19 @@ func CalculateIntensities(input *CalculateIntensitiesInput) {
 		res, err := http.Get(uri)
 		if err != nil {
 			log.Print("Calculation of intensities failed for "+region.RegionName, err.Error())
+			wattIntensity, err := WattTimeFallbackIntensityCalculation(region.RegionName)
+			if err == nil {
+				locations[index] = Location{Location: "", Rating: wattIntensity}
+			}
 			continue
 		}
 		body, _ := ioutil.ReadAll(res.Body)
 		if err != nil {
 			log.Print("Error reading calculation response for "+region.RegionName, err.Error())
+			wattIntensity, err := WattTimeFallbackIntensityCalculation(region.RegionName)
+			if err == nil {
+				locations[index] = Location{Location: "", Rating: wattIntensity}
+			}
 			continue
 		}
 		log.Print(string(body))
@@ -275,10 +285,18 @@ func CalculateIntensities(input *CalculateIntensitiesInput) {
 		err = json.Unmarshal(body, &resLocations)
 		if err != nil {
 			log.Print("Error marshalling calculation response for "+region.RegionName, err.Error())
+			wattIntensity, err := WattTimeFallbackIntensityCalculation(region.RegionName)
+			if err == nil {
+				locations[index] = Location{Location: "", Rating: wattIntensity}
+			}
 			continue
 		}
 		if len(resLocations) == 0 {
 			log.Print("Response empty for "+region.RegionName, err.Error())
+			wattIntensity, err := WattTimeFallbackIntensityCalculation(region.RegionName)
+			if err == nil {
+				locations[index] = Location{Location: "", Rating: wattIntensity}
+			}
 			continue
 		}
 		locations[index] = resLocations[0]
@@ -311,6 +329,34 @@ func EnergyGridCarbonIntensityToEntity(gridIntensity *EnergyGridCarbonIntensity)
 	var entity map[string]interface{}
 	err = json.Unmarshal(jsonData, &entity)
 	return entity, nil
+}
+
+func WattTimeFallbackIntensityCalculation(name string) (float64, error) {
+	var ba = ""
+	if name == "norway" {
+		ba = "NO"
+	}
+	if ba == "" {
+		return 0, errors.New("unimplemented watttime name")
+	}
+	loginInput := &watttime.LoginInput{
+		Username: os.Getenv("WATTTIME_USERNAME"),
+		Password: os.Getenv("WATTTIME_PASSWORD"),
+	}
+	loginRes, err := watttime.Login(loginInput)
+	if err != nil {
+		return 0, err
+	}
+	indexInput := &watttime.IndexInput{
+		Token: loginRes.Token,
+		Ba:    ba,
+	}
+	indexRes, err := watttime.GetIndex(indexInput)
+	if err != nil {
+		return 0, err
+	} else {
+		return indexRes.Moer, nil
+	}
 }
 
 func main() {

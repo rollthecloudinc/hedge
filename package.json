@@ -6,6 +6,7 @@
     "@bazel/ibazel": "^0.15.10",
     "@bazel/typescript": "3.8.0",
     "cssjson": "^2.1.3",
+    "matcher": "^5.0.0",
     "serverless-prune-plugin": "^2.0.1"
   }
 }

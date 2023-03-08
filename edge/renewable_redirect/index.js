@@ -1,6 +1,7 @@
 'use strict';
 
 const https = require('https');
+const matcher = require('matcher');
 
 const objectsCache = new Map();
 
@@ -14,7 +15,7 @@ exports.handler = async (event, _, callback) => {
     const uri = "/" + pieces.slice(2).join('/')
     const report = await getObject({ path: 'renewable-report/report' });
     const service = await getObject({ path: 'services/' + pieces[1] });
-    const bestRegion = pickRegion({ service, report });
+    const bestRegion = pickRegion({ service, report, uri });
     const bestRegions = calculateBestRegions({ report });
     provideFeedback({ bestRegions, bestRegion, report });
     console.log('herexx');
@@ -41,8 +42,8 @@ exports.handler = async (event, _, callback) => {
     callback(null, request);
 };
 
-function pickRegion({ service, report }) {
-    const availableRegions = service.regions.map(r => r.region);
+function pickRegion({ service, report, uri }) {
+    const availableRegions = service.regions.filter(r => filterRegions({ region: r, uri })).map(r => r.region);
     const bestRegions = calculateBestRegions({ report });
     let bestAvailableRegion = pickBestAvailableRegion({ availableRegions, bestRegions });
     if (bestAvailableRegion === undefined) {
@@ -119,4 +120,8 @@ function provideFeedback({ bestRegions, bestRegion, report }) {
         cobnsole.log('Using region [' + bestRegion.region + '] no intensity grid data available.');
     }
     // @todo: default region difference. - carbon savings.
+}
+
+function filterRegions({ region, uri }) {
+    return typeof(region.paths) === 'undefined' || region.paths.length === 0 || region.paths.filter(path => matcher.isMatch(uri ,path)).length > 0
 }

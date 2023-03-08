@@ -11,5 +11,6 @@ esbuild(
         "@bazel_tools//src/conditions:linux_x86_64": "@esbuild_linux//:bin/esbuild",
     }),
     deps = [
+        "@npm//matcher",
     ],
 )

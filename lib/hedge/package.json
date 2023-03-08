@@ -1,9 +1,9 @@
 {
   "name": "@rollthecloudinc/hedge",
-  "version": "0.0.16",
+  "version": "0.0.23",
   "main": "hedge_lib.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rollthecloudinc/emissionless"
+    "url": "https://github.com/rollthecloudinc/hedge"
   }
 }

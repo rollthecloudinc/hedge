@@ -43,6 +43,15 @@ Azure
 | ------------- | ------------- | ----------- |
 | Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
 
+Cloudflare
+
+@todo
+
+Cosmonic
+
+@todo
+
+
 ### JSON API
 
 Store JSON using the cleanest energy resources.

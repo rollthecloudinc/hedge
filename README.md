@@ -8,77 +8,12 @@ HEDGE reimagines the way websites are built using the best sustainable technolog
 
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
-* Proxy: Rewriting the web for good.
-  * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Store: Repairing data storage for good.
   * Data storage that moves around the world using the cleanest energy.
+* Proxy: Rewriting the web for good.
+  * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Track: Record and reduce for good. 
   * Record emissions providing actionable intelligance for reduction and offseting.
-
-## Proxy
-
-* **Problem:** API requests contribute to 83% of web carbon emissions
-* **Solution:** Maximize amount of clean energy used to fulfill API requests
-
-**Resolution:** 
-
-To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the [Green Software Foundation](https://greensoftware.foundation/) [carbon aware api](https://carbon-aware-api.azurewebsites.net/swagger/index.html) for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
-
-Reverse proxy: 
-
-An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use. The HEDGE reverse proxy url is below for both the prod and dev environments. Request to register services will be promoted to prod once tested on dev via pull requests.
-
-| Method | Endpoint | Environment |
-| ------------- | ------------- |---------------|
-| ANY  | https://edge.hedge.earth/{service}/{proxy+}  | Production |
-| ANY  | https://hedgeedgex.druidcloud.dev/{service}/{proxy+}  | Development |
-
-Javascript Package:
-
-For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same operations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
-
-Import HEDGE
-```javascript
-import { hedge } from '@rollthecloudinc/hedge';
-```
-
-Climate friendly POST request for service.
-```javascript
-const method = 'POST';
-const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "Test Add", price: 50 };
-const h = await hedge({ service: 'emissionless' });
-const res = await h.bounce('/rollthecloudinc/classifieds/shapeshifter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
-```
-
-> Hedge.bounce() has the same interface as [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) except the protocol (https://) and domain name are omitted.
-
-The region that was used to make the request and comparisions between other regions carbon intensity levels can also be made.
-
-```javascript
-const { region } = await h.region();
-const { regionDocument } = await region.document();
-console.log('region used', regionDocument.region);
-```
-
-```javascript
-const { difference } = await region.compare({ region: 'useast' })
-console.log('difference in carbon intensity between region useast and the region used to carry out request.', difference)
-```
-
-The complete HEDGE Javascript API has been documented in our [demo repository](https://github.com/rollthecloudinc/hedge-demo/blob/master/src/index.js). The HEDGE javaScript API source code can be found under [/lib/hedge](https://github.com/rollthecloudinc/emissionless/tree/master/lib/hedge).
-
-**Impact**
-
-HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
-
-**Future Features**
-* Advertise & Promote Amount of carbon being saved
-  * Electricity usage and carbon emission tracking and monitoring.
-  * Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
-* Postman plugin (50 million APIs)
-* Serverless Framework plugin to incorporate into AWS API Gateway provisioning
-* Nginx and HaProxy extension
-* Other configuration as code platforms
 
 ## Store
 
@@ -161,6 +96,71 @@ Store Media and other files under 100MB using cleanest energy resources.
 ### Big File API
 
 Store Media and other files over 100MB using cleanest energy resources.
+
+## Proxy
+
+* **Problem:** API requests contribute to 83% of web carbon emissions
+* **Solution:** Maximize amount of clean energy used to fulfill API requests
+
+**Resolution:** 
+
+To this end our contribution to reducing web carbon begins with generating a [periodical](https://github.com/rollthecloudinc/hedge-objects-prod/commits/master/renewable-report) [renewables report](https://store.hedge.earth/renewable-report/report.json) of regional grid intensity levels across the globe from the [Green Software Foundation](https://greensoftware.foundation/) [carbon aware api](https://carbon-aware-api.azurewebsites.net/swagger/index.html) for the next 5 minutes. The generated renewable report is used to redirect API requests to data centers within regions that are using the lowest carbon intense [power sources](https://www.watttime.org/explorer/). The API requests are redirected based on reported intensity levels inside the renewable report. Rewriting the definition of a reverse proxy to include the advantage of maximizing clean energy use.
+
+Reverse proxy: 
+
+An application that sits in front of back-end applications and forwards client requests to those applications. Reverse proxies help increase scalability, performance, resilience, security and clean energy use. The HEDGE reverse proxy url is below for both the prod and dev environments. Request to register services will be promoted to prod once tested on dev via pull requests.
+
+| Method | Endpoint | Environment |
+| ------------- | ------------- |---------------|
+| ANY  | https://edge.hedge.earth/{service}/{proxy+}  | Production |
+| ANY  | https://hedgeedgex.druidcloud.dev/{service}/{proxy+}  | Development |
+
+Javascript Package:
+
+For CORs compatible APIs and Websockets the HEDGE proxy can be bypassed opting to use the [HEDGE JavaScript package](https://github.com/rollthecloudinc/emissionless/pkgs/npm/hedge) instead.The HEDGE JavaScript package carries out the same operations as the API but without wasting a network trip. Custom services can also be used without registering them as part of pull requests.
+
+Import HEDGE
+```javascript
+import { hedge } from '@rollthecloudinc/hedge';
+```
+
+Climate friendly POST request for service.
+```javascript
+const method = 'POST';
+const body = { id: "b83f9717-ab11-4e0f-a058-872af9bbe3ed", title: "Test Add", price: 50 };
+const h = await hedge({ service: 'emissionless' });
+const res = await h.bounce('/rollthecloudinc/classifieds/shapeshifter/ads/b83f9717-ab11-4e0f-a058-872af9bbe3ed', { method, body })
+```
+
+> Hedge.bounce() has the same interface as [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) except the protocol (https://) and domain name are omitted.
+
+The region that was used to make the request and comparisions between other regions carbon intensity levels can also be made.
+
+```javascript
+const { region } = await h.region();
+const { regionDocument } = await region.document();
+console.log('region used', regionDocument.region);
+```
+
+```javascript
+const { difference } = await region.compare({ region: 'useast' })
+console.log('difference in carbon intensity between region useast and the region used to carry out request.', difference)
+```
+
+The complete HEDGE Javascript API has been documented in our [demo repository](https://github.com/rollthecloudinc/hedge-demo/blob/master/src/index.js). The HEDGE javaScript API source code can be found under [/lib/hedge](https://github.com/rollthecloudinc/emissionless/tree/master/lib/hedge).
+
+**Impact**
+
+HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90% of Developers using APIs and emitting 16 million tonnes of CO2 generated each year. HEDGE could be very simply incorporated by hundreds of thousands of APIs to reduce their emissions, aggregating into a large global reduction.
+
+**Future Features**
+* Advertise & Promote Amount of carbon being saved
+  * Electricity usage and carbon emission tracking and monitoring.
+  * Website to submit servcies, track and monitor emissions globally, per org, per servce, region, etc.
+* Postman plugin (50 million APIs)
+* Serverless Framework plugin to incorporate into AWS API Gateway provisioning
+* Nginx and HaProxy extension
+* Other configuration as code platforms
 
 ## Track
 

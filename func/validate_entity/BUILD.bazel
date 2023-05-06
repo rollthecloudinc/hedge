@@ -24,5 +24,6 @@ go_library(
         "//lib/vocab",
         "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_go_playground_validator_v10//:validator",
+        "@com_rogchap_v8go//:go_default_library"
     ],
 )

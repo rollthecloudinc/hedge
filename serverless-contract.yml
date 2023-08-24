@@ -1,0 +1,26 @@
+service: hedge-contract
+frameworkVersion: '3'
+plugins:
+  - serverless-prune-plugin
+  - serverless-azure-functions
+provider:
+  name: azure
+  runtime: nodejs14
+  memorySize: 256
+  timeout: 60
+  subscriptionId: 818ef18c-2788-4d39-bd18-5a38a9bac4ff
+package:
+  individually: false
+  patterns:
+    - '!./**'
+    - bazel-bin/api/contract/contract.js
+functions:
+  contract:
+    handler: bazel-bin/api/contract/contract.handler
+    events:
+      - http: true
+        name: req #<string>, default - "req", specifies which name is available on `context.bindings`
+        methods: #<array> [GET, POST, PUT, DELETE], default - all
+          - post
+        route: validate #<string>, default - <function name>
+        authLevel: anonymous #<enum - anonymous|function (default)|admin>

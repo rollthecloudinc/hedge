@@ -24,6 +24,8 @@ HEDGE reimagines the way websites are built using the best sustainable technolog
 
 Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
+Dev Enviornment: https://proxy.climateaware-dev.eco
+
 AWS
 
 | Location  | Domain | Mapping |

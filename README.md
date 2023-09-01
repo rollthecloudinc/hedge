@@ -52,7 +52,7 @@ Store JSON using the cleanest energy resources.
 | Method | Proxy.CimateAware |
 | ------------- | ------------- |
 | GET  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
-| PUT  | https://proxy.climateaware.eco/owner/repo/shapeshifter/path/id  |
+| PUT  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
 | POST  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
 
 > The octostore API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod repo](https://github.com/rollthecloudinc/hedge-objects-prod/tree/master/services). See our [emissionless.json](https://store.hedge.earth/services/octostore.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service. Valid regions can be found in the [regions json file](https://store.hedge.earth/regions/regions.json).

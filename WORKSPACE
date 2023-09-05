@@ -1,6 +1,6 @@
 workspace(
     name = "goclassifieds",
-    managed_directories = {"@npm": ["node_modules"]},
+    #managed_directories = {"@npm": ["node_modules"]},
 )
 
 _ESBUILD_VERSION = "0.12.1"  # reminder: update SHAs below when changing this value
@@ -1103,6 +1103,13 @@ go_repository(
     importpath = "github.com/MicahParks/keyfunc",
     sum = "h1:RlyyYgKQI/adkIw1yXYtPvTAOb7hBhSX42aH23d8N0Q=",
     version = "v1.5.1",
+)
+
+go_repository(
+    name = "com_rogchap_v8go",
+    importpath = "rogchap.com/v8go",
+    sum = "h1:wYbUCO4h6fjTamziHrzyrPnpFNuzPpjZY+nfmZjNaew=",
+    version = "v0.9.0",
 )
 
 gazelle_dependencies()

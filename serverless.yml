@@ -52,7 +52,7 @@ package:
     - '!./**'
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/entity/entity_/entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
+    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
     #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
@@ -62,6 +62,7 @@ package:
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
     - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
+    - bazel-bin/func/enforce_contract/enforce_contract.js
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
@@ -306,88 +307,88 @@ functions:
       - httpApi:
           path: /github/signup
           method: GET
-  ProxyApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
-    role: EntityApiRole
-    environment:
-      PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
-      PROXY_AVE_APIKEY: ${self:custom.aveApikey}
-      PROXY_CARBONAWARE_DOMAIN: ${self:custom.proxyCarbonAwareDomain}
-      STAGE: ${opt:stage, 'dev'}
-    events:
-      - httpApi:
-          path: /cities/{country}/{state}/{city}
-          method: GET
-      - httpApi:
-          path: /ave
-          method: GET
-      - httpApi:
-          path: /carbonaware/{proxy+}
-          method: GET
-      - httpApi:
-          path: /marvel/{proxy+}
-          method: GET
-  ChatApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
-    role: EntityApiRole
-    environment:
-      KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
-      KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
-      APIGATEWAY_ENDPOINT: ${self:custom.apigatewayEndpoint}
-      STAGE: ${opt:stage, 'dev'}
-    events:
-      - httpApi:
-          path: /chatmessage/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
-      - httpApi:
-          path: /chatconversations/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
-      - httpApi:
-          path: /chatmessages/{proxy+}
-          method: GET
-          events:
+  #ProxyApi:
+    #handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
+    #role: EntityApiRole
+    #environment:
+      #PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
+      #PROXY_AVE_APIKEY: ${self:custom.aveApikey}
+      #PROXY_CARBONAWARE_DOMAIN: ${self:custom.proxyCarbonAwareDomain}
+      #STAGE: ${opt:stage, 'dev'}
+    #events:
+      #- httpApi:
+          #path: /cities/{country}/{state}/{city}
+          #method: GET
+      #- httpApi:
+          #path: /ave
+          #method: GET
+      #- httpApi:
+          #path: /carbonaware/{proxy+}
+          #method: GET
+      #- httpApi:
+          #path: /marvel/{proxy+}
+          #method: GET
+  #ChatApi:
+    #handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
+    #role: EntityApiRole
+    #environment:
+      #KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
+      #KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+      #APIGATEWAY_ENDPOINT: ${self:custom.apigatewayEndpoint}
+      #STAGE: ${opt:stage, 'dev'}
+    #events:
+      #- httpApi:
+          #path: /chatmessage/{proxy+}
+          #method: POST
+          #authorizer:
+            #name: cognito
+            #scopes:
+              #- chat/chat
+      #- httpApi:
+          #path: /chatconversations/{proxy+}
+          #method: GET
+          #authorizer:
+            #name: cognito
+            #scopes:
+              #- chat/chat
+      #- httpApi:
+          #path: /chatmessages/{proxy+}
+          #method: GET
+          #events:
 
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
-      - httpApi:
-          path: /lead/{proxy+}
-          method: POST
-      - httpApi:
-          path: /leads/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - ads_api/ads_api
-              - profiles_api/profiles_api
-      - httpApi:
-          path: /page/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-      - httpApi:
-          path: /pages/{proxy+}
-          method: GET
-      - httpApi:
-          path: /gridlayout/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-      - httpApi:
-          path: /gridlayouts/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
+          #authorizer:
+            #name: cognito
+            #scopes:
+              #- chat/chat
+      #- httpApi:
+          #path: /lead/{proxy+}
+          #method: POST
+      #- httpApi:
+          #path: /leads/{proxy+}
+          #method: GET
+          #authorizer:
+            #name: cognito
+            #scopes:
+              #- ads_api/ads_api
+              #- profiles_api/profiles_api
+      #- httpApi:
+          #path: /page/{proxy+}
+          #method: POST
+          #authorizer:
+            #name: cognito
+      #- httpApi:
+          #path: /pages/{proxy+}
+          #method: GET
+      #- httpApi:
+          #path: /gridlayout/{proxy+}
+          #method: POST
+          #authorizer:
+            #name: cognito
+      #- httpApi:
+          #path: /gridlayouts/{proxy+}
+          #method: GET
+          #authorizer:
+            #name: cognito
   GovApi:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
     role: EntityApiRole
@@ -409,6 +410,10 @@ functions:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+  EnforceContract:
+    handler: bazel-bin/func/enforce_contract/enforce_contract.handler
+    role: EntityApiRole
+    runtime: nodejs14.x
   Stream:
     handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
     role: EntityApiRole
@@ -447,12 +452,12 @@ functions:
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Stream"
           filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ChatApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ProxyApi"
-          filter: 'REPORT'
+      #- cloudwatchLog:
+          #logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ChatApi"
+          #filter: 'REPORT'
+      #- cloudwatchLog:
+          #logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ProxyApi"
+          #filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-UserApi"
           filter: 'REPORT'
@@ -461,6 +466,9 @@ functions:
           filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ValidateEntity"
+          filter: 'REPORT'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EnforceContract"
           filter: 'REPORT'
       - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"

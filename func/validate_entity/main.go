@@ -63,6 +63,13 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 	} else if payload.EntityName == "shapeshifter" {
 		newEntity, err = ValidateShapeshifter(jsonData, payload)
 	} else {
+
+		/*ctx := v8go.NewContext()                                // creates a new V8 context with a new Isolate aka VM
+		ctx.RunScript("const add = (a, b) => a + b", "math.js") // executes a script on the global context
+		ctx.RunScript("const result = add(3, 4)", "main.js")    // any functions previously added to the context can be called
+		val, _ := ctx.RunScript("result", "value.js")           // return a value in JavaScript back to Go
+		fmt.Printf("addition result: %s", val)*/
+
 		newEntity = payload.Entity
 		// This needs to be commented out to allow shapeshifters though for now.
 		// return invalid, errors.New("Entity validation does exist")

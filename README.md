@@ -8,12 +8,96 @@ HEDGE reimagines the way websites are built using the best sustainable technolog
 
 > HEDGING (Software Development): Limiting software exposure to carbon by using cleanest energy globally available.
 
-* Proxy: Rewriting the web for good.
-  * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Store: Repairing data storage for good.
   * Data storage that moves around the world using the cleanest energy.
+* Proxy: Rewriting the web for good.
+  * Reverse proxy bouncing traffic to data centers using cleanest energy.
 * Track: Record and reduce for good. 
   * Record emissions providing actionable intelligance for reduction and offseting.
+
+## Store
+
+* **Problem:** Traditional data storage has limited access to clean energy.
+* **Solution:** Provide data store that moves around the world using the cleanest energy.
+
+**Resolution:**
+
+Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
+
+AWS
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Montreal | https://ca-central-1.octostore.earth | canadacentral |
+| Ashburn VA  | https://us-east-1.octostore.earth  | eastus |
+| San Fransisco  | https://us-west-1.octostore.earth | westus |
+| Dublin  | https://eu-west-1.octostore.earth | ukwest |
+| London  | https://eu-west-2.octostore.earth | uknorth |
+| Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
+| Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+
+Azure
+
+
+| Location  | Domain | Mapping |
+| ------------- | ------------- | ----------- |
+| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
+
+### JSON API
+
+Store JSON using the cleanest energy resources.
+
+| Method | HEDGE.earth |
+| ------------- | ------------- |
+| GET  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| PUT  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| POST  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+
+> The octostore API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod repo](https://github.com/rollthecloudinc/hedge-objects-prod/tree/master/services). See our [emissionless.json](https://store.hedge.earth/services/octostore.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service. Valid regions can be found in the [regions json file](https://store.hedge.earth/regions/regions.json).
+
+The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
+
+```javascript
+{
+  "id": "6f39a72a-6af3-4348-9158-7f111a6d0352"
+  "title": "My first document"
+}
+```
+
+JSON Documents comitted via the shapshifter API will have the user id added automatically of the authenticated user that made the change.
+
+
+Example Response:
+```javascript
+{
+  "id": "6f39a72a-6af3-4348-9158-7f111a6d0352"
+  "title": "My first document",
+  "userId": "cc149bd7-83ef-47c5-a397-eb0eb0068e0d"
+}
+```
+
+View [use cases](https://github.com/rollthecloudinc/emissionless/wiki/Shapshifter-Use-Cases) for more specific examples.
+
+Future Features:
+* Validation
+  * Repository owners will be able to provide [JSON schema](https://json-schema.org/) files that are used to validate entities before commiting. Entities that fail validation will not be comitted producing error messaging instead.
+* Search
+  * JSON documents become searchable using [Open Search](https://opensearch.org/) API and dashboards. Climate Warrior App installers will have access to both Open Search API and their own dashboards.
+  * Index schemas will also be customizable including defining the schema documents will use for indexing.
+* Interactive Docs
+  * Interactive swagger docs for each orgs database.
+* Notifications
+  * Clients will be able to subscribe to various push notifications during the flow of saving data.
+* Webhooks
+  * Developers will be able to alter incoming and outgoing data using their own custom webhooks. Including implementing their own validation strategy when JSON Schema doesn't fit the bill.
+
+### File API
+
+Store Media and other files under 100MB using cleanest energy resources.
+
+### Big File API
+
+Store Media and other files over 100MB using cleanest energy resources.
 
 ## Proxy
 
@@ -79,88 +163,6 @@ HEDGE has HUGE potential reach and potential CO2 reduction impact, with over 90%
 * Serverless Framework plugin to incorporate into AWS API Gateway provisioning
 * Nginx and HaProxy extension
 * Other configuration as code platforms
-
-## Store
-
-* **Problem:** Traditional data storage has limited access to clean energy.
-* **Solution:** Provide data store that moves around the world using the cleanest energy.
-
-**Resolution:**
-
-Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
-
-AWS
-
-| Location  | Domain | Mapping |
-| ------------- | ------------- | ----------- |
-| Montreal | https://ca-central-1.octostore.earth | canadacentral |
-| Ashburn VA  | https://us-east-1.octostore.earth  | eastus |
-| San Fransisco  | https://us-west-1.octostore.earth | westus |
-| Dublin  | https://eu-west-1.octostore.earth | ukwest |
-| London  | https://eu-west-2.octostore.earth | uknorth |
-| Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
-| Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
-
-Azure
-
-
-| Location  | Domain | Mapping |
-| ------------- | ------------- | ----------- |
-| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
-
-### JSON API
-
-Store JSON using the cleanest energy resources.
-
-| Method | HEDGE.earth |
-| ------------- | ------------- |
-| GET  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
-| PUT  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
-| POST  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
-
-> The emissionless API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod repo](https://github.com/rollthecloudinc/hedge-objects-prod/tree/master/services). See our [emissionless.json](https://store.hedge.earth/services/emissionless.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service. Valid regions can be found in the [regions json file](https://store.hedge.earth/regions/regions.json).
-
-The POST body can be any valid JSON with an id property. The id property is used to distinguish unique json documents within the same provided path. The id of the parameter should match the id inside the json document body.
-
-```javascript
-{
-  "id": "6f39a72a-6af3-4348-9158-7f111a6d0352"
-  "title": "My first document"
-}
-```
-
-JSON Documents comitted via the shapshifter API will have the user id added automatically of the authenticated user that made the change.
-
-
-Example Response:
-```javascript
-{
-  "id": "6f39a72a-6af3-4348-9158-7f111a6d0352"
-  "title": "My first document",
-  "userId": "cc149bd7-83ef-47c5-a397-eb0eb0068e0d"
-}
-```
-
-View [use cases](https://github.com/rollthecloudinc/emissionless/wiki/Shapshifter-Use-Cases) for more specific examples.
-
-Future Features:
-* Validation
-  * Repository owners will be able to provide [JSON schema](https://json-schema.org/) files that are used to validate entities before commiting. Entities that fail validation will not be comitted producing error messaging instead.
-* Search
-  * JSON documents become searchable using [Open Search](https://opensearch.org/) API and dashboards. Climate Warrior App installers will have access to both Open Search API and their own dashboards.
-  * Index schemas will also be customizable including defining the schema documents will use for indexing.
-* Notifications
-  * Clients will be able to subscribe to various push notifications during the flow of saving data.
-* Webhooks
-  * Developers will be able to alter incoming and outgoing data using their own custom webhooks. Including implementing their own validation strategy when JSON Schema doesn't fit the bill.
-
-### File API
-
-Store Media and other files under 100MB using cleanest energy resources.
-
-### Big File API
-
-Store Media and other files over 100MB using cleanest energy resources.
 
 ## Track
 

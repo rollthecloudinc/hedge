@@ -191,9 +191,9 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 			res.StatusCode = 500
 			return res, nil
 		}
-		defaultEmail := "druidcloud.dev"
+		defaultEmail := "climateaware-dev.eco"
 		if ac.Stage == "prod" {
-			defaultEmail = "druidcloud.io"
+			defaultEmail = "climateaware.eco"
 		}
 		emailInput := &ses.SendTemplatedEmailInput{
 			Source:               aws.String("Security <sso@" + defaultEmail + ">"),
@@ -212,6 +212,14 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		}
 	}
 	res.Body = u.String()
+	return res, nil
+}
+
+func GithubMarketplaceEvent(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+	res := events.APIGatewayProxyResponse{}
+	res.StatusCode = 200
+	res.Body = "{ \"message\": \"success\" }"
+	log.Print("GithubMarketplaceEvent What")
 	return res, nil
 }
 
@@ -259,6 +267,8 @@ func InitializeHandler(c *ActionContext) Handler {
 			return GetEntity(req, ac)
 		} else if req.HTTPMethod == "GET" && strings.Index(req.Path, "github/signup") > -1 {
 			return GithubSignup(req, ac)
+		} else if req.HTTPMethod == "POST" && strings.Index(req.Path, "github/marketplace/event") > -1 {
+			return GithubMarketplaceEvent(req, ac)
 		}
 
 		return events.APIGatewayProxyResponse{StatusCode: 500}, nil

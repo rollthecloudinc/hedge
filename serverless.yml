@@ -50,18 +50,19 @@ package:
   individually: false
   patterns:
     - '!./**'
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/entity/entity_/entity
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
+    - bazel-bin/api/entity/entity_/entity
+    - bazel-bin/api/media/media_/media
+    - bazel-bin/api/proxy/proxy_/proxy
+    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
+    - bazel-bin/api/user/user_/user
     #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
+    - bazel-bin/api/gov/gov_/gov
+    - bazel-bin/api/stream/stream_/stream
+    - bazel-bin/api/authorizer/authorizer_/authorizer
     #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer2/authorizer2_/authorizer2
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
-    - bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
+    - bazel-bin/func/validate_entity/validate_entity_/validate_entity
+    - bazel-bin/func/grant_access/grant_access_/grant_access
+    - bazel-bin/func/renewable_record/renewable_record_/renewable_record
     - api/entity/types.json.tmpl
     - api/entity/queries.json.tmpl
     - api/chat/queries.tmpl
@@ -140,7 +141,7 @@ resources:
                   Resource: "*"
 functions:
   EntityApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/entity/entity_/entity
+    handler: bazel-bin/api/entity/entity_/entity
     role: EntityApiRole
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
@@ -259,7 +260,7 @@ functions:
           authorizer:
             name: authorizer2
   MediaApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/media/media_/media
+    handler: bazel-bin/api/media/media_/media
     role: EntityApiRole
     environment:
       BUCKET_NAME: ${self:custom.bucketName}
@@ -291,7 +292,8 @@ functions:
           path: /{site}/media/{prefix}
           method: GET
   UserApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
+    # handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
+    handler: bazel-bin/api/user/user_/user
     role: EntityApiRole
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
@@ -306,8 +308,11 @@ functions:
       - httpApi:
           path: /github/signup
           method: GET
+      - httpApi:
+          path: /github/marketplace/event
+          method: POST
   ProxyApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/proxy/proxy_/proxy
+    handler: bazel-bin/api/proxy/proxy_/proxy
     role: EntityApiRole
     environment:
       PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
@@ -328,7 +333,7 @@ functions:
           path: /marvel/{proxy+}
           method: GET
   ChatApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
+    handler: bazel-bin/api/chat/chat_/chat
     role: EntityApiRole
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
@@ -389,7 +394,7 @@ functions:
           authorizer:
             name: cognito
   GovApi:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/gov/gov_/gov
+    handler: bazel-bin/api/gov/gov_/gov
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
@@ -398,19 +403,19 @@ functions:
           path: /grant/{type}/{user}/{resource}/{op}/{proxy+}
           method: GET
   ValidateEntity:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/validate_entity/validate_entity_/validate_entity
+    handler: bazel-bin/func/validate_entity/validate_entity_/validate_entity
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
   GrantAccess:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/grant_access/grant_access_/grant_access
+    handler: bazel-bin/func/grant_access/grant_access_/grant_access
     role: EntityApiRole
     environment:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
   Stream:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/stream/stream_/stream
+    handler: bazel-bin/api/stream/stream_/stream
     role: EntityApiRole
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
@@ -426,7 +431,7 @@ functions:
       - websocket:
           route: $disconnect
   RenewableRecord:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/func/renewable_record/renewable_record_/renewable_record
+    handler: bazel-bin/func/renewable_record/renewable_record_/renewable_record
     role: EntityApiRole
     environment:
       COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
@@ -466,7 +471,7 @@ functions:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
           filter: 'REPORT'
   Authorize:
-    handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer/authorizer_/authorizer
+    handler: bazel-bin/api/authorizer/authorizer_/authorizer
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}

@@ -21,6 +21,7 @@ go_library(
     deps = [
         "//lib/entity",
         "//lib/utils",
+        "//lib/sign",
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_aws_aws_sdk_go//aws/session",
@@ -30,5 +31,6 @@ go_library(
         "@com_github_google_go_github_v46//github",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_sethvargo_go_password//password",
+        "@com_github_opensearch_project_opensearch_go//:opensearch-go",
     ],
 )

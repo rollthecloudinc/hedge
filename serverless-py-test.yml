@@ -1,0 +1,63 @@
+service: hello-world-py-http-api2
+frameworkVersion: '3'
+provider:
+  name: aws
+  runtime: python3.8
+  region: us-east-1
+  httpApi:
+    payload: '1.0'
+    cors: true
+package:
+  individually: false
+  patterns:
+    - '!./**'
+    #- bazel-bin/func/test_py_lambda/test_py_lambda
+    - func/test_py_lambda/test_py_lambda.py
+resources:
+  Resources:
+    PyTestApiRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: hello-world-py-http-api2-${opt:region, 'us-east-1'}-lambdaRole
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - apigateway.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: hello-world-py-http-api2-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+functions:
+  hello:
+    handler: func/test_py_lambda/test_py_lambda.lambda_handler
+    role: PyTestApiRole
+    events:
+      - httpApi:
+          path: /hello
+          method: GET

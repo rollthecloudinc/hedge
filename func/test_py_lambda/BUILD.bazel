@@ -1,0 +1,10 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "test_py_lambda",
+    srcs = ["test_py_lambda.py"],
+    deps = [
+      #"@py_deps//:numpy",
+      #"@py_deps//:pandas",
+    ],
+)

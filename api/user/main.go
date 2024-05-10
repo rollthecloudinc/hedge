@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"goclassifieds/lib/entity"
+	"goclassifieds/lib/sign"
 	"goclassifieds/lib/utils"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/google/go-github/github"
+	"github.com/opensearch-project/opensearch-go"
 	"github.com/sethvargo/go-password/password"
 	"golang.org/x/oauth2"
 )
@@ -41,6 +43,10 @@ type MyTemplateData struct {
 type TempPasswordData struct {
 	Name         string `json:"name"`
 	TempPassword string `json:"tempPassword"`
+}
+
+type Auth0LogEntityManagerInput struct {
+	OsClient *opensearch.Client
 }
 
 func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -210,6 +216,13 @@ func GithubSignup(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 			res.StatusCode = 500
 			return res, nil
 		}
+		// @todo: Create serverless collection
+		// - uuid
+		// - map uuid to owner in new cassandra collection
+		// - DevAuthAdmin
+		// - I think a dedicated role needs to be created anyway
+		// - The user will be linked to this role.
+		// -- or we put this inside the marketplace event... - access to plan
 	}
 	res.Body = u.String()
 	return res, nil
@@ -220,6 +233,204 @@ func GithubMarketplaceEvent(req *events.APIGatewayProxyRequest, ac *ActionContex
 	res.StatusCode = 200
 	res.Body = "{ \"message\": \"success\" }"
 	log.Print("GithubMarketplaceEvent What")
+	return res, nil
+}
+
+func OktaLogEvent(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+
+	res := events.APIGatewayProxyResponse{}
+
+	log.Print("OktaLogeEvent")
+	// log.Print(req.Headers["Authorization"]);
+	log.Print(req.Body)
+
+	// Split the body of the request into lines
+	lines := strings.Split(req.Body, "\n")
+
+	// Prepare a bulk request
+	var bulkBody strings.Builder
+	for _, line := range lines {
+		// Each line is a separate JSON object
+		// Add action and metadata
+		internalId := utils.GenerateId()
+		bulkBody.WriteString(`{ "index" : { "_index" : "auth0_log", "_id" : "` + internalId + `" } }`)
+		bulkBody.WriteString("\n")
+
+		// Add source data
+		bulkBody.WriteString(line)
+		bulkBody.WriteString("\n")
+	}
+
+	log.Print(bulkBody.String())
+
+	userPasswordAwsSigner := sign.UserPasswordAwsSigner{
+		// Service:            "aoss",
+		Service:            "es",
+		Region:             "us-east-1",
+		Session:            ac.Session,
+		IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:             os.Getenv("ISSUER"),
+		Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
+		Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
+		CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
+	}
+
+	// addr := []string = []string{"https://xelsubdau4tag8glbeb9.us-east-1.aoss.amazonaws.com"}
+	// addr := []string{"https://xelsubdau4tag8glbeb9.us-east-1.aoss.amazonaws.com"}
+	// fuck serverless for now... perhaps not compatible with cognito... idk
+	opensearchCfg := opensearch.Config{
+		Addresses: []string{os.Getenv("ELASTIC_URL")},
+		// Addresses: addr,
+		Signer: userPasswordAwsSigner,
+		// EnableDebugLogger: true,
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Connection Error: %s", err.Error())
+		return events.APIGatewayProxyResponse{}, err
+	}
+
+	log.Print("Established connection to opensearch serverless 123")
+
+	/*auth0LogManagerInput := &Auth0LogEntityManagerInput{
+		OsClient: osClient,
+	}
+
+	auth0LogManager := Auth0LogEntityManager(auth0LogManagerInput)
+
+	for _, line := range lines {
+
+		if line != "" {
+
+			var e map[string]interface{}
+			internalId := utils.GenerateId()
+			err = json.Unmarshal([]byte(line), &e)
+			if err != nil {
+				log.Print(`Error unmarshaling ` + internalId)
+			} else {
+				// e["userId"] = payload.UserId
+				e["id"] = internalId
+				auth0LogManager.Save(e, "default")
+			}
+
+		}
+
+	}*/
+
+	// Send the bulk request
+	// _, err = osClient.Bulk(strings.NewReader(bulkBody.String()), osClient.Bulk.WithRefresh("true"))
+	// bulkBytes := []byte(bulkBody.String())
+	bulkRes, err := osClient.Bulk(strings.NewReader(bulkBody.String()))
+	if err != nil {
+		// Handle error
+		log.Print(bulkRes)
+		log.Printf("Opensearch Query Error: %s", err.Error())
+		return events.APIGatewayProxyResponse{}, err
+	}
+
+	res.StatusCode = 200
+	res.Body = "{ \"message\": \"success\" }"
+
+	return res, nil
+}
+
+func AossPost(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
+
+	res := events.APIGatewayProxyResponse{}
+
+	log.Print("AossPost")
+	// log.Print(req.Headers["Authorization"]);
+	log.Print(req.Body)
+
+	// Split the body of the request into lines
+	//lines := strings.Split(req.Body, "\n")
+
+	// Prepare a bulk request
+	/*var bulkBody strings.Builder
+	for _, line := range lines {
+		// Each line is a separate JSON object
+		// Add action and metadata
+		internalId := utils.GenerateId()
+		bulkBody.WriteString(`{ "index" : { "_index" : "auth0_log", "_id" : "` + internalId + `" } }`)
+		bulkBody.WriteString("\n")
+
+		// Add source data
+		bulkBody.WriteString(line)
+		bulkBody.WriteString("\n")
+	}*/
+
+	// log.Print(bulkBody.String())
+
+	userPasswordAwsSigner := sign.UserPasswordAwsSigner{
+		Service: "aoss",
+		// Service:            "es",
+		Region:             "us-east-1",
+		Session:            ac.Session,
+		IdentityPoolId:     os.Getenv("IDENTITY_POOL_ID"),
+		Issuer:             os.Getenv("ISSUER"),
+		Username:           os.Getenv("DEFAULT_SIGNING_USERNAME"),
+		Password:           os.Getenv("DEFAULT_SIGNING_PASSWORD"),
+		CognitoAppClientId: os.Getenv("COGNITO_APP_CLIENT_ID"),
+	}
+
+	// addr := []string = []string{"https://xelsubdau4tag8glbeb9.us-east-1.aoss.amazonaws.com"}
+	addr := []string{"https://xelsubdau4tag8glbeb9.us-east-1.aoss.amazonaws.com"}
+	// fuck serverless for now... perhaps not compatible with cognito... idk
+	opensearchCfg := opensearch.Config{
+		// Addresses: []string{os.Getenv("ELASTIC_URL")},
+		Addresses: addr,
+		Signer:    userPasswordAwsSigner,
+		// EnableDebugLogger: true,
+	}
+
+	osClient, err := opensearch.NewClient(opensearchCfg)
+	if err != nil {
+		log.Printf("Opensearch Connection Error: %s", err.Error())
+		return events.APIGatewayProxyResponse{}, err
+	}
+
+	log.Print("Established connection to opensearch serverless 123")
+
+	auth0LogManagerInput := &Auth0LogEntityManagerInput{
+		OsClient: osClient,
+	}
+
+	auth0LogManager := Auth0LogEntityManager(auth0LogManagerInput)
+
+	/*for _, line := range lines {
+
+	if line != "" {*/
+
+	var e map[string]interface{}
+	internalId := utils.GenerateId()
+	err = json.Unmarshal([]byte(req.Body), &e)
+	if err != nil {
+		log.Print(`Error unmarshaling ` + internalId)
+	} else {
+		// e["userId"] = payload.UserId
+		e["id"] = internalId
+		auth0LogManager.Save(e, "default")
+	}
+
+	/*}
+
+	}*/
+
+	// Send the bulk request
+	// _, err = osClient.Bulk(strings.NewReader(bulkBody.String()), osClient.Bulk.WithRefresh("true"))
+	// bulkBytes := []byte(bulkBody.String())
+	/*bulkRes, err := osClient.Bulk(strings.NewReader(bulkBody.String()))
+	if err != nil {
+		// Handle error
+		log.Print(bulkRes)
+		log.Printf("Opensearch Query Error: %s", err.Error())
+		return events.APIGatewayProxyResponse{}, err
+	}*/
+
+	res.StatusCode = 200
+	res.Body = "{ \"message\": \"success\" }"
+
 	return res, nil
 }
 
@@ -269,6 +480,10 @@ func InitializeHandler(c *ActionContext) Handler {
 			return GithubSignup(req, ac)
 		} else if req.HTTPMethod == "POST" && strings.Index(req.Path, "github/marketplace/event") > -1 {
 			return GithubMarketplaceEvent(req, ac)
+		} else if req.HTTPMethod == "POST" && strings.Index(req.Path, "okta/log/event") > -1 {
+			return OktaLogEvent(req, ac)
+		} else if req.HTTPMethod == "POST" && strings.Index(req.Path, "user/aoss") > -1 {
+			return AossPost(req, ac)
 		}
 
 		return events.APIGatewayProxyResponse{StatusCode: 500}, nil
@@ -296,6 +511,22 @@ func NewManager(ac *ActionContext) entity.EntityManager {
 			},
 		},
 	}
+}
+
+func Auth0LogEntityManager(input *Auth0LogEntityManagerInput) *entity.EntityManager {
+	manager := entity.NewDefaultManager(entity.DefaultManagerConfig{
+		SingularName: "auth0_log",
+		PluralName:   "auth0_logs",
+		Stage:        os.Getenv("STAGE"),
+	})
+	manager.AddAuthorizer("default", entity.NoopAuthorizationAdaptor{})
+	manager.AddStorage("default", entity.OpensearchStorageAdaptor{
+		Config: entity.OpensearchAdaptorConfig{
+			Index:  "auth0_log",
+			Client: input.OsClient,
+		},
+	})
+	return &manager
 }
 
 func RequestActionContext(ac *ActionContext) *ActionContext {

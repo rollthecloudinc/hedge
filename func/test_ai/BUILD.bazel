@@ -1,0 +1,12 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "test_ai",
+    srcs = ["test_ai.py"],
+    deps = [
+      "@py_deps//:numpy",
+      "@py_deps//:pandas",
+      "@py_deps//:setuptools",
+      "@py_deps//:wheel"
+    ],
+)

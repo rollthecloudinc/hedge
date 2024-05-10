@@ -32,6 +32,24 @@ http_archive(
 )
 
 http_archive(
+    name = "rules_python",
+    urls = ["https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz"],
+    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+)
+
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
+
+load("@rules_python//python:pip.bzl", "pip_install")
+
+pip_install(
+   name = "py_deps",
+   requirements = "//:requirements.txt",
+   # python_interpreter_target = "@python_bin//:python_bin",
+)
+
+http_archive(
     name = "esbuild_darwin",
     build_file_content = """exports_files(["bin/esbuild"])""",
     sha256 = "efb34692bfa34db61139eb8e46cd6cf767a42048f41c8108267279aaf58a948f",

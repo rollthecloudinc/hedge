@@ -137,6 +137,10 @@ resources:
                   Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
                 - Effect: "Allow"
                   Action:
+                    - "aoss:*"
+                  Resource: "arn:aws:aoss:us-east-1:989992233821:collection/*"
+                - Effect: "Allow"
+                  Action:
                     - "ses:SendTemplatedEmail"
                   Resource: "*"
 functions:
@@ -301,6 +305,11 @@ functions:
       STAGE: ${opt:stage, 'dev'}
       GITHUB_APP_CLIENT_ID: ${self:custom.githubAppClientId}
       GITHUB_APP_CLIENT_SECRET: ${self:custom.githubAppClientSecret}
+      IDENTITY_POOL_ID: ${self:custom.identityPoolId}
+      ISSUER: ${self:custom.issuer}
+      DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
+      DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
+      ELASTIC_URL: ${self:custom.elasticUrl}
     events:
       - httpApi:
           path: /publicuserprofile/{id}
@@ -310,6 +319,12 @@ functions:
           method: GET
       - httpApi:
           path: /github/marketplace/event
+          method: POST
+      - httpApi:
+          path: /okta/log/event
+          method: POST
+      - httpApi:
+          path: /user/aoss
           method: POST
   ProxyApi:
     handler: bazel-bin/api/proxy/proxy_/proxy

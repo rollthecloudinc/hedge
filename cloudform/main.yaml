@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template: This template automates ase infrastructure.'
+
+Parameters:
+  EnvironmentName:
+    Description: The name of the environment (e.g., dev, prod)
+    Type: String
+  EnvironmentNameCamelCase:
+    Description: The name of the environment (e.g., dev, prod) in CamelCase for supporting multiple environments in same account without conflicts.
+    Type: String
+  VendorSuffix:
+    Description: Unique vendor suffix for the bucket.
+    Type: String
+  VendorSuffixCamelCase:
+    Description: Unique vendor suffix in CamelCase for supporting multiple vendors under the same account.
+    Type: String
+  SSODomain:
+    Description: The domain for hosting sso page.
+    Type: String
+
+Resources:
+  UsersStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/rtc-classifieds-cloudformation-templates-${EnvironmentName}-${VendorSuffix}/users.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        EnvironmentNamCamelCase: !Ref EnvironmentNameCamelCase
+        VendorSuffix: !Ref VendorSuffix
+        VendorSuffixCamelCase: !Ref VendorSuffixCamelCase
+        SSODomain: !Ref SSODomain
+
+  SearchStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/rtc-classifieds-cloudformation-templates-${EnvironmentName}-${VendorSuffix}/search.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        EnvironmentNamCamelCase: !Ref EnvironmentNameCamelCase
+        VendorSuffix: !Ref VendorSuffix
+        VendorSuffixCamelCase: !Ref VendorSuffixCamelCase
+        UserPoolId: !GetAtt UsersStack.Outputs.UserPoolId
+        IdentityPoolId: !GetAtt UsersStack.Outputs.IdentityPoolId

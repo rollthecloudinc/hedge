@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template: This template demonstrates the creation of Cognito User Pools'
+
+Parameters:
+  EnvironmentName:
+    Description: The name of the environment (e.g., dev, prod)
+    Type: String
+  EnvironmentNameCamelCase:
+    Description: The name of the environment (e.g., dev, prod) in CamelCase for supporting multiple environments in same account without conflicts.
+    Type: String
+  VendorSuffix:
+    Description: Unique vendor suffix for the bucket.
+    Type: String
+  VendorSuffixCamelCase:
+    Description: Unique vendor suffix in CamelCase for supporting multiple vendors under the same account.
+    Type: String
+  SSODomain:
+    Description: The domain for hosting sso page.
+    Type: String
+
+Resources:
+  UserPool:
+    Type: "AWS::Cognito::UserPool"
+    Properties:
+      UserPoolName: !Sub 'RtcClassifiedsUserPool${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: True
+          RequireNumbers: True
+          RequireSymbols: True
+          RequireUppercase: True
+
+  UserPoolClient:
+    Type: "AWS::Cognito::UserPoolClient"
+    Properties:
+      ClientName: !Sub 'RtcClassifiedsUserPoolClient${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      GenerateSecret: False
+      UserPoolId: 
+        Ref: UserPool
+      SupportedIdentityProviders: ["COGNITO"]
+      CallbackURLs: [!Sub 'https://${SSODomain}/auth-callback']
+      LogoutURLs: [!Sub 'https://${SSODomain}/logout']
+      AllowedOAuthFlows: ["code"]
+      AllowedOAuthScopes: ["email", "openid"]
+      AllowedOAuthFlowsUserPoolClient: true
+
+  UserPoolDomain:
+    Type: "AWS::Cognito::UserPoolDomain"
+    Properties:
+      UserPoolId: 
+        Ref: UserPool
+      Domain: !Ref SSODomain
+
+  UserIdentityPool:
+    Type: "AWS::Cognito::IdentityPool"
+    Properties:
+      IdentityPoolName: !Sub 'ClassifiedsIdentityPool${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: 
+            Ref: UserPoolClient
+          ProviderName: 
+            Fn::GetAtt: 
+              - UserPool
+              - ProviderName
+
+Outputs:
+  UserPoolId:
+    Description: The ID of the user pool
+    Value: !Ref UserPool
+  IdentityPoolId:
+    Description: The ID of the identity pool
+    Value: !Ref UserIdentityPool

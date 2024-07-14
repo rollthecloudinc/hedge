@@ -2,6 +2,7 @@ service: goclassifieds-api
 frameworkVersion: '3'
 plugins:
   - serverless-prune-plugin
+  - serverless-custom-packaging-plugin
 custom:
   elasticUrl: ${file(./private.${opt:stage, 'dev'}.json):elasticUrl}
   keyspaceUsername: ${file(./private.${opt:stage, 'dev'}.json):keyspaceUsername}
@@ -27,7 +28,7 @@ custom:
   cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
-  runtime: go1.x
+  runtime: provided.al2023
   memorySize: 256
   timeout: 10
   websocketsApiName: goclassifieds-stream
@@ -38,37 +39,11 @@ provider:
     payload: '1.0'
     cors: true
     authorizers:
-      cognito:
-        identitySource: $request.header.Authorization
-        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/${self:custom.userPoolId}
-        audience:
-          - ${self:custom.cognitoAppClientId}
-      authorizer2:
+      authorizer3:
         type: request
-        functionName: Authorize2
+        functionName: Authorize3
 package:
-  individually: false
-  patterns:
-    - '!./**'
-    - bazel-bin/api/entity/entity_/entity
-    - bazel-bin/api/media/media_/media
-    - bazel-bin/api/proxy/proxy_/proxy
-    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
-    - bazel-bin/api/user/user_/user
-    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/chat/chat_/chat
-    - bazel-bin/api/gov/gov_/gov
-    - bazel-bin/api/stream/stream_/stream
-    - bazel-bin/api/authorizer/authorizer_/authorizer
-    #- bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/authorizer2/authorizer2_/authorizer2
-    - bazel-bin/func/validate_entity/validate_entity_/validate_entity
-    - bazel-bin/func/grant_access/grant_access_/grant_access
-    - bazel-bin/func/renewable_record/renewable_record_/renewable_record
-    - api/entity/types.json.tmpl
-    - api/entity/queries.json.tmpl
-    - api/chat/queries.tmpl
-    - api/chat/AmazonRootCA1.pem
-    - api/entity/rtc-vertigo-dev.private-key.pem
-    - api/entity/rtc-vertigo-prod.private-key.pem
+  individually: true
 resources:
   Resources:
     EntityApiRole:
@@ -111,38 +86,25 @@ resources:
                         - 'log-group:/aws/lambda/*:*:*'
                 - Effect: "Allow"
                   Action:
-                    - "s3:PutObject"
-                    - "s3:GetObject"
-                  Resource: "arn:aws:s3:::${self:custom.bucketName}/*/*"
-                - Effect: "Allow"
-                  Action:
                     - "lambda:InvokeFunction"
                   Resource: "*"
-                - Effect: "Allow"
-                  Action:
-                    - "cognito-idp:ListUsers"
-                    - "cognito-idp:AdminUpdateUserAttributes"
-                    - "cognito-idp:AdminConfirmSignUp"
-                    - "cognito-idp:AdminResetUserPassword"
-                    - "cognito-idp:AdminGetUser"
-                  Resource: ${self:custom.userPoolArn}
                 - Effect: "Allow"
                   Action:
                     - "execute-api:Invoke"
                     - "execute-api:ManageConnections"
                   Resource: "*"
-                - Effect: "Allow"
-                  Action:
-                    - "es:*"
-                  Resource: "arn:aws:es:us-east-1:989992233821:domain/classifieds-ui-dev/*"
-                - Effect: "Allow"
-                  Action:
-                    - "ses:SendTemplatedEmail"
-                  Resource: "*"
 functions:
   EntityApi:
-    handler: bazel-bin/api/entity/entity_/entity
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/entity
+      artifact: .serverless/EntityApi.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
     environment:
       ELASTIC_URL: ${self:custom.elasticUrl}
       BUCKET_NAME: ${self:custom.bucketName}
@@ -157,13 +119,6 @@ functions:
       CLOUD_NAME: ${self:custom.cloudName}
       STAGE: ${opt:stage, 'dev'}
     events:
-      - httpApi:
-          path: /adprofileitems/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
       - httpApi:
           path: /adtypes/{proxy+}
           method: GET
@@ -183,85 +138,38 @@ functions:
           path: /adprofile/{id}
           method: GET
       - httpApi:
-          path: /profilelistitems/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
-      - httpApi:
-          path: /vocabulary/{id}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-      - httpApi:
-          path: /vocabularylistitems/{proxy+}
-          method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-      - httpApi:
-          path: /ad/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - ads_api/ads_api
-      - httpApi:
-          path: /vocabulary/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - taxonomy_api/taxonomy_api
-      - httpApi:
-          path: /profile/{proxy+}
-          method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - profiles_api/profiles_api
-      - httpApi:
           path: /panelpagelistitems/{proxy+}
           method: GET
-          authorizer:
-            name: authorizer2
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: POST
           authorizer:
-            name: cognito
+            name: authorizer3
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: PUT
           authorizer:
-            name: cognito
+            name: authorizer3
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: GET
-          authorizer:
-            name: cognito
       - httpApi:
           path: /{site}/panelpage/{proxy+}
           method: POST
-          authorizer:
-            name: cognito
       - httpApi:
           path: /{site}/panelpage/{proxy+}
           method: PUT
-          authorizer:
-            name: cognito
       - httpApi:
           path: /{site}/panelpage/{id}
           method: GET
-          authorizer:
-            name: authorizer2
   MediaApi:
-    handler: bazel-bin/api/media/media_/media
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/media
+      artifact: .serverless/MediaApi.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
@@ -274,15 +182,11 @@ functions:
       - httpApi:
           path: /{owner}/{repo}/media
           method: POST
-          authorizer:
-            name: cognito
             #scopes:
               #- media_api/media_api
       - httpApi:
           path: /{site}/media
           method: POST
-          authorizer:
-            name: cognito
             #scopes:
               #- media_api/media_api
       - httpApi:
@@ -293,8 +197,13 @@ functions:
           method: GET
   UserApi:
     # handler: bazel-out/darwin_arm64-fastbuild-ST-5fa8105c1248/bin/api/user/user_/user
-    handler: bazel-bin/api/user/user_/user
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/user
+      artifact: .serverless/UserApi.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
       COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
@@ -312,8 +221,13 @@ functions:
           path: /github/marketplace/event
           method: POST
   ProxyApi:
-    handler: bazel-bin/api/proxy/proxy_/proxy
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/proxy
+      artifact: .serverless/ProxyApi.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
       PROXY_AVE_APIKEY: ${self:custom.aveApikey}
@@ -333,8 +247,13 @@ functions:
           path: /marvel/{proxy+}
           method: GET
   ChatApi:
-    handler: bazel-bin/api/chat/chat_/chat
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/chat
+      artifact: .serverless/ChatApi.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
@@ -344,58 +263,35 @@ functions:
       - httpApi:
           path: /chatmessage/{proxy+}
           method: POST
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
       - httpApi:
           path: /chatconversations/{proxy+}
           method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
-      - httpApi:
-          path: /chatmessages/{proxy+}
-          method: GET
-          events:
-
-          authorizer:
-            name: cognito
-            scopes:
-              - chat/chat
       - httpApi:
           path: /lead/{proxy+}
           method: POST
       - httpApi:
           path: /leads/{proxy+}
           method: GET
-          authorizer:
-            name: cognito
-            scopes:
-              - ads_api/ads_api
-              - profiles_api/profiles_api
       - httpApi:
           path: /page/{proxy+}
           method: POST
-          authorizer:
-            name: cognito
       - httpApi:
           path: /pages/{proxy+}
           method: GET
       - httpApi:
           path: /gridlayout/{proxy+}
           method: POST
-          authorizer:
-            name: cognito
       - httpApi:
           path: /gridlayouts/{proxy+}
           method: GET
-          authorizer:
-            name: cognito
   GovApi:
-    handler: bazel-bin/api/gov/gov_/gov
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/gov
+      artifact: .serverless/GovApi.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       STAGE: ${opt:stage, 'dev'}
     events:
@@ -403,20 +299,35 @@ functions:
           path: /grant/{type}/{user}/{resource}/{op}/{proxy+}
           method: GET
   ValidateEntity:
-    handler: bazel-bin/func/validate_entity/validate_entity_/validate_entity
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/func/validate_entity
+      artifact: .serverless/ValidateEntity.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       STAGE: ${opt:stage, 'dev'}
   GrantAccess:
-    handler: bazel-bin/func/grant_access/grant_access_/grant_access
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/func/grant_access
+      artifact: .serverless/GrantAccess.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
   Stream:
-    handler: bazel-bin/api/stream/stream_/stream
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/api/stream
+      artifact: .serverless/Stream.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
@@ -431,8 +342,13 @@ functions:
       - websocket:
           route: $disconnect
   RenewableRecord:
-    handler: bazel-bin/func/renewable_record/renewable_record_/renewable_record
+    handler: bootstrap
     role: EntityApiRole
+    package:
+      path: bazel-bin/func/renewable_record
+      artifact: .serverless/RenewableRecord.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       COGNITO_APP_CLIENT_ID: ${self:custom.cognitoAppClientId}
       ELASTIC_URL: ${self:custom.elasticUrl}
@@ -471,12 +387,22 @@ functions:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
           filter: 'REPORT'
   Authorize:
-    handler: bazel-bin/api/authorizer/authorizer_/authorizer
+    handler: bootstrap
+    package:
+      path: bazel-bin/api/authorizer
+      artifact: .serverless/Authorizer.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}
-  Authorize2:
-    handler: bazel-bin/api/authorizer2/linux_amd64_pure_stripped/authorizer2
+  Authorize3:
+    handler: bootstrap
+    package:
+      path: bazel-bin/api/authorizer3
+      artifact: .serverless/Authorizer3.zip
+      include_globs:
+        - "**/bootstrap"
     environment:
       USER_POOL_ID: ${self:custom.userPoolId}
       STAGE: ${opt:stage, 'dev'}

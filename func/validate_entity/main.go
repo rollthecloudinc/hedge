@@ -28,9 +28,12 @@ func handler(ctx context.Context, payload *entity.ValidateEntityRequest) (entity
 		Unauthorized: true,
 	}
 
-	if payload.EntityName != "lead" && payload.UserId == "" {
+	if payload.EntityName != "shapeshifter" && payload.UserId == "" {
+		log.Print("inside not lead and user id empty conditional")
 		return invalid, errors.New("Unauthorized to create entity")
 	}
+
+	log.Printf("entity is %s", payload.EntityName)
 
 	invalid.Unauthorized = false
 
@@ -360,7 +363,7 @@ func main() {
 func ValidateShapeshifter(jsonData []byte, payload *entity.ValidateEntityRequest) (map[string]interface{}, error) {
 	var deadObject map[string]interface{}
 
-	log.Printf("Inside ValidatePanelPage")
+	log.Printf("Inside ValidateShapeshifter")
 
 	var obj map[string]interface{}
 	err := json.Unmarshal(jsonData, &obj)

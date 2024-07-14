@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'This template sets up bucket to host automation resources.'
+
+Parameters:
+  EnvironmentName:
+    Description: The name of the environment (e.g., dev, prod)
+    Type: String
+  VendorSuffix:
+    Description: Unique vendor suffix for the bucket.
+    Type: String
+
+Resources:
+  CloudformationTemplatesBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub 'rtc-classifieds-cloudformation-templates-${EnvironmentName}-${VendorSuffix}'
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256

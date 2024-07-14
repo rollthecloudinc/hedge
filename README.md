@@ -24,34 +24,36 @@ HEDGE reimagines the way websites are built using the best sustainable technolog
 
 Repair data storage for good providing REST APIs that move around world between cleanest energy grids to store data. Data is stored on Github using repositories rather than individual databases. Transactions are wrapped in electricity and carbon emissions scope 1,2,3 tracking/monitoring providing complete picture of emissions. Our REST API is distributed across all the regions below delegating cpu processing to the one with the lowest grid intensity.
 
+Dev Enviornment: https://proxy.climateaware-dev.eco
+
 AWS
 
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |
-| Montreal | https://ca-central-1.octostore.earth | canadacentral |
-| Ashburn VA  | https://us-east-1.octostore.earth  | eastus |
-| San Fransisco  | https://us-west-1.octostore.earth | westus |
-| Dublin  | https://eu-west-1.octostore.earth | ukwest |
-| London  | https://eu-west-2.octostore.earth | uknorth |
-| Frankfurt | https://eu-central-1.octostore.earth | germanywestcentral |
-| Stockholm | https://eu-north-1.octostore.earth | northeurope/swedencentral |
+| Montreal | https://ca-central-1.climateaware.eco | canadacentral |
+| Ashburn VA  | https://us-east-1.climateaware.eco  | eastus |
+| San Fransisco  | https://us-west-1.climateaware.eco | westus |
+| Dublin  | https://eu-west-1.climateaware.eco | ukwest |
+| London  | https://eu-west-2.climateaware.eco | uknorth |
+| Frankfurt | https://eu-central-1.climateaware.eco | germanywestcentral |
+| Stockholm | https://eu-north-1.climateaware.eco | northeurope/swedencentral |
 
 Azure
 
 
 | Location  | Domain | Mapping |
 | ------------- | ------------- | ----------- |
-| Norway East | https://norway-hedge.azurewebsites.net | norwayeast |
+| Norway East | https://norway.climateaware.eco | norwayeast |
 
 ### JSON API
 
 Store JSON using the cleanest energy resources.
 
-| Method | HEDGE.earth |
+| Method | Proxy.CimateAware |
 | ------------- | ------------- |
-| GET  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
-| PUT  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
-| POST  | https://edge.hedge.earth/octostore/owner/repo/shapeshifter/path/id  |
+| GET  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
+| PUT  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
+| POST  | https://proxy.climateaware.eco/db/owner/repo/shapeshifter/path/id  |
 
 > The octostore API is the first carbon aware API being bounced to low intensity data centers using HEDGE.earth. You can follow in our footsteps by submitting a pull requests for your service to our [HEDGE objects dev repo](https://github.com/rollthecloudinc/hedge-objects/tree/dev/services). Once you have tested, verified HEDGE.earth works with your API submit a pull request to [HEDGE objects prod repo](https://github.com/rollthecloudinc/hedge-objects-prod/tree/master/services). See our [emissionless.json](https://store.hedge.earth/services/octostore.json) service schema for reference and [_schema.json](https://store.hedge.earth/services/_schema.json) for json schema defination of a HEDGE service. Valid regions can be found in the [regions json file](https://store.hedge.earth/regions/regions.json).
 

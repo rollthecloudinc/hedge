@@ -1,11 +1,11 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(
-    name = "authorizer2",
-    embed = [":authorizer2_lib"],
+    name = "authorizer3",
+    embed = [":authorizer3_lib"],
     goarch = "amd64",
     goos = "linux",
-    importpath = "goclassifieds/api/authorizer2",
+    importpath = "goclassifieds/api/authorizer3",
     visibility = ["//visibility:public"],
     out = "bootstrap"
 )
@@ -15,9 +15,9 @@ go_binary(
 #)
 
 go_library(
-    name = "authorizer2_lib",
+    name = "authorizer3_lib",
     srcs = ["main.go"],
-    importpath = "goclassifieds/api/authorizer2",
+    importpath = "goclassifieds/api/authorizer3",
     visibility = ["//visibility:private"],
     deps = [
         "//lib/utils",

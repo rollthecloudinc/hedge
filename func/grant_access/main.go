@@ -20,6 +20,8 @@ type TemplateBindValueFunc func(value interface{}) string
 func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAccessResponse, error) {
 
 	utils.LogUsageForLambdaWithInput(payload.LogUsageLambdaInput)
+	results := make([]map[string]interface{}, 0)
+	keyspacesConnected := false
 
 	cluster := gocql.NewCluster("cassandra.us-east-1.amazonaws.com")
 	cluster.Keyspace = "ClassifiedsDev"
@@ -30,29 +32,39 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 	cluster.PoolConfig = gocql.PoolConfig{HostSelectionPolicy: /*gocql.TokenAwareHostPolicy(*/ gocql.DCAwareRoundRobinPolicy("us-east-1") /*)*/}
 	cSession, err := cluster.CreateSession()
 	if err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
+		log.Print("connection to keyspaxces failed")
+	} else {
+		keyspacesConnected = true
 	}
 
-	resourceParams := &gov.ResourceManagerParams{
-		Session: cSession,
-		Request: payload,
-		// Resource:  fmt.Sprint(payload.Resource),
-		// Operation: fmt.Sprint(payload.Operation),
-	}
+	log.Print("After keyspaces connect")
 
-	resourceManager, _ := ResourceManager(resourceParams)
-	allAttributes := make([]entity.EntityAttribute, 0)
-	data := &entity.EntityFinderDataBag{
-		Attributes: allAttributes,
-		Metadata: map[string]interface{}{
-			"user":     payload.User,
-			"type":     payload.Type,
-			"resource": payload.Resource,
-			"asset":    payload.Asset,
-			"op":       payload.Operation,
-		},
+	if keyspacesConnected {
+
+		resourceParams := &gov.ResourceManagerParams{
+			Session: cSession,
+			Request: payload,
+			// Resource:  fmt.Sprint(payload.Resource),
+			// Operation: fmt.Sprint(payload.Operation),
+		}
+	
+		resourceManager, _ := ResourceManager(resourceParams)
+		allAttributes := make([]entity.EntityAttribute, 0)
+		data := &entity.EntityFinderDataBag{
+			Attributes: allAttributes,
+			Metadata: map[string]interface{}{
+				"user":     payload.User,
+				"type":     payload.Type,
+				"resource": payload.Resource,
+				"asset":    payload.Asset,
+				"op":       payload.Operation,
+			},
+		}
+	
+		results = resourceManager.Find("default", "grant_access", data)
+
 	}
-	results := resourceManager.Find("default", "grant_access", data)
 
 	/*b, _ := json.Marshal(results)
 	log.Print(string(b))*/

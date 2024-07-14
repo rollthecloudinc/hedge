@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template: This template sets up the base search system.'
+
+Parameters:
+  EnvironmentName:
+    Description: The name of the environment (e.g., dev, prod)
+    Type: String
+  EnvironmentNameCamelCase:
+    Description: The name of the environment (e.g., dev, prod) in CamelCase for supporting multiple environments in same account without conflicts.
+    Type: String
+  VendorSuffix:
+    Description: Unique vendor suffix for the bucket.
+    Type: String
+  VendorSuffixCamelCase:
+    Description: Unique vendor suffix in CamelCase for supporting multiple vendors under the same account.
+    Type: String
+  UserPoolId:
+    Description: The ID of the Cognito User Pool
+    Type: String
+  IdentityPoolId:
+    Description: The ID of the Cognito Identity Pool
+    Type: String
+
+Resources:
+  CognitoOpenSearchRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub 'RtcCognitoOpenSearchRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "cognito-identity.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub 'RtcCognitoOpenSearchAccess${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "es:ESHttpGet"
+                  - "es:ESHttpPut"
+                  - "es:ESHttpPost"
+                  - "es:ESHttpDelete"
+                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
+
+  MyDomain:
+    Type: "AWS::OpenSearchService::Domain"
+    Properties:
+      DomainName: !Sub 'rtc-classifieds-${EnvironmentName}-${VendorSuffix}'
+      EngineVersion: "OpenSearch_2.13"
+      ClusterConfig:
+        InstanceType: "t3.small.search"
+        InstanceCount: 1
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+      EncryptionAtRestOptions:
+        Enabled: false
+      NodeToNodeEncryptionOptions:
+        Enabled: false
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
+      CognitoOptions:
+        Enabled: true
+        UserPoolId: !Ref UserPoolId
+        IdentityPoolId: !Ref IdentityPoolId
+        RoleArn: !GetAtt CognitoOpenSearchRole.Arn

@@ -7,6 +7,7 @@ go_binary(
     goos = "linux",
     importpath = "goclassifieds/func/renewable_record",
     visibility = ["//visibility:public"],
+    out = "bootstrap"
 )
 
 go_library(

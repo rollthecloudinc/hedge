@@ -143,21 +143,25 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
-	newEntity, err := ac.EntityManager.Create(e)
+	createRes, err := ac.EntityManager.Create(e)
 	if err != nil {
 		if strings.Contains(err.Error(), "unauthorized") {
 			res.StatusCode = 403
 			res.Body = err.Error()
 		}
 		return res, nil
+	} else if createRes.Success == false {
+		validationErrors, _ := json.Marshal(createRes.Errors)
+		res.Body = string(validationErrors)
+		return res, err
 	}
-	resBody, err := json.Marshal(newEntity)
+	resBody, err := json.Marshal(createRes.Entity)
 	if err != nil {
 		return res, err
 	}
 	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
 	// log.Print("Index Entity")
-	// ac.EntityManager.Save(newEntity, "opensearch") // @todo: Just remove for now to get it up and running with Canva Hackathon
+	// ac.EntityManager.Save(createRes.Entity, "opensearch") // @todo: Just remove for now to get it up and running with Canva Hackathon
 	//}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
@@ -173,17 +177,22 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
-	newEntity, err := ac.EntityManager.Update(e)
+	updateRes, err := ac.EntityManager.Update(e)
+	if err != nil {
+		return res, err
+	} else if updateRes.Success == false {
+		validationErrors, _ := json.Marshal(updateRes.Errors)
+		res.Body = string(validationErrors)
+		return res, err
+	}
+	resBody, err := json.Marshal(updateRes.Entity)
 	if err != nil {
 		return res, err
 	}
-	resBody, err := json.Marshal(newEntity)
-	if err != nil {
-		return res, err
-	}
+	// @todo: Ignore just to get this working for Canva integration
 	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
-	log.Print("Index Entity")
-	ac.EntityManager.Save(newEntity, "opensearch")
+	// log.Print("Index Entity")
+	// ac.EntityManager.Save(updateRes.Entity, "opensearch")
 	//}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
@@ -484,6 +493,17 @@ func InitializeHandler(c *ActionContext) Handler {
 					UserName: GetUsername(req),
 				},
 			})
+			ac.EntityManager.AddValidator("default", entity.ContractValidatorAdaptor{
+				Config: entity.ContractValidatorConfig{
+					Lambda:   ac.Lambda,
+					UserId:   userId,
+					Site:     ac.Site,
+					Client:   ac.GithubRestClient,
+					Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Branch:   os.Getenv("GITHUB_BRANCH"),
+					Contract: "/contracts/" + proxyPieces[0] + ".json",
+				},
+			})
 		}
 
 		if entityName == pluralName && req.HTTPMethod == "GET" {
@@ -744,6 +764,9 @@ func GrantAccessManager(params *gov.ResourceManagerParams, bindings *entity.Vari
 			PluralName:   inflector.Pluralize(entityName),
 			IdKey:        "id",
 			Stage:        os.Getenv("STAGE"),
+		},
+		Validators: map[string]entity.Validator{
+			"default": entity.DefaultValidatorAdaptor{},
 		},
 		Creator:  entity.DefaultCreatorAdaptor{},
 		Storages: map[string]entity.Storage{},

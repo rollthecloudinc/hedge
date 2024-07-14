@@ -105,6 +105,9 @@ func ResourceManager(params *gov.ResourceManagerParams) (entity.Manager, error) 
 			Stage:        os.Getenv("STAGE"),
 		},
 		Creator:  entity.DefaultCreatorAdaptor{},
+		Validators: map[string]entity.Validator{
+			"default": entity.DefaultValidatorAdaptor{},
+		},
 		Storages: map[string]entity.Storage{},
 		Finders: map[string]entity.Finder{
 			"default": entity.CqlTemplateFinder{

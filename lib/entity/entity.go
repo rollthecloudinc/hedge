@@ -897,6 +897,8 @@ func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]
 
 func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
 
+	log.Print("top GithubRestFileUploadAdaptor")
+
 	dataBuffer := bytes.Buffer{}
 	encoder := json.NewEncoder(&dataBuffer)
 	encoder.SetIndent("", "\t")
@@ -908,8 +910,10 @@ func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interfac
 		Branch:   s.Config.Branch,
 		Path:     s.Config.Path + "/" + id + ".json",
 		Data:     &data,
-		UserName: s.Config.UserName,
+		UserName: "anonymous", //s.Config.UserName,
 	}
+
+	log.Printf("GithubRestFileUploadAdaptor username %s", s.Config.UserName)
 
 	repo.CommitRestOptimized(
 		s.Config.Client,
@@ -955,7 +959,7 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 		return false, nil
 	}
 
-	log.Print("before grant access invoke")
+	log.Print("before grant access invoke ResourceOrOwnerAuthorizationAdaptor")
 
 	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
 	if err != nil {
@@ -1000,7 +1004,7 @@ func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (boo
 		return false, nil
 	}
 
-	log.Print("before grant access invoke")
+	log.Print("before grant access invoke ResourceAuthorizationAdaptor")
 
 	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
 	if err != nil {
@@ -1008,11 +1012,15 @@ func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (boo
 		return false, nil
 	}
 
+	log.Print("after grant access invoke ResourceAuthorizationAdaptor")
+
 	var grantRes gov.GrantAccessResponse
 	json.Unmarshal(res.Payload, &grantRes)
 
 	b, _ := json.Marshal(grantRes)
 	log.Print(string(b))
+
+	log.Print("End of ResourceAuthorizationAdaptor")
 
 	return grantRes.Grant, nil
 }
@@ -1058,6 +1066,8 @@ func (a ResourceAuthorizationEmbeddedAdaptor) CanWrite(id string, m *EntityManag
 
 func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
 
+	log.Print("DefaultCreatorAdaptor top")
+
 	request := ValidateEntityRequest{
 		EntityName:          m.Config.SingularName,
 		Entity:              entity,
@@ -1072,11 +1082,15 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("unauthorized to write entity.")
 	}
 
+	log.Print("DefaultCreatorAdaptor after write check")
+
 	payload, err := json.Marshal(request)
 	if err != nil {
 		log.Printf("Error marshalling entity validation request: %s", err.Error())
 		return entity, errors.New("Error marshalling entity validation request")
 	}
+
+	log.Print("DefaultCreatorAdaptor after marshall")
 
 	var validateRes ValidateEntityResponse
 
@@ -1092,11 +1106,15 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 
 	} else {
 
+		log.Print("DefaultCreatorAdaptor before ValidateEntity")
+
 		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
 		if err != nil {
 			log.Printf("error invoking entity validation: %s", err.Error())
 			return entity, errors.New("Error invoking validation")
 		}
+
+		log.Print("DefaultCreatorAdaptor after ValidateEntity")
 
 		json.Unmarshal(res.Payload, &validateRes)
 	}
@@ -1104,13 +1122,21 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to create entity")
 		return entity, errors.New("Unauthorized to create entity")
+	} else {
+		log.Printf("Authorized to create entity")
 	}
+
+	log.Print("DefaultCreatorAdaptor after unauthorized check")
 
 	if validateRes.Valid {
 		log.Printf("Lambda Response valid")
 		m.Save(validateRes.Entity, c.Config.Save)
 		return validateRes.Entity, nil
+	} else {
+		log.Print("Lambda response invalid")
 	}
+
+	log.Print("DefaultCreatorAdaptor end")
 
 	return entity, errors.New("Entity invalid")
 }

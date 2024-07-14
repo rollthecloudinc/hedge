@@ -80,6 +80,16 @@ type ValidateEntityRequest struct {
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
 }
 
+type EnforceContractRequest struct {
+	EntityName          string
+	EntityType          string
+	UserId              string
+	Site                string
+	Entity              map[string]interface{}
+	Contract            map[string]interface{}
+	LogUsageLambdaInput *utils.LogUsageLambdaInput
+}
+
 type EntityDataRequest struct {
 	EntityName string
 	EntityType string
@@ -100,12 +110,36 @@ type ValidateEntityResponse struct {
 	Unauthorized bool
 }
 
+type EnforceContractResponse struct {
+	Entity       map[string]interface{}
+	Valid        bool
+	Unauthorized bool
+	Errors       []map[string]interface{}
+}
+
 type VariableBindings struct {
 	Values []interface{}
 }
 
 type EntityDataResponse struct {
 	Data []map[string]interface{}
+}
+
+type CreateEntityResponse struct {
+	Success bool
+	Entity  map[string]interface{}
+	Errors  []map[string]interface{}
+}
+
+type UpdateEntityResponse struct {
+	Success bool
+	Entity  map[string]interface{}
+	Errors  []map[string]interface{}
+}
+
+type EntityValidationResponse struct {
+	Entity map[string]interface{}
+	Errors []map[string]interface{}
 }
 
 type DefaultManagerConfig struct {
@@ -145,6 +179,7 @@ type EntityManager struct {
 	Config          EntityConfig
 	Creator         Creator
 	Updator         Updator
+	Validators      map[string]Validator
 	Loaders         map[string]Loader
 	Finders         map[string]Finder
 	Storages        map[string]Storage
@@ -154,8 +189,9 @@ type EntityManager struct {
 }
 
 type Manager interface {
-	Create(entity map[string]interface{}) (map[string]interface{}, error)
-	Update(entity map[string]interface{}) (map[string]interface{}, error)
+	Create(entity map[string]interface{}) (*CreateEntityResponse, error)
+	Update(entity map[string]interface{}) (*UpdateEntityResponse, error)
+	Validate(name string, entity map[string]interface{}) (*EntityValidationResponse, error)
 	Purge(storage string, entities ...map[string]interface{})
 	Save(entity map[string]interface{}, storage string)
 	Load(id string, loader string) map[string]interface{}
@@ -164,6 +200,7 @@ type Manager interface {
 	AddFinder(name string, finder Finder)
 	AddLoader(name string, loader Loader)
 	AddStorage(name string, storage Storage)
+	AddValidator(name string, validator Validator)
 	AddAuthorizer(name string, authorizer Authorization)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
@@ -179,11 +216,15 @@ type Loader interface {
 }
 
 type Creator interface {
-	Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
+	Create(entity map[string]interface{}, m *EntityManager) (*CreateEntityResponse, error)
 }
 
 type Updator interface {
-	Update(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error)
+	Update(entity map[string]interface{}, m *EntityManager) (*UpdateEntityResponse, error)
+}
+
+type Validator interface {
+	Validate(entity map[string]interface{}, m *EntityManager) (*EntityValidationResponse, error)
 }
 
 type Finder interface {
@@ -309,6 +350,22 @@ type DefaultUpdatorConfig struct {
 	Save   string         `json:"save"`
 }
 
+type DefaultValidatorConfig struct {
+	Lambda *lambda.Lambda `json:"-"`
+	UserId string         `json:"userId"`
+	Site   string         `json:"site"`
+}
+
+type ContractValidatorConfig struct {
+	Lambda   *lambda.Lambda `json:"-"`
+	Client   *github.Client `json:"-"`
+	UserId   string         `json:"userId"`
+	Site     string         `json:"site"`
+	Repo     string         `json:"repo"`
+	Branch   string         `json:"branch"`
+	Contract string         `json:"contract"`
+}
+
 type S3LoaderAdaptor struct {
 	Config S3AdaptorConfig `json:"config"`
 }
@@ -408,6 +465,14 @@ type EntityTypeCreatorAdaptor struct {
 	Config DefaultCreatorConfig `json:"config"`
 }
 
+type DefaultValidatorAdaptor struct {
+	Config DefaultValidatorConfig `json:"config"`
+}
+
+type ContractValidatorAdaptor struct {
+	Config ContractValidatorConfig `json:"config"`
+}
+
 type DefaultEntityTypeFinderConfig struct {
 	Template *template.Template `json:"-"`
 }
@@ -439,12 +504,16 @@ type EntityAttribute struct {
 	Attributes []EntityAttribute      `form:"attributes[]" json:"attributes" binding:"required" validate:"dive"`
 }
 
-func (m EntityManager) Create(entity map[string]interface{}) (map[string]interface{}, error) {
+func (m EntityManager) Create(entity map[string]interface{}) (*CreateEntityResponse, error) {
 	return m.Creator.Create(entity, &m)
 }
 
-func (m EntityManager) Update(entity map[string]interface{}) (map[string]interface{}, error) {
+func (m EntityManager) Update(entity map[string]interface{}) (*UpdateEntityResponse, error) {
 	return m.Updator.Update(entity, &m)
+}
+
+func (m EntityManager) Validate(name string, entity map[string]interface{}) (*EntityValidationResponse, error) {
+	return m.Validators[name].Validate(entity, &m)
 }
 
 func (m EntityManager) Purge(storage string, entities ...map[string]interface{}) {
@@ -484,6 +553,10 @@ func (m EntityManager) AddLoader(name string, loader Loader) {
 
 func (m EntityManager) AddAuthorizer(name string, authorizer Authorization) {
 	m.Authorizers[name] = authorizer
+}
+
+func (m EntityManager) AddValidator(name string, validator Validator) {
+	m.Validators[name] = validator
 }
 
 func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -897,8 +970,6 @@ func (s GithubFileUploadAdaptor) Purge(m *EntityManager, entities ...map[string]
 
 func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interface{}) {
 
-	log.Print("top GithubRestFileUploadAdaptor")
-
 	dataBuffer := bytes.Buffer{}
 	encoder := json.NewEncoder(&dataBuffer)
 	encoder.SetIndent("", "\t")
@@ -910,10 +981,8 @@ func (s GithubRestFileUploadAdaptor) Store(id string, entity map[string]interfac
 		Branch:   s.Config.Branch,
 		Path:     s.Config.Path + "/" + id + ".json",
 		Data:     &data,
-		UserName: "anonymous", //s.Config.UserName,
+		UserName: s.Config.UserName,
 	}
-
-	log.Printf("GithubRestFileUploadAdaptor username %s", s.Config.UserName)
 
 	repo.CommitRestOptimized(
 		s.Config.Client,
@@ -959,7 +1028,7 @@ func (a ResourceOrOwnerAuthorizationAdaptor) CanWrite(id string, m *EntityManage
 		return false, nil
 	}
 
-	log.Print("before grant access invoke ResourceOrOwnerAuthorizationAdaptor")
+	log.Print("before grant access invoke")
 
 	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
 	if err != nil {
@@ -1004,7 +1073,7 @@ func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (boo
 		return false, nil
 	}
 
-	log.Print("before grant access invoke ResourceAuthorizationAdaptor")
+	log.Print("before grant access invoke")
 
 	res, err := a.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-GrantAccess"), Payload: payload})
 	if err != nil {
@@ -1012,15 +1081,11 @@ func (a ResourceAuthorizationAdaptor) CanWrite(id string, m *EntityManager) (boo
 		return false, nil
 	}
 
-	log.Print("after grant access invoke ResourceAuthorizationAdaptor")
-
 	var grantRes gov.GrantAccessResponse
 	json.Unmarshal(res.Payload, &grantRes)
 
 	b, _ := json.Marshal(grantRes)
 	log.Print(string(b))
-
-	log.Print("End of ResourceAuthorizationAdaptor")
 
 	return grantRes.Grant, nil
 }
@@ -1064,11 +1129,155 @@ func (a ResourceAuthorizationEmbeddedAdaptor) CanWrite(id string, m *EntityManag
 	return grant, nil
 }
 
-func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+func (v DefaultValidatorAdaptor) Validate(entity map[string]interface{}, m *EntityManager) (*EntityValidationResponse, error) {
 
-	log.Print("DefaultCreatorAdaptor top")
+	valRes := &EntityValidationResponse{}
 
 	request := ValidateEntityRequest{
+		EntityName:          m.Config.SingularName,
+		Entity:              entity,
+		UserId:              v.Config.UserId,
+		Site:                v.Config.Site,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
+	}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("Error marshalling entity validation request: %s", err.Error())
+		valRes.Entity = entity
+		return valRes, errors.New("Error marshalling entity validation request")
+	}
+
+	var validateRes ValidateEntityResponse
+
+	res, err := v.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
+	if err != nil {
+		log.Printf("error invoking entity validation: %s", err.Error())
+		valRes.Entity = entity
+		return valRes, errors.New("Error invoking validation")
+	}
+
+	json.Unmarshal(res.Payload, &validateRes)
+
+	if validateRes.Unauthorized {
+		log.Printf("Unauthorized to create entity")
+		valRes.Entity = entity
+		return valRes, errors.New("Unauthorized to create entity")
+	}
+
+	if validateRes.Valid {
+		log.Printf("Lambda Response valid default")
+		valRes.Entity = validateRes.Entity
+		return valRes, nil
+	}
+
+	valRes.Entity = entity
+	return valRes, errors.New("Entity invalid")
+}
+
+func (v ContractValidatorAdaptor) Validate(entity map[string]interface{}, m *EntityManager) (*EntityValidationResponse, error) {
+
+	// Test schema - replace with discovery
+	/*schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"foo": map[string]interface{}{
+				"type": "integer",
+			},
+			"bar": map[string]interface{}{
+				"type": "string",
+			},
+		},
+		"required":             []string{"foo"},
+		"additionalProperties": false,
+	}*/
+
+	valRes := &EntityValidationResponse{}
+	var contract map[string]interface{}
+
+	pieces := strings.Split(v.Config.Repo, "/")
+	opts := &github.RepositoryContentGetOptions{
+		Ref: v.Config.Branch,
+	}
+
+	file, _, res, err := v.Config.Client.Repositories.GetContents(context.Background(), pieces[0], pieces[1], v.Config.Contract, opts)
+	if err != nil || res.StatusCode != 200 {
+		log.Print("No contract detected for " + v.Config.Contract)
+		entity["userId"] = v.Config.UserId
+		valRes.Entity = entity
+		return valRes, nil
+	}
+	if err == nil && file != nil && file.Content != nil {
+		content, err := base64.StdEncoding.DecodeString(*file.Content)
+		if err == nil {
+			json.Unmarshal(content, &contract)
+		} else {
+			entity["userId"] = v.Config.UserId
+			valRes.Entity = entity
+			return valRes, errors.New("Invalid contract unable to parse.")
+		}
+	}
+
+	request := EnforceContractRequest{
+		EntityName:          m.Config.SingularName,
+		Entity:              entity,
+		Contract:            contract,
+		UserId:              v.Config.UserId,
+		Site:                v.Config.Site,
+		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
+	}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("Error marshalling entity validation request: %s", err.Error())
+		valRes.Entity = entity
+		return valRes, errors.New("Error marshalling entity validation request")
+	}
+
+	var contractRes EnforceContractResponse
+
+	res2, err2 := v.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-EnforceContract"), Payload: payload})
+	if err2 != nil {
+		log.Printf("error invoking entity validation: %s", err2.Error())
+		valRes.Entity = entity
+		return valRes, errors.New("Error invoking validation")
+	}
+
+	json.Unmarshal(res2.Payload, &contractRes)
+
+	if contractRes.Unauthorized {
+		log.Printf("Unauthorized to create entity")
+		valRes.Entity = entity
+		return valRes, errors.New("Unauthorized to create entity")
+	}
+
+	if contractRes.Valid {
+		log.Printf("Lambda Response valid contract")
+		valRes.Entity = contractRes.Entity
+		return valRes, nil
+	}
+
+	valRes.Entity = entity
+	valRes.Errors = contractRes.Errors
+	return valRes, errors.New("Entity invalid")
+
+}
+
+func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (*CreateEntityResponse, error) {
+
+	res := &CreateEntityResponse{}
+
+	write, _ := m.Allow("", "write", "default")
+	if !write {
+		log.Printf("not allowed to write entity %s", entity)
+		res.Entity = entity
+		res.Success = false
+		return res, errors.New("unauthorized to write entity.")
+	}
+
+	validateRes, err := m.Validate("default", entity)
+
+	/*request := ValidateEntityRequest{
 		EntityName:          m.Config.SingularName,
 		Entity:              entity,
 		UserId:              c.Config.UserId,
@@ -1082,15 +1291,11 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 		return entity, errors.New("unauthorized to write entity.")
 	}
 
-	log.Print("DefaultCreatorAdaptor after write check")
-
 	payload, err := json.Marshal(request)
 	if err != nil {
 		log.Printf("Error marshalling entity validation request: %s", err.Error())
 		return entity, errors.New("Error marshalling entity validation request")
 	}
-
-	log.Print("DefaultCreatorAdaptor after marshall")
 
 	var validateRes ValidateEntityResponse
 
@@ -1106,15 +1311,11 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 
 	} else {
 
-		log.Print("DefaultCreatorAdaptor before ValidateEntity")
-
 		res, err := c.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-ValidateEntity"), Payload: payload})
 		if err != nil {
 			log.Printf("error invoking entity validation: %s", err.Error())
 			return entity, errors.New("Error invoking validation")
 		}
-
-		log.Print("DefaultCreatorAdaptor after ValidateEntity")
 
 		json.Unmarshal(res.Payload, &validateRes)
 	}
@@ -1122,32 +1323,40 @@ func (c DefaultCreatorAdaptor) Create(entity map[string]interface{}, m *EntityMa
 	if validateRes.Unauthorized {
 		log.Printf("Unauthorized to create entity")
 		return entity, errors.New("Unauthorized to create entity")
-	} else {
-		log.Printf("Authorized to create entity")
 	}
-
-	log.Print("DefaultCreatorAdaptor after unauthorized check")
 
 	if validateRes.Valid {
 		log.Printf("Lambda Response valid")
 		m.Save(validateRes.Entity, c.Config.Save)
 		return validateRes.Entity, nil
-	} else {
-		log.Print("Lambda response invalid")
+	}*/
+
+	if err == nil {
+		log.Printf("Entity passes validation")
+		m.Save(validateRes.Entity, c.Config.Save)
+		res.Entity = validateRes.Entity
+		res.Success = true
+		return res, nil
 	}
 
-	log.Print("DefaultCreatorAdaptor end")
+	res.Entity = entity
+	res.Success = false
+	res.Errors = validateRes.Errors
 
-	return entity, errors.New("Entity invalid")
+	return res, nil
 }
 
-func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *EntityManager) (*CreateEntityResponse, error) {
 
 	log.Print("EntityTypeCreatorAdaptor: 1")
 
+	res := &CreateEntityResponse{}
+
 	jsonData, err := json.Marshal(entity)
 	if err != nil {
-		return entity, err
+		res.Entity = entity
+		res.Success = false
+		return res, err
 	}
 
 	log.Print("EntityTypeCreatorAdaptor: 2")
@@ -1155,7 +1364,9 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 	var obj EntityType
 	err = json.Unmarshal(jsonData, &obj)
 	if err != nil {
-		return entity, err
+		res.Entity = entity
+		res.Success = false
+		return res, err
 	}
 
 	log.Print("EntityTypeCreatorAdaptor: 3")
@@ -1168,7 +1379,9 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 	validate := validator.New()
 	err = validate.Struct(obj)
 	if err != nil {
-		return entity, err.(validator.ValidationErrors)
+		res.Entity = entity
+		res.Success = false
+		return res, err.(validator.ValidationErrors)
 	}
 
 	log.Print("EntityTypeCreatorAdaptor: 5")
@@ -1178,13 +1391,28 @@ func (c EntityTypeCreatorAdaptor) Create(entity map[string]interface{}, m *Entit
 
 	log.Print("EntityTypeCreatorAdaptor: 6")
 
-	return newEntity, nil
+	res.Entity = newEntity
+	res.Success = true
+
+	return res, nil
 
 }
 
-func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityManager) (map[string]interface{}, error) {
+func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityManager) (*UpdateEntityResponse, error) {
 
-	request := ValidateEntityRequest{
+	res := &UpdateEntityResponse{}
+
+	write, _ := m.Allow(entity[m.Config.IdKey].(string), "write", "default")
+	if !write {
+		log.Printf("not allowed to write to entity %s", entity[m.Config.IdKey].(string))
+		res.Entity = entity
+		res.Success = false
+		return res, errors.New("unauthorized to write to entity.")
+	}
+
+	validateRes, err := m.Validate("default", entity)
+
+	/*request := ValidateEntityRequest{
 		EntityName:          m.Config.SingularName,
 		Entity:              entity,
 		UserId:              c.Config.UserId,
@@ -1235,9 +1463,21 @@ func (c DefaultUpdatorAdaptor) Update(entity map[string]interface{}, m *EntityMa
 		log.Printf("Lambda Response valid")
 		m.Save(validateRes.Entity, c.Config.Save)
 		return validateRes.Entity, nil
+	}*/
+
+	if err == nil {
+		log.Printf("Entity passes validation")
+		m.Save(validateRes.Entity, c.Config.Save)
+		res.Entity = validateRes.Entity
+		res.Success = true
+		return res, nil
 	}
 
-	return entity, errors.New("Entity invalid")
+	res.Success = false
+	res.Entity = entity
+	res.Errors = validateRes.Errors
+
+	return res, nil
 }
 
 func (f ElasticTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -1760,6 +2000,15 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 				UserId: config.UserId,
 				Site:   config.Site,
 				Save:   "default",
+			},
+		},
+		Validators: map[string]Validator{
+			"default": DefaultValidatorAdaptor{
+				Config: DefaultValidatorConfig{
+					Lambda: config.Lambda,
+					UserId: config.UserId,
+					Site:   config.Site,
+				},
 			},
 		},
 		Finders: map[string]Finder{

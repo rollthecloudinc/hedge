@@ -1,6 +1,6 @@
 workspace(
     name = "goclassifieds",
-    #managed_directories = {"@npm": ["node_modules"]},
+    #managed_directories = {"@npm": ["node_modules"]}
 )
 
 _ESBUILD_VERSION = "0.12.1"  # reminder: update SHAs below when changing this value

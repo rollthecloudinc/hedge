@@ -320,6 +320,15 @@ functions:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
+  EnforceContract:
+    handler: enforce_contract.handler
+    role: EntityApiRole
+    runtime: nodejs16.x
+    package:
+      path: bazel-bin/func/enforce_contract
+      artifact: .serverless/EnforceContract.zip
+      include_globs:
+        - "**/enforce_contract.js"
   Stream:
     handler: bootstrap
     role: EntityApiRole
@@ -384,7 +393,13 @@ functions:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ValidateEntity"
           filter: 'REPORT'
       - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EnforceContract"
+          filter: 'REPORT'
+      - cloudwatchLog:
           logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
+          filter: 'REPORT'
+      - cloudwatchLog:
+          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize3"
           filter: 'REPORT'
   Authorize:
     handler: bootstrap

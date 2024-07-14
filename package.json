@@ -5,6 +5,7 @@
     "@bazel/esbuild": "^3.6.0",
     "@bazel/ibazel": "^0.15.10",
     "@bazel/typescript": "3.8.0",
+    "ajv": "^8.17.1",
     "cssjson": "^2.1.3",
     "matcher": "^5.0.0",
     "serverless-custom-packaging-plugin": "^0.1.2",

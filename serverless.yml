@@ -38,6 +38,10 @@ provider:
   httpApi:
     payload: '1.0'
     cors: true
+    authorizers:
+      authorizer3:
+        type: request
+        functionName: Authorize3
 package:
   individually: true
 resources:
@@ -139,9 +143,13 @@ functions:
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: POST
+          authorizer:
+            name: authorizer3
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: PUT
+          authorizer:
+            name: authorizer3
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: GET
@@ -383,6 +391,16 @@ functions:
     package:
       path: bazel-bin/api/authorizer
       artifact: .serverless/Authorizer.zip
+      include_globs:
+        - "**/bootstrap"
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}
+  Authorize3:
+    handler: bootstrap
+    package:
+      path: bazel-bin/api/authorizer3
+      artifact: .serverless/Authorizer3.zip
       include_globs:
         - "**/bootstrap"
     environment:

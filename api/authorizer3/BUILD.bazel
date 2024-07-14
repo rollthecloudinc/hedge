@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "authorizer3",
+    embed = [":authorizer3_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/authorizer3",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+#go_test(
+#    name = "mainTest",
+#    srcs = ["main_test.go"],
+#)
+
+go_library(
+    name = "authorizer3_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/authorizer3",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/utils",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_golang_jwt_jwt_v4//:go_default_library",
+        "@com_github_micahparks_keyfunc//:go_default_library"
+    ],
+)

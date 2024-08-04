@@ -90,8 +90,10 @@ Future Features:
   * Interactive swagger docs for each orgs database.
 * Notifications
   * Clients will be able to subscribe to various push notifications during the flow of saving data.
+   * Notifications accross various channels, emails, text, etc. can now be accomplishe via Opensearch 2.0 with the exception of real-time streaming using websockets which will still require setting up stream api, cass, etc.
 * Webhooks
   * Developers will be able to alter incoming and outgoing data using their own custom webhooks. Including implementing their own validation strategy when JSON Schema doesn't fit the bill.
+    * Webhooks can now be done via Opensearch 2.0 notifications, I think.
 
 ### File API
 

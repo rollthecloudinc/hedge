@@ -39,8 +39,8 @@ Resources:
       UserPoolId: 
         Ref: UserPool
       SupportedIdentityProviders: ["COGNITO"]
-      CallbackURLs: [!Sub 'https://${SSODomain}/auth-callback']
-      LogoutURLs: [!Sub 'https://${SSODomain}/logout']
+      CallbackURLs: ['https://localhost:4000/auth-callback']
+      LogoutURLs: ['https://localhost:4000/logout']
       AllowedOAuthFlows: ["code"]
       AllowedOAuthScopes: ["email", "openid"]
       AllowedOAuthFlowsUserPoolClient: true
@@ -48,9 +48,12 @@ Resources:
   UserPoolDomain:
     Type: "AWS::Cognito::UserPoolDomain"
     Properties:
-      UserPoolId: 
+      UserPoolId:
         Ref: UserPool
-      Domain: !Ref SSODomain
+      Domain: !Sub 'auth-${EnvironmentName}-${VendorSuffix}'
+      # Remove the CustomDomainConfig section
+      # CustomDomainConfig:
+      #   CertificateArn: 'arn:aws:acm:us-east-1:637423414889:certificate/920728fb-18cb-41fb-8187-cb5851cf4389'
 
   UserIdentityPool:
     Type: "AWS::Cognito::IdentityPool"
@@ -64,11 +67,3 @@ Resources:
             Fn::GetAtt: 
               - UserPool
               - ProviderName
-
-Outputs:
-  UserPoolId:
-    Description: The ID of the user pool
-    Value: !Ref UserPool
-  IdentityPoolId:
-    Description: The ID of the identity pool
-    Value: !Ref UserIdentityPool

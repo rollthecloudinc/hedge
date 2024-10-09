@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template: This template sets up the base search system.'
+
+Parameters:
+  EnvironmentName:
+    Description: The name of the environment (e.g., dev, prod)
+    Type: String
+  EnvironmentNameCamelCase:
+    Description: The name of the environment (e.g., dev, prod) in CamelCase for supporting multiple environments in same account without conflicts.
+    Type: String
+  VendorSuffix:
+    Description: Unique vendor suffix for the bucket.
+    Type: String
+  VendorSuffixCamelCase:
+    Description: Unique vendor suffix in CamelCase for supporting multiple vendors under the same account.
+    Type: String
+  IdentityPoolId:
+    Description: The ID of the Cognito Identity Pool
+    Type: String
+
+Resources:
+  YourAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'RtcIdentityPoolAuthenticatedRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Federated:
+                - 'cognito-identity.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPoolId
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": "authenticated"
+      Policies:
+        - PolicyName: !Sub 'RtcIdentityPoolAuthenticatedRolePolicy${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'es:ESHttpGet'
+                  - 'es:ESSearch'
+                Resource:
+                  - !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
+              - Effect: 'Allow'
+                Action:
+                  - "es:ESGetDashboard"
+                  - "es:ESSaveDashboard"
+                  - "es:ESDeleteDashboard"
+                Resource:
+                  - !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/dashboard/*'
+
+  YourUnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'RtcIdentityPoolUnauthenticatedRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Federated:
+                - 'cognito-identity.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPoolId
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": "unauthenticated"
+      Policies:
+        - PolicyName: !Sub 'RtcIdentityPoolUnauthenticatedRolePolicy${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'es:ESHttpGet'
+                  - 'es:ESSearch'
+                Resource:
+                  - !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
+  
+  MyIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPoolId
+      Roles:
+        authenticated: !GetAtt YourAuthenticatedRole.Arn
+        unauthenticated: !GetAtt YourUnauthenticatedRole.Arn

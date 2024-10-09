@@ -1,0 +1,17 @@
+aws cloudformation create-stack --stack-name CloudformationHedgeUsersStack \
+  --template-body file://users.yaml \
+  --parameters ParameterKey=EnvironmentName,ParameterValue=dev \
+               ParameterKey=EnvironmentNameCamelCase,ParameterValue=Dev \
+               ParameterKey=SSODomain,ParameterValue=climateaware-dev \
+               ParameterKey=VendorSuffix,ParameterValue=rtc \
+               ParameterKey=VendorSuffixCamelCase,ParameterValue=Rtc
+               
+ ---------------------------
+ 
+ aws cloudformation update-stack --stack-name CloudformationHedgeUsersStack \
+  --template-body file://users.yaml \
+  --parameters ParameterKey=EnvironmentName,ParameterValue=dev \
+               ParameterKey=EnvironmentNameCamelCase,ParameterValue=Dev \
+               ParameterKey=SSODomain,ParameterValue=climateaware-dev \
+               ParameterKey=VendorSuffix,ParameterValue=rtc \
+               ParameterKey=VendorSuffixCamelCase,ParameterValue=Rtc

@@ -1,0 +1,21 @@
+aws cloudformation create-stack --stack-name CloudformationHedgeSearchStack \
+  --template-body file://search.yaml \
+  --parameters ParameterKey=EnvironmentName,ParameterValue=prod \
+               ParameterKey=EnvironmentNameCamelCase,ParameterValue=Prod \
+               ParameterKey=VendorSuffix,ParameterValue=rtc \
+               ParameterKey=VendorSuffixCamelCase,ParameterValue=Rtc \
+               ParameterKey=UserPoolId,ParameterValue=us-east-1_3mZuILnXX \
+               ParameterKey=IdentityPoolId,ParameterValue=us-east-1:88a3314e-4f05-484d-a59c-6809a8a876d4 \
+  --capabilities CAPABILITY_NAMED_IAM
+               
+ --------------
+ 
+ aws cloudformation update-stack --stack-name CloudformationHedgeSearchStack \
+  --template-body file://search.yaml \
+  --parameters ParameterKey=EnvironmentName,ParameterValue=prod \
+               ParameterKey=EnvironmentNameCamelCase,ParameterValue=Prod \
+               ParameterKey=VendorSuffix,ParameterValue=rtc \
+               ParameterKey=VendorSuffixCamelCase,ParameterValue=Rtc \
+               ParameterKey=UserPoolId,ParameterValue=us-east-1_3mZuILnXX \
+               ParameterKey=IdentityPoolId,ParameterValue=us-east-1:88a3314e-4f05-484d-a59c-6809a8a876d4 \
+  --capabilities CAPABILITY_NAMED_IAM

@@ -32,7 +32,7 @@ Resources:
           - Effect: "Allow"
             Principal:
               Service:
-                - "cognito-identity.amazonaws.com"
+                - "opensearchservice.amazonaws.com"
             Action:
               - "sts:AssumeRole"
       Policies:
@@ -42,17 +42,32 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
-                  - "es:ESHttpGet"
-                  - "es:ESHttpPut"
-                  - "es:ESHttpPost"
-                  - "es:ESHttpDelete"
-                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
-
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:CreateUserPoolClient"
+                  - "cognito-idp:DeleteUserPoolClient"
+                  - "cognito-idp:DescribeUserPoolClient"
+                  - "cognito-idp:AdminInitiateAuth"
+                  - "cognito-idp:AdminUserGlobalSignOut"
+                  - "cognito-idp:ListUserPoolClients"
+                  - "cognito-identity:DescribeIdentityPool"
+                  - "cognito-identity:UpdateIdentityPool"
+                  - "cognito-identity:SetIdentityPoolRoles"
+                  - "cognito-identity:GetIdentityPoolRoles"
+                Resource:
+                  - "arn:aws:cognito-identity:*:*:identitypool/*"
+                  - "arn:aws:cognito-idp:*:*:userpool/*"
+              - Effect: "Allow"
+                Action:
+                  - "iam:PassRole"
+                Resource: "arn:aws:iam::*:role/*"
+                Condition:
+                  StringLike:
+                    iam:PassedToService: "cognito-identity.amazonaws.com"
   MyDomain:
     Type: "AWS::OpenSearchService::Domain"
     Properties:
       DomainName: !Sub 'rtc-classifieds-${EnvironmentName}-${VendorSuffix}'
-      EngineVersion: "OpenSearch_2.13"
+      EngineVersion: "OpenSearch_2.15"
       ClusterConfig:
         InstanceType: "t3.small.search"
         InstanceCount: 1
@@ -60,14 +75,24 @@ Resources:
         EBSEnabled: true
         VolumeSize: 10
       EncryptionAtRestOptions:
-        Enabled: false
+        Enabled: true
       NodeToNodeEncryptionOptions:
-        Enabled: false
+        Enabled: true
       DomainEndpointOptions:
         EnforceHTTPS: true
         TLSSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
+        CustomEndpointEnabled: false
+        # CustomEndpointCertificateArn: "arn:aws:acm:us-east-1:637423414889:certificate/dd0fda77-8882-4f2c-8eee-cf8e957e57d3"
+        # CustomEndpoint: "search.climateaware-dev.eco"
       CognitoOptions:
         Enabled: true
         UserPoolId: !Ref UserPoolId
         IdentityPoolId: !Ref IdentityPoolId
         RoleArn: !GetAtt CognitoOpenSearchRole.Arn
+      AdvancedSecurityOptions:
+        AnonymousAuthEnabled: false
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: "arn:aws:iam::637423414889:user/tzmijewski"
+

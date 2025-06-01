@@ -1,6 +1,157 @@
-###############################################################################
-# Bazel now uses Bzlmod by default to manage external dependencies.
-# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
-#
-# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
-###############################################################################
+module(
+    name = "goclassifieds",
+    version = "1.0.0",  # Replace with your version
+)
+
+bazel_dep(name = "rules_go", version = "0.46.0")
+bazel_dep(name = "bazel_gazelle", version = "0.35.0")
+bazel_dep(name = "rules_nodejs", version = "3.8.0")
+
+# Go toolchains and dependencies
+go_register_toolchains(version = "1.20.5")
+
+go_repository(
+    name = "co_honnef_go_tools",
+    importpath = "honnef.co/go/tools",
+    version = "v0.0.1-2020.1.4",
+)
+
+go_repository(
+    name = "com_github_ajg_form",
+    importpath = "github.com/ajg/form",
+    version = "v1.5.1",
+)
+
+go_repository(
+    name = "com_github_andreasbriese_bbloom",
+    importpath = "github.com/AndreasBriese/bbloom",
+    version = "v0.0.0-20190306092124-e2d15f34fcf9",
+)
+
+go_repository(
+    name = "com_github_andybalholm_brotli",
+    importpath = "github.com/andybalholm/brotli",
+    version = "v1.0.1",
+)
+
+go_repository(
+    name = "com_github_armon_consul_api",
+    importpath = "github.com/armon/consul-api",
+    version = "v0.0.0-20180202201655-eb2c6b5be1b6",
+)
+
+go_repository(
+    name = "com_github_aws_smithy_go",
+    importpath = "github.com/aws/smithy-go",
+    version = "v1.8.0",
+)
+
+go_repository(
+    name = "com_github_aymerick_douceur",
+    importpath = "github.com/aymerick/douceur",
+    version = "v0.2.0",
+)
+
+go_repository(
+    name = "com_github_census_instrumentation_opencensus_proto",
+    importpath = "github.com/census-instrumentation/opencensus-proto",
+    version = "v0.2.1",
+)
+
+go_repository(
+    name = "com_github_chris_ramon_douceur",
+    importpath = "github.com/chris-ramon/douceur",
+    version = "v0.2.0",
+)
+
+go_repository(
+    name = "com_github_client9_misspell",
+    importpath = "github.com/client9/misspell",
+    version = "v0.3.4",
+)
+
+# Add all other `go_repository` rules here from your WORKSPACE file.
+
+# Node.js rules and dependencies
+node_repositories(
+    node_version = "16.6.2",
+    package_json = ["//:package.json"],
+)
+
+npm_install(
+    name = "npm",
+    package_json = "//:package.json",
+    package_lock_json = "//:package-lock.json",
+)
+
+# Rules for esbuild (platform-specific binaries)
+http_archive(
+    name = "esbuild_darwin",
+    build_file_content = """exports_files(["bin/esbuild"])""",
+    urls = [
+        "https://registry.npmjs.org/esbuild-darwin-64/-/esbuild-darwin-64-0.12.1.tgz",
+    ],
+    sha256 = "efb34692bfa34db61139eb8e46cd6cf767a42048f41c8108267279aaf58a948f",
+    strip_prefix = "package",
+)
+
+http_archive(
+    name = "esbuild_windows",
+    build_file_content = """exports_files(["esbuild.exe"])""",
+    urls = [
+        "https://registry.npmjs.org/esbuild-windows-64/-/esbuild-windows-64-0.12.1.tgz",
+    ],
+    sha256 = "10439647b11c7fd1d9647fd98d022fe2188b4877d2d0b4acbe857f4e764b17a9",
+    strip_prefix = "package",
+)
+
+http_archive(
+    name = "esbuild_linux",
+    build_file_content = """exports_files(["bin/esbuild"])""",
+    urls = [
+        "https://registry.npmjs.org/esbuild-linux-64/-/esbuild-linux-64-0.12.1.tgz",
+    ],
+    sha256 = "de8409b90ec3c018ffd899b49ed5fc462c61b8c702ea0f9da013e0e1cd71549a",
+    strip_prefix = "package",
+)
+
+# Additional dependencies
+bazel_dep(name = "rules_go", version = "0.46.0")
+bazel_dep(name = "bazel_gazelle", version = "0.35.0")
+
+# load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+
+gazelle_dependencies()
+
+node_repositories(
+    node_version = "16.6.2",
+    package_json = ["//:package.json"],
+)
+
+npm_install(
+    name = "npm",
+    package_json = "//:package.json",
+    package_lock_json = "//:package-lock.json",
+)
+
+# Register toolchains and dependencies
+go_register_toolchains(version = "1.20.5")
+
+# Add all the `go_repository` rules from your WORKSPACE file here
+# For example:
+
+go_repository(
+    name = "co_honnef_go_tools",
+    importpath = "honnef.co/go/tools",
+    version = "v0.0.1-2020.1.4",
+)
+
+go_repository(
+    name = "com_github_ajg_form",
+    importpath = "github.com/ajg/form",
+    version = "v1.5.1",
+)
+
+# Continue adding all `go_repository` rules here...
+
+# Other configurations and dependencies need to be migrated similarly.

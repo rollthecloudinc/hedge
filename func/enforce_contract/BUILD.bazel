@@ -1,4 +1,7 @@
 load("@npm//@bazel/esbuild:index.bzl", "esbuild")
+# load("//:node_deps.bzl", "setup_node_repositories")
+
+# setup_node_repositories()
 
 esbuild(
     name = "enforce_contract",

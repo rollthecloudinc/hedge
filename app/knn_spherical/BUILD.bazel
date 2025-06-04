@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "knn_spherical",
+    embed = [":knn_spherical_app"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/app/knn_spherical",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+
+go_library(
+    name = "knn_spherical_app",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/app/knn_spherical",
+    visibility = ["//visibility:private"],
+    deps = [
+    ],
+)

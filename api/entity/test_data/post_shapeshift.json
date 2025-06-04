@@ -1,0 +1,23 @@
+{
+    "resource": "/{owner}/{repo}/shapeshifter",
+    "path": "/my-owner/my-repo/shapeshifter",
+    "httpMethod": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer eyJraWQiOiJVTlRrNGhWaFVycTBrOHVBR3ZEWXNcL3cwZ1wvaVcrYjlQd2VPYk1iTTZTXC93PSIsImFsZyI6IlJTMjU2In0..."
+    },
+    "pathParameters": {
+      "owner": "my-owner",
+      "repo": "my-repo"
+    },
+    "queryStringParameters": {},
+    "requestContext": {
+      "authorizer": {
+        "claims": {
+          "sub": "mock-user-id",
+          "username": "mock-username"
+        }
+      }
+    },
+    "body": "{\"name\": \"MyEntity\", \"type\": \"example\", \"data\": {\"key\": \"value\"}}"
+  }

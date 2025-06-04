@@ -1,0 +1,288 @@
+service: goclassifieds-api
+frameworkVersion: '3'
+
+provider:
+  name: kubernetes
+  runtime: nodejs14
+  namespace: knative  # Kubernetes namespace where the Knative services will be deployed
+
+custom:
+  # Custom variables for Knative deployment
+  dockerRegistry: <your-dockerhub-username>
+  stage: ${opt:stage, 'dev'}
+
+plugins:
+  - serverless-knative
+
+functions:
+  entityApi:
+    handler: handler.hello
+    image: ${self:custom.dockerRegistry}/entity-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: entity-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/entity-api:${self:custom.stage}
+                  env:
+                    - name: ELASTIC_URL
+                      value: <elastic-url>
+                    - name: BUCKET_NAME
+                      value: <bucket-name>
+                    - name: GITHUB_TOKEN
+                      value: <github-token>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  mediaApi:
+    handler: handler.media
+    image: ${self:custom.dockerRegistry}/media-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: media-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/media-api:${self:custom.stage}
+                  env:
+                    - name: BUCKET_NAME
+                      value: <bucket-name>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  userApi:
+    handler: handler.user
+    image: ${self:custom.dockerRegistry}/user-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: user-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/user-api:${self:custom.stage}
+                  env:
+                    - name: USER_POOL_ID
+                      value: <user-pool-id>
+                    - name: COGNITO_APP_CLIENT_ID
+                      value: <cognito-app-client-id>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  proxyApi:
+    handler: handler.proxy
+    image: ${self:custom.dockerRegistry}/proxy-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: proxy-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/proxy-api:${self:custom.stage}
+                  env:
+                    - name: PROXY_AVE_DOMAIN
+                      value: <proxy-ave-domain>
+                    - name: PROXY_CARBONAWARE_DOMAIN
+                      value: <proxy-carbonaware-domain>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  chatApi:
+    handler: handler.chat
+    image: ${self:custom.dockerRegistry}/chat-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: chat-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/chat-api:${self:custom.stage}
+                  env:
+                    - name: KEYSPACE_USERNAME
+                      value: <keyspace-username>
+                    - name: KEYSPACE_PASSWORD
+                      value: <keyspace-password>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  govApi:
+    handler: handler.gov
+    image: ${self:custom.dockerRegistry}/gov-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: gov-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/gov-api:${self:custom.stage}
+                  env:
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  validateEntity:
+    handler: handler.validate
+    image: ${self:custom.dockerRegistry}/validate-entity:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: validate-entity
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/validate-entity:${self:custom.stage}
+                  env:
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  grantAccess:
+    handler: handler.grant
+    image: ${self:custom.dockerRegistry}/grant-access:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: grant-access
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/grant-access:${self:custom.stage}
+                  env:
+                    - name: KEYSPACE_USERNAME
+                      value: <keyspace-username>
+                    - name: KEYSPACE_PASSWORD
+                      value: <keyspace-password>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  streamApi:
+    handler: handler.stream
+    image: ${self:custom.dockerRegistry}/stream-api:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: stream-api
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/stream-api:${self:custom.stage}
+                  env:
+                    - name: KEYSPACE_USERNAME
+                      value: <keyspace-username>
+                    - name: KEYSPACE_PASSWORD
+                      value: <keyspace-password>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  renewableRecord:
+    handler: handler.renewable
+    image: ${self:custom.dockerRegistry}/renewable-record:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: renewable-record
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/renewable-record
+                  env:
+                    - name: ELASTIC_URL
+                      value: <elastic-url>
+                    - name: IDENTITY_POOL_ID
+                      value: <identity-pool-id>
+                    - name: ISSUER
+                      value: <issuer>
+                    - name: DEFAULT_SIGNING_USERNAME
+                      value: <default-signing-username>
+                    - name: DEFAULT_SIGNING_PASSWORD
+                      value: <default-signing-password>
+                    - name: BUCKET_NAME
+                      value: <bucket-name>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  authorize:
+    handler: handler.authorize
+    image: ${self:custom.dockerRegistry}/authorize:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: authorize
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/authorize:${self:custom.stage}
+                  env:
+                    - name: USER_POOL_ID
+                      value: <user-pool-id>
+                    - name: STAGE
+                      value: ${self:custom.stage}
+
+  authorize3:
+    handler: handler.authorize3
+    image: ${self:custom.dockerRegistry}/authorize3:${self:custom.stage}
+    knative:
+      service:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: authorize3
+          namespace: ${self:provider.namespace}
+        spec:
+          template:
+            spec:
+              containers:
+                - image: ${self:custom.dockerRegistry}/authorize3:${self:custom.stage}
+                  env:
+                    - name: USER_POOL_ID
+                      value: <user-pool-id>
+                    - name: STAGE
+                      value: ${self:custom.stage}

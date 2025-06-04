@@ -1,0 +1,5 @@
+config:
+  precheck-oidc-auth:ApiDeploymentStage: dev
+  precheck-oidc-auth:LoginGovRedirectUri: "https://5bh4unsxta.execute-api.us-east-2.amazonaws.com/dev/callback"
+  aws:profile: precheck-dev
+  aws:region: us-east-1

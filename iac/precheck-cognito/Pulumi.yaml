@@ -1,0 +1,10 @@
+name: precheck-cognito
+description: Authenication system using cognito and identity pools
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-typescript

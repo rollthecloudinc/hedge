@@ -7,6 +7,17 @@ _ESBUILD_VERSION = "0.12.1"  # reminder: update SHAs below when changing this va
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+
+# Add rules_oci for Docker/OCI container support
+http_archive(
+    name = "rules_oci",
+    sha256 = "d7b0760ba28554b71941ea0bbfd0a9f089bf250fd4448f9c116e1cb7a63b3933",  # Correct checksum
+    strip_prefix = "rules_oci-0.4.0",
+    urls = [
+        "https://github.com/bazel-contrib/rules_oci/releases/download/v0.4.0/rules_oci-v0.4.0.tar.gz",
+    ],
+)
+
 http_archive(
     name = "io_bazel_rules_go",
     sha256 = "80a98277ad1311dacd837f9b16db62887702e9f1d1c4c9f796d0121a46c8e184",
@@ -1115,6 +1126,17 @@ node_repositories(
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
+
+# Load rules_oci dependencies
+#load("@rules_oci//oci:repositories.bzl", "rules_oci_dependencies")
+#load("@rules_oci//oci:repositories.bzl", "oci_repository")
+#rules_oci_dependencies()
+#oci_repository(
+#    name = "ubuntu_20_04_slim",
+#    tag = "20.04",
+#    registry = "docker.io",
+#    repository = "library/ubuntu",
+#)
 
 npm_install(
     name = "npm",

@@ -1,0 +1,19 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: entity-api
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: gcr.io/<your-project-id>/entity-api:latest  # Replace with your actual image URL
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ELASTIC_URL
+              value: <elastic-url> # Replace with your actual Elastic URL
+            - name: BUCKET_NAME
+              value: <bucket-name> # Replace with your actual bucket name
+            - name: STAGE
+              value: dev # Replace with your desired stage (e.g., dev, prod)

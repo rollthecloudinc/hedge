@@ -1,0 +1,17 @@
+{
+    "name": "precheck-cognito-message",
+    "version": "1.0.0",
+    "description": "A Lambda function to handle custom Cognito messages with SMS and email fallback.",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "test": "echo \"No test specified\" && exit 0"
+    },
+    "author": "Telos",
+    "license": "MIT",
+    "dependencies": {
+        "@aws-crypto/client-node": "^4.2.0",
+        "aws-sdk": "^2.1390.0",
+        "base64-js": "^1.5.1"
+    }
+}

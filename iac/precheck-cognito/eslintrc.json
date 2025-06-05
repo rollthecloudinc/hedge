@@ -1,0 +1,39 @@
+{
+    "extends": [
+      "../../.eslintrc.json"
+    ],
+    "ignorePatterns": [
+      "!**/*"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ],
+        "parserOptions": {
+          "project": [
+            "apps/precheck-cognito/tsconfig.json"
+          ]
+        },
+        "rules": {}
+      },
+      {
+        "files": [
+          "*.ts",
+          "*.tsx"
+        ],
+        "rules": {}
+      },
+      {
+        "files": [
+          "*.js",
+          "*.jsx"
+        ],
+        "rules": {}
+      }
+    ]
+  }
+  

@@ -1,0 +1,25 @@
+{
+  "name": "precheck-oidc-auth",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/precheck-oidc-auth",
+  "targets": {
+    "destroy": {
+      "executor": "@telos-iac/nx-pulumi:destroy",
+      "options": {}
+    },
+    "up": {
+      "executor": "@telos-iac/nx-pulumi:up",
+      "options": {}
+    },
+    "preview": {
+      "executor": "@telos-iac/nx-pulumi:preview",
+      "options": {}
+    },
+    "refresh": {
+      "executor": "@telos-iac/nx-pulumi:refresh",
+      "options": {}
+    }
+  },
+  "tags": []
+}

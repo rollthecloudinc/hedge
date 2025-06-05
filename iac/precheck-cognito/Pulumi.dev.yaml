@@ -1,0 +1,7 @@
+config:
+  precheck-cognito:SesVerifiedEmail: "VERIFIED email address to dispatch transactional emails"
+  precheck-cognito:OidcDomain: "ykpt3qxd62.execute-api.us-east-1.amazonaws.com"
+  precheck-cognito:OidcStage: "dev"
+  precheck-cognito:LoginGovClientId: "urn:gov:gsa:openidconnect.profiles:sp:sso:dhs:precheck-dev-pkce"
+  aws:region: "us-east-1"
+  aws:profile: "precheck-dev"

@@ -1,0 +1,10 @@
+name: precheck-oidc-auth
+description: Centralized OIDC providing infinite integration capabilities unrestricted by vendor-to-vendor incompatibilities since this can be used as a middle man to satisfy gaps.
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-typescript

@@ -368,40 +368,6 @@ functions:
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
-    events:
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EntityApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-MediaApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Stream"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ChatApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ProxyApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-UserApi"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-GrantAccess"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-ValidateEntity"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-EnforceContract"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize"
-          filter: 'REPORT'
-      - cloudwatchLog:
-          logGroup: "/aws/lambda/goclassifieds-api-${opt:stage, 'dev'}-Authorize3"
-          filter: 'REPORT'
   Authorize:
     handler: bootstrap
     package:

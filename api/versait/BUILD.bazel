@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "versait",
+    embed = [":versait_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/versait",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+
+go_library(
+    name = "versait_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/versait",
+    visibility = ["//visibility:private"],
+    deps = [
+      "@com_github_aws_aws_lambda_go//events",
+      "@com_github_aws_aws_lambda_go//lambda",
+    ],
+)

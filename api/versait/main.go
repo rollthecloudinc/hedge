@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -25,7 +26,10 @@ var GitHubToken = os.Getenv("GITHUB_TOKEN")
 var WebhookSecret = os.Getenv("WEBHOOK_SECRET")
 
 // BotUsername is the username of the bot (to avoid responding to itself)
-var BotUsername = "classifieds-dev" // os.Getenv("BOT_USERNAME")
+var BotUsername = os.Getenv("VERSAIT_USERNAME")
+
+// Open AI Api Key
+var OpenAiApiKey = os.Getenv("OPENAI_API_KEY")
 
 // CommentPayload represents the structure for posting a comment to GitHub API
 type CommentPayload struct {
@@ -96,6 +100,113 @@ func postComment(commentsURL string, message string) error {
 
 	log.Println("Comment posted successfully!")
 	return nil
+}
+
+func fetchComments(commentsURL string) ([]string, error) {
+	// Create the HTTP request
+	req, err := http.NewRequest("GET", commentsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+
+	// Set headers for authentication
+	req.Header.Set("Authorization", "token "+GitHubToken)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	// Make the HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch comments: %v, response: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var comments []struct {
+		Body string `json:"body"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&comments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse comments response: %v", err)
+	}
+
+	// Extract and return the comment bodies
+	var commentBodies []string
+	for _, comment := range comments {
+		commentBodies = append(commentBodies, comment.Body)
+	}
+	return commentBodies, nil
+}
+
+func getGPT4Response(context []string, userComment string) (string, error) {
+	// Prepare the OpenAI API request payload
+	requestBody := map[string]interface{}{
+		"model": "gpt-4o", // Update this to your specific GPT-4 deployment model name
+		"messages": []map[string]string{
+			{"role": "system", "content": "You are a helpful assistant."},
+			{"role": "user", "content": "Here is the context of the discussion:\n" + strings.Join(context, "\n") + "\n\nNew Comment:\n" + userComment + "\n\nPlease provide an appropriate response."},
+		},
+	}
+
+	// Convert the request body to JSON
+	requestData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal GPT-4 request: %v", err)
+	}
+
+	// Create the HTTP request to the OpenAI API
+	openAIAPIURL := "https://cent.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview" // Replace with your GPT-4 deployment endpoint if it's different
+	req, err := http.NewRequest("POST", openAIAPIURL, bytes.NewBuffer(requestData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+
+	log.Printf("u = " + openAIAPIURL)
+	log.Printf("k = " + OpenAiApiKey)
+
+	// Set headers for authentication and content type
+	req.Header.Set("Authorization", "Bearer " + OpenAiApiKey) // Ensure the OPENAI_API_KEY environment variable is set
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make the HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to make HTTP request to GPT-4: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return "", fmt.Errorf("failed to get GPT-4 response: %v, response: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var responsePayload struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&responsePayload)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GPT-4 response: %v", err)
+	}
+
+	// Extract the assistant's response
+	if len(responsePayload.Choices) == 0 || responsePayload.Choices[0].Message.Content == "" {
+		return "", fmt.Errorf("GPT-4 returned an empty response")
+	}
+
+	return responsePayload.Choices[0].Message.Content, nil
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -170,20 +281,40 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			}, nil
 		}
 
-		// Post a "Hello World" comment
-		err = postComment(payload.Issue.CommentsURL, "Hello World!")
+		// Fetch previous comments for context
+		comments, err := fetchComments(payload.Issue.CommentsURL)
 		if err != nil {
-			log.Printf("Failed to post comment: %v", err)
+			log.Printf("Failed to fetch previous comments: %v", err)
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusInternalServerError,
-				Body:       "Failed to post comment",
+				Body:       "Failed to fetch previous comments",
 			}, nil
 		}
 
-		log.Printf("Responded to comment by %s in repository %s", commenter, payload.Repository.FullName)
+		// Send the context and new comment to GPT-4 for a response
+		gptResponse, err := getGPT4Response(comments, payload.Comment.Body)
+		if err != nil {
+			log.Printf("Failed to get GPT-4 response: %v", err)
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusInternalServerError,
+				Body:       "Failed to get GPT-4 response",
+			}, nil
+		}
+
+		// Post the GPT-4 response as a comment
+		err = postComment(payload.Issue.CommentsURL, gptResponse)
+		if err != nil {
+			log.Printf("Failed to post GPT-4 response as a comment: %v", err)
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusInternalServerError,
+				Body:       "Failed to post GPT-4 response as a comment",
+			}, nil
+		}
+
+		log.Printf("Posted GPT-4 response to issue in repository %s", payload.Repository.FullName)
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusOK,
-			Body:       "Comment posted successfully",
+			Body:       "GPT-4 response posted successfully",
 		}, nil
 	}
 

@@ -85,6 +85,7 @@ functions:
       GITHUB_TOKEN: ${self:custom.githubToken}
       VERSAIT_USERNAME: ${self:custom.versaitUsername}
       OPENAI_API_KEY: ${self:custom.openAiApiKey}
+      #WEBHOOK_SECRET: ${self:custom.webhookSecret}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:

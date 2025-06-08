@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -53,14 +54,36 @@ type WebhookPayload struct {
 	} `json:"repository"`
 }
 
-// validateSignature validates the webhook signature (optional)
-func validateSignature(secret, payload []byte, signatureHeader string) bool {
+// validateSignature validates the GitHub webhook signature.
+func validateSignature(secret string, payload []byte, receivedSignature string) bool {
+	// Ensure the received signature starts with "sha256=".
+	if len(receivedSignature) <= 7 || receivedSignature[:7] != "sha256=" {
+		return false //errors.New("invalid signature format")
+	}
+
+	// Extract the actual hash from the received signature (after "sha256=").
+	expectedMAC := receivedSignature[7:]
+
+	// Compute HMAC using SHA-256 with the secret and raw payload.
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	computedMAC := hex.EncodeToString(mac.Sum(nil))
+
+	// Use hmac.Equal to securely compare the two signatures.
+	if !hmac.Equal([]byte(computedMAC), []byte(expectedMAC)) {
+		return false // errors.New("signature mismatch")
+	}
+
+	return true
+}
+
+/*func validateSignature(secret, payload []byte, signatureHeader string) bool {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(payload)
 	expectedMAC := mac.Sum(nil)
 	expectedSignature := fmt.Sprintf("sha256=%x", expectedMAC)
 	return hmac.Equal([]byte(expectedSignature), []byte(signatureHeader))
-}
+}*/
 
 // postComment posts a "Hello World" comment to the GitHub API
 func postComment(commentsURL string, message string) error {
@@ -248,8 +271,10 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	// Validate the webhook signature
+	// 
 	signature := request.Headers["X-Hub-Signature-256"]
-	if WebhookSecret != "" && !validateSignature([]byte(WebhookSecret), []byte(payloadString), signature) {
+	// 52f2982e-90ef-4241-8293-100518a62e02
+	if WebhookSecret != "" && !validateSignature(WebhookSecret, []byte(payloadString), signature) {
 		log.Println("Invalid signature")
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusForbidden,

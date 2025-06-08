@@ -22,11 +22,11 @@ package:
   individually: true
 resources:
   Resources:
-    VersaitApiRole:
+    VersaitRole:
       Type: AWS::IAM::Role
       Properties:
         Path: "/"
-        RoleName: goclassifieds-verait-api-${opt:region, 'us-east-1'}-lambdaRole
+        RoleName: verait-${opt:region, 'us-east-1'}-lambdaRole
         AssumeRolePolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -72,7 +72,7 @@ resources:
 functions:
   VersaitApi:
     handler: bootstrap
-    role: VersaitApiRole
+    role: VersaitRole
     package:
       path: bazel-bin/api/versait
       artifact: .serverless/VersaitApi.zip

@@ -1,4 +1,4 @@
-service: goclassifieds-api
+service: goclassifieds-versait-api
 frameworkVersion: '3'
 plugins:
   - serverless-prune-plugin

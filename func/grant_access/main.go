@@ -28,12 +28,12 @@ func handler(ctx context.Context, payload *gov.GrantAccessRequest) (gov.GrantAcc
 	cluster.Port = 9142
 	cluster.Consistency = gocql.LocalOne // gocql.LocalQuorum
 	cluster.Authenticator = &gocql.PasswordAuthenticator{Username: os.Getenv("KEYSPACE_USERNAME"), Password: os.Getenv("KEYSPACE_PASSWORD")}
-	cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "api/chat/AmazonRootCA1.pem", EnableHostVerification: true}
+	cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "AmazonRootCA1.pem", EnableHostVerification: true}
 	cluster.PoolConfig = gocql.PoolConfig{HostSelectionPolicy: /*gocql.TokenAwareHostPolicy(*/ gocql.DCAwareRoundRobinPolicy("us-east-1") /*)*/}
 	cSession, err := cluster.CreateSession()
 	if err != nil {
 		// log.Fatal(err)
-		log.Print("connection to keyspaxces failed")
+		log.Printf("connection to keyspaxces failed %s", err)
 	} else {
 		keyspacesConnected = true
 	}

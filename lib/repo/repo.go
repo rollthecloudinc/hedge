@@ -207,8 +207,8 @@ func CommitRestOptimized(c *github.Client, params *CommitParams) {
 			Content: *params.Data,
 			Message: github.String("Create file " + params.Path),
 			Author: &github.CommitAuthor{
-				Name:  github.String(userInfo.Name),
-				Email: github.String(userInfo.Email),
+				Name:  github.String("Todd Zmijewski"/*userInfo.Name*/),
+				Email: github.String("angular.druid@gmail.com"/*userInfo.Email*/),
 			},
 		}
 		_, _, err := c.Repositories.CreateFile(context.Background(), pieces[0], pieces[1], params.Path, createOpts)

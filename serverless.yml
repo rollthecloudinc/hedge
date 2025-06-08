@@ -39,9 +39,9 @@ provider:
     payload: '1.0'
     cors: true
     authorizers:
-      authorizer3:
+      authorizer2:
         type: request
-        functionName: Authorize3
+        functionName: Authorize2
 package:
   individually: true
 resources:
@@ -144,12 +144,12 @@ functions:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: POST
           authorizer:
-            name: authorizer3
+            name: authorizer2
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: PUT
           authorizer:
-            name: authorizer3
+            name: authorizer2
       - httpApi:
           path: /{owner}/{repo}/shapeshifter/{proxy+}
           method: GET
@@ -313,9 +313,11 @@ functions:
     role: EntityApiRole
     package:
       path: bazel-bin/func/grant_access
+      libs: func/grant_access
       artifact: .serverless/GrantAccess.zip
       include_globs:
         - "**/bootstrap"
+        - "**/AmazonRootCA1.pem"
     environment:
       STAGE: ${opt:stage, 'dev'}
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
@@ -373,6 +375,16 @@ functions:
     package:
       path: bazel-bin/api/authorizer
       artifact: .serverless/Authorizer.zip
+      include_globs:
+        - "**/bootstrap"
+    environment:
+      USER_POOL_ID: ${self:custom.userPoolId}
+      STAGE: ${opt:stage, 'dev'}
+  Authorize2:
+    handler: bootstrap
+    package:
+      path: bazel-bin/api/authorizer2
+      artifact: .serverless/Authorizer2.zip
       include_globs:
         - "**/bootstrap"
     environment:

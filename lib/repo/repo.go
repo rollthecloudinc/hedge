@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"log"
 	"strings"
 	"time"
+	"fmt"
+
+	"goclassifieds/lib/utils"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v46/github"
@@ -326,4 +330,52 @@ func GetInstallationToken(input *GetInstallationTokenInput) (*github.Installatio
 
 	return &github.InstallationToken{}, errors.New("No target installation matches owner " + input.Owner)
 
+}
+
+
+func AppendToFile(ctx context.Context, client *github.Client, owner, repo, filePath, guid string) error {
+	// Step 1: Fetch the existing file contents.
+	fileContent, _, res, err := client.Repositories.GetContents(ctx, owner, repo, filePath, nil)
+	if err != nil {
+		if res != nil && res.StatusCode == 404 {
+			// If the file does not exist, we'll create it later.
+			return fmt.Errorf("file not found in the repository: %w", err)
+		}
+		return fmt.Errorf("failed to get file contents: %w", err)
+	}
+
+	var existingContent string
+	var sha string
+	if fileContent != nil {
+		decodedContent, err := fileContent.GetContent()
+		if err != nil {
+			return fmt.Errorf("failed to decode existing content: %w", err)
+		}
+		existingContent = decodedContent
+		sha = fileContent.GetSHA()
+	}
+
+	// Step 2: Convert GUID string to binary and append it to the current content.
+	binaryGUID, err := utils.EncodeStringToFixedBytes(guid, 16)
+	if err != nil {
+		return fmt.Errorf("failed to encode GUID: %w", err)
+	}
+
+	// Convert binary into a readable hex string and append it.
+	newContent := existingContent + "\n" + hex.EncodeToString(binaryGUID)
+
+	// Step 3: Update or create the file in the repository.
+	options := &github.RepositoryContentFileOptions{
+		Message: github.String("Appending content via go-github"),
+		Content: []byte(newContent),
+		SHA:     github.String(sha), // Use the SHA for updates (omit it for new files).
+	}
+
+	_, _, err = client.Repositories.UpdateFile(ctx, owner, repo, filePath, options)
+	if err != nil {
+		return fmt.Errorf("failed to update file in repository: %w", err)
+	}
+
+	fmt.Println("File successfully updated!")
+	return nil
 }

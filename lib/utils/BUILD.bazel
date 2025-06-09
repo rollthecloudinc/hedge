@@ -6,6 +6,7 @@ go_library(
         "jwt.go",
         "uuid.go",
         "log.go",
+        "compact.go",
     ],
     importpath = "goclassifieds/lib/utils",
     visibility = ["//visibility:public"],

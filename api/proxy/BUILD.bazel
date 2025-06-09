@@ -1,3 +1,9 @@
+# Load setup_go_dependencies from the centralized dependency file
+load("//:go_deps.bzl", "setup_go_dependencies")
+
+# Call the setup function to ensure dependencies are registered globally
+setup_go_dependencies()
+
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_binary(

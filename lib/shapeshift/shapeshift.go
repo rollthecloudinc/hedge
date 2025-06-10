@@ -205,6 +205,9 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		var clusteringOwner string
+		var clusteringRepo string
+
 		usageLog := &utils.LogUsageLambdaInput{
 			UserId:       GetUserId(req),
 			Username:     GetUsername(req),
@@ -227,10 +230,12 @@ func InitializeHandler(c *ActionContext) Handler {
 		}
 		_, hasOwner := req.PathParameters["owner"]
 		if hasOwner {
+			clusteringOwner = req.PathParameters["owner"]
 			usageLog.Organization = req.PathParameters["owner"]
 		}
 		_, hasRepo := req.PathParameters["repo"]
 		if hasRepo {
+			clusteringRepo = req.PathParameters["repo"]
 			usageLog.Repository = req.PathParameters["repo"]
 		}
 
@@ -507,6 +512,21 @@ func InitializeHandler(c *ActionContext) Handler {
 		}
 
 		if (singularName == "shapeshifter" && req.HTTPMethod == "POST") {
+			var catalogFile string
+			ac.EntityManager.SetHook(entity.BeforeSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
+				log.Print("Before shapeshift save")
+				log.Printf("The clustering owner and repo are %s/%s", clusteringOwner, clusteringRepo)
+				proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+				directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+				c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+				if err != nil {
+					log.Printf("Unable to ensure catalog")
+					return nil, fmt.Errorf("Unable to ensure catalog.")
+				} else {
+					catalogFile = c
+				}
+				return ent, nil
+			})
 			ac.EntityManager.SetHook(entity.AfterSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
 				log.Print("After shapeshift save")
 				id, ok := ent["id"].(string)
@@ -515,15 +535,15 @@ func InitializeHandler(c *ActionContext) Handler {
 					return nil, fmt.Errorf("'id' is not a string or is missing")
 				}
 				log.Printf("Entity ID: %s", id)
-				proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
-				directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-				file, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
-				if err != nil {
+				// proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+				// directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+				// file, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+				/*if err != nil {
 					log.Print("Unable to ensure catalog")
 					return nil, fmt.Errorf("Unable to ensure catalog.")
-				}
-				log.Print("Append id to catalog file " + file)
-				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], file, id)
+				}*/
+				log.Print("Append id to catalog file " + catalogFile)
+				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], catalogFile, id)
 				return ent, nil
 			})
 		}

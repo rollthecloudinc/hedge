@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"fmt"
+	"math/rand"
 
 	"goclassifieds/lib/utils"
 
@@ -407,6 +408,18 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string) (string, error) {
 	basePath := fmt.Sprintf("catalog/%s", directoryPath)
 
+	// Seed the random number generator to get different results each time
+	rand.Seed(time.Now().UnixNano())
+
+	// Generate a random number between 0 and 10 (inclusive)
+	chapter := rand.Intn(11) // 11 because Intn(n) generates [0, n)
+
+	// Seed the random number generator to get different results each time
+	rand.Seed(time.Now().UnixNano())
+
+	// Generate a random number between 0 and 10 (inclusive)
+	page := rand.Intn(11) // 11 because Intn(n) generates [0, n)
+
 	// Step 1: Ensure the first .gitkeep file exists in /catalog/{directoryPath}/.gitkeep
 	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)
 	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "")
@@ -415,19 +428,19 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 	}
 
 	// Step 2: Ensure the second .gitkeep file exists in /catalog/{directoryPath}/0/.gitkeep
-	gitkeepPath2 := fmt.Sprintf("%s/0/.gitkeep", basePath)
+	gitkeepPath2 := fmt.Sprintf("%s/%d/.gitkeep", basePath, chapter)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "")
 	if err != nil {
 		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
 	}
 
 	// Step 3: Ensure 0.txt file exists in /catalog/{directoryPath}/0/0.txt
-	zeroFilePath := fmt.Sprintf("%s/0/0.txt", basePath)
+	zeroFilePath := fmt.Sprintf("%s/%d/%d.txt", basePath, chapter, page)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "")
 	if err != nil {
 		return "", fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
 	}
 
-	file := "catalog/" + directoryPath + "/0/0.txt"
+	file := fmt.Sprintf("catalog/" + directoryPath + "/%d/%d.txt", chapter, page)
 	return file, nil
 }

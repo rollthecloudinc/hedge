@@ -207,6 +207,7 @@ func InitializeHandler(c *ActionContext) Handler {
 
 		var clusteringOwner string
 		var clusteringRepo string
+		var catalogFile string
 
 		usageLog := &utils.LogUsageLambdaInput{
 			UserId:       GetUserId(req),
@@ -303,6 +304,18 @@ func InitializeHandler(c *ActionContext) Handler {
 			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 			searchIndex = req.PathParameters["owner"] + "__" + req.PathParameters["repo"] + "__" + strings.Join(proxyPieces[0:len(proxyPieces)-1], "__")
 			log.Print("search Index: " + searchIndex)
+		}
+
+		if singularName == "shapeshifter" {
+			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+			directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+			if err != nil {
+				log.Printf("Unable to ensure catalog")
+				return events.APIGatewayProxyResponse{StatusCode: 500}, nil
+			} else {
+				catalogFile = c
+			}
 		}
 
 		if singularName == "type" {
@@ -479,6 +492,7 @@ func InitializeHandler(c *ActionContext) Handler {
 			} else {
 				loaderPath = req.PathParameters["proxy"]
 			}
+			// @todo: The loader will need to use the right one yeeh!
 			log.Print("REPORT RequestId: " + req.RequestContext.RequestID + " Organization: " + req.PathParameters["owner"] + " Repository: " + req.PathParameters["repo"])
 			ac.EntityManager.AddLoader("default", entity.GithubRestFileLoaderAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
@@ -492,7 +506,8 @@ func InitializeHandler(c *ActionContext) Handler {
 			ac.EntityManager.AddStorage("default", entity.GithubRestFileUploadAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
 					Client:   ac.GithubRestClient,
-					Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					// Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
+					Repo:     clusteringOwner + "/" + clusteringRepo,
 					Branch:   os.Getenv("GITHUB_BRANCH"),
 					Path:     strings.Join(proxyPieces[0:len(proxyPieces)-1], "/"),
 					UserName: GetUsername(req),
@@ -512,11 +527,11 @@ func InitializeHandler(c *ActionContext) Handler {
 		}
 
 		if (singularName == "shapeshifter" && req.HTTPMethod == "POST") {
-			var catalogFile string
+			// var catalogFile string
 			ac.EntityManager.SetHook(entity.BeforeSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
 				log.Print("Before shapeshift save")
 				log.Printf("The clustering owner and repo are %s/%s", clusteringOwner, clusteringRepo)
-				proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+				/*proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 				directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
 				c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
 				if err != nil {
@@ -524,7 +539,7 @@ func InitializeHandler(c *ActionContext) Handler {
 					return nil, fmt.Errorf("Unable to ensure catalog.")
 				} else {
 					catalogFile = c
-				}
+				}*/
 				return ent, nil
 			})
 			ac.EntityManager.SetHook(entity.AfterSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {

@@ -39,6 +39,14 @@ type GetInstallationTokenInput struct {
 	GithubAppId  string
 }
 
+
+// Custom error in case the client is nil
+type errGithubNoClient struct{}
+
+func (e *errGithubNoClient) Error() string {
+	return "GitHub client is not provided"
+}
+
 func Commit(c *githubv4.Client, params *CommitParams) {
 
 	log.Printf("BEGIN GithubFileUploadAdaptor::Store %s", params.Path)
@@ -443,4 +451,39 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 
 	file := fmt.Sprintf("catalog/" + directoryPath + "/%d/%d.txt", chapter, page)
 	return file, nil
+}
+
+// createRepo creates a GitHub repository for a specified owner/user or organization.
+// Parameters:
+// - client: A preconfigured GitHub client to make API calls
+// - owner: The owner (GitHub username or organization) where the repository will be created
+// - repoName: The name of the repository to be created
+// - description: A description for the repository
+// - private: Whether the repository should be private (true) or public (false)
+func createRepo(client *github.Client, owner string, repoName string, description string, private bool) error {
+	// Ensure client is not nil
+	if client == nil {
+		return &errGithubNoClient{}
+	}
+
+	// Define repository configuration
+	repo := &github.Repository{
+		Name:        github.String(repoName),
+		Description: github.String(description),
+		Private:     github.Bool(private),
+	}
+
+	// Context for the API call
+	ctx := context.Background()
+
+	// Make API call to create the repository
+	// If the owner is an organization, specify it; otherwise, use an empty string for an authenticated user.
+	newRepo, _, err := client.Repositories.Create(ctx, owner, repo)
+	if err != nil {
+		return err
+	}
+
+	// Log or return the repository's URL
+	log.Printf("Repository created: %s\n", newRepo.GetHTMLURL())
+	return nil
 }

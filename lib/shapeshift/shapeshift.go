@@ -517,8 +517,11 @@ func InitializeHandler(c *ActionContext) Handler {
 				log.Printf("Entity ID: %s", id)
 				proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 				directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-				repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
-				file := "catalog/" + directoryPath + "/0/0.txt"
+				file, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+				if err != nil {
+					log.Print("Unable to ensure catalog")
+					return nil, fmt.Errorf("Unable to ensure catalog.")
+				}
 				log.Print("Append id to catalog file " + file)
 				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], file, id)
 				return ent, nil

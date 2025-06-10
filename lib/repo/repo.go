@@ -404,29 +404,30 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 	return nil
 }
 
-func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string) error {
+func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string) (string, error) {
 	basePath := fmt.Sprintf("catalog/%s", directoryPath)
 
 	// Step 1: Ensure the first .gitkeep file exists in /catalog/{directoryPath}/.gitkeep
 	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)
 	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "")
 	if err != nil {
-		return fmt.Errorf("error ensuring %s: %w", gitkeepPath1, err)
+		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath1, err)
 	}
 
 	// Step 2: Ensure the second .gitkeep file exists in /catalog/{directoryPath}/0/.gitkeep
 	gitkeepPath2 := fmt.Sprintf("%s/0/.gitkeep", basePath)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "")
 	if err != nil {
-		return fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
+		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
 	}
 
 	// Step 3: Ensure 0.txt file exists in /catalog/{directoryPath}/0/0.txt
 	zeroFilePath := fmt.Sprintf("%s/0/0.txt", basePath)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "")
 	if err != nil {
-		return fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
+		return "", fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
 	}
 
-	return nil
+	file := "catalog/" + directoryPath + "/0/0.txt"
+	return file, nil
 }

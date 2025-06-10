@@ -315,6 +315,9 @@ func InitializeHandler(c *ActionContext) Handler {
 				return events.APIGatewayProxyResponse{StatusCode: 500}, nil
 			} else {
 				catalogFile = c
+				catalogPieces := strings.Split(catalogFile, "/")
+				chapter := catalogPieces[len(catalogPieces)-2]
+				log.Printf("The chapter is %s", chapter)
 			}
 		}
 

@@ -487,3 +487,67 @@ func createRepo(client *github.Client, owner string, repoName string, descriptio
 	log.Printf("Repository created: %s\n", newRepo.GetHTMLURL())
 	return nil
 }
+
+// repoExists checks if a repository with the given name already exists for the specified owner.
+// Parameters:
+// - client: A preconfigured GitHub client
+// - owner: The owner (GitHub username or organization)
+// - repoName: The name of the repository to check
+// Returns:
+// - true if the repository exists, false otherwise
+// - error if the API call fails
+func repoExists(client *github.Client, owner, repoName string) (bool, error) {
+	// Ensure client is not nil
+	if client == nil {
+		return false, &errGithubNoClient{}
+	}
+
+	// Context for the API call
+	ctx := context.Background()
+
+	// Attempt to fetch the repository
+	_, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if err != nil {
+		// Check if the error is related to the repository not being found
+		if _, isNotFound := err.(*github.ErrorResponse); isNotFound && err.(*github.ErrorResponse).Response.StatusCode == 404 {
+			return false, nil // Repository does not exist
+		}
+		return false, err
+	}
+
+	// Repository exists
+	return true, nil
+}
+
+// EnsureRepoCreate ensures the repository is created only if it doesn't already exist.
+// Parameters:
+// - client: A preconfigured GitHub client to make API calls
+// - owner: The owner (GitHub username or organization)
+// - repoName: The name of the repository to create
+// - description: A description for the repository
+// - private: Whether the repository should be private (true) or public (false)
+// Returns:
+// - nil if the repository is successfully created or already exists (no action needed)
+// - error if any failure occurs
+func EnsureRepoCreate(client *github.Client, owner, repoName, description string, private bool) error {
+	// Check if the repository exists
+	exists, err := repoExists(client, owner, repoName)
+	if err != nil {
+		return fmt.Errorf("failed to check if repository exists: %w", err)
+	}
+
+	if exists {
+		log.Printf("Repository '%s/%s' already exists. No action needed.\n", owner, repoName)
+		return nil // Repository already exists, no further action
+	}
+
+	// Create repository if it does not exist
+	log.Printf("Creating repository '%s/%s'...\n", owner, repoName)
+	err = createRepo(client, owner, repoName, description, private)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+
+	log.Printf("Repository '%s/%s' successfully created.\n", owner, repoName)
+	return nil
+}

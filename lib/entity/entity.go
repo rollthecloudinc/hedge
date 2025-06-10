@@ -202,6 +202,7 @@ type Manager interface {
 	AddStorage(name string, storage Storage)
 	AddValidator(name string, validator Validator)
 	AddAuthorizer(name string, authorizer Authorization)
+	SetHook(name Hooks, entityHook EntityHook)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
 }
@@ -557,6 +558,10 @@ func (m EntityManager) AddAuthorizer(name string, authorizer Authorization) {
 
 func (m EntityManager) AddValidator(name string, validator Validator) {
 	m.Validators[name] = validator
+}
+
+func (m EntityManager) SetHook(name Hooks, entityHook EntityHook) {
+	m.Hooks[name] = entityHook
 }
 
 func (m EntityManager) Find(finder string, query string, data *EntityFinderDataBag) []map[string]interface{} {
@@ -2047,6 +2052,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Authorizers: map[string]Authorization{},
+		Hooks: map[Hooks]EntityHook{},
 	}
 }
 
@@ -2089,5 +2095,6 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			},
 		},
 		Authorizers: map[string]Authorization{},
+		Hooks: map[Hooks]EntityHook{},
 	}
 }

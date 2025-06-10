@@ -379,3 +379,54 @@ func AppendToFile(ctx context.Context, client *github.Client, owner, repo, fileP
 	fmt.Println("File successfully updated!")
 	return nil
 }
+
+func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, repo, path, content string) error {
+	// Check if the file exists
+	_, _, res, err := client.Repositories.GetContents(ctx, owner, repo, path, nil)
+	if err != nil {
+		if res != nil && res.StatusCode == 404 {
+			// File doesn't exist, create it
+			options := &github.RepositoryContentFileOptions{
+				Message: github.String(fmt.Sprintf("Create %s via API", path)),
+				Content: []byte(content),
+			}
+			_, _, err := client.Repositories.CreateFile(ctx, owner, repo, path, options)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", path, err)
+			}
+			fmt.Printf("File %s created successfully\n", path)
+			return nil
+		}
+		return fmt.Errorf("failed to check existence of file %s: %w", path, err)
+	}
+
+	fmt.Printf("File %s already exists\n", path)
+	return nil
+}
+
+func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string) error {
+	basePath := fmt.Sprintf("catalog/%s", directoryPath)
+
+	// Step 1: Ensure the first .gitkeep file exists in /catalog/{directoryPath}/.gitkeep
+	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)
+	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "")
+	if err != nil {
+		return fmt.Errorf("error ensuring %s: %w", gitkeepPath1, err)
+	}
+
+	// Step 2: Ensure the second .gitkeep file exists in /catalog/{directoryPath}/0/.gitkeep
+	gitkeepPath2 := fmt.Sprintf("%s/0/.gitkeep", basePath)
+	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "")
+	if err != nil {
+		return fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
+	}
+
+	// Step 3: Ensure 0.txt file exists in /catalog/{directoryPath}/0/0.txt
+	zeroFilePath := fmt.Sprintf("%s/0/0.txt", basePath)
+	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "")
+	if err != nil {
+		return fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
+	}
+
+	return nil
+}

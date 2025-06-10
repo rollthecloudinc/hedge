@@ -506,6 +506,25 @@ func InitializeHandler(c *ActionContext) Handler {
 			})
 		}
 
+		if (singularName == "shapeshifter" && req.HTTPMethod == "POST") {
+			ac.EntityManager.SetHook(entity.AfterSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
+				log.Print("After shapeshift save")
+				id, ok := ent["id"].(string)
+				if !ok {
+					log.Print("Error: 'id' is not a string or is missing")
+					return nil, fmt.Errorf("'id' is not a string or is missing")
+				}
+				log.Printf("Entity ID: %s", id)
+				proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
+				directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+				repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+				file := "catalog/" + directoryPath + "/0/0.txt"
+				log.Print("Append id to catalog file " + file)
+				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], file, id)
+				return ent, nil
+			})
+		}
+
 		if entityName == pluralName && req.HTTPMethod == "GET" {
 			return GetEntities(req, ac)
 		} else if entityName == singularName && req.HTTPMethod == "GET" {

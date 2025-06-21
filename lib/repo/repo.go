@@ -173,8 +173,8 @@ func CommitRest(c *github.Client, params *CommitParams) {
 		Parents: parents,
 		Tree:    tree,
 		Author: &github.CommitAuthor{
-			Name:  github.String(userInfo.Name),
-			Email: github.String(userInfo.Email),
+			Name:  github.String("Todd Zmijewski"/*userInfo.Name*/),
+			Email: github.String("angular.druid@gmail.com"/*userInfo.Email*/),
 		},
 		Message: github.String("Vertigo commit"),
 	}
@@ -201,10 +201,10 @@ func CommitRest(c *github.Client, params *CommitParams) {
 }
 
 func CommitRestOptimized(c *github.Client, params *CommitParams) {
-	userInfo := &GithubUserInfo{
-		Name:/*"Vertigo"*/ params.UserName,
+	/*userInfo := &GithubUserInfo{
+		Name:  params.UserName,
 		Email: "vertigo@rollthecloud.com",
-	}
+	}*/
 	pieces := strings.Split(params.Repo, "/")
 	opts := &github.RepositoryContentGetOptions{
 		Ref: params.Branch,
@@ -236,8 +236,8 @@ func CommitRestOptimized(c *github.Client, params *CommitParams) {
 			Content: *params.Data,
 			Message: github.String("Update file " + params.Path),
 			Author: &github.CommitAuthor{
-				Name:  github.String(userInfo.Name),
-				Email: github.String(userInfo.Email),
+				Name:  github.String("Todd Zmijewski"/*userInfo.Name*/),
+				Email: github.String("angular.druid@gmail.com"/*userInfo.Email*/),
 			},
 			SHA: file.SHA,
 		}

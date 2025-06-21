@@ -727,11 +727,12 @@ func (s GithubRestFileLoaderAdaptor) Load(id string, m *EntityManager) map[strin
 		log.Panic(err)
 	}
 	if err == nil && file != nil && file.Content != nil {
-		content, err := base64.StdEncoding.DecodeString(*file.Content)
-		if err != nil {
+		content, _ := base64.StdEncoding.DecodeString(*file.Content)
+		//if err != nil {
 			log.Printf(string(content))
 			json.Unmarshal(content, &obj)
-		}
+			log.Printf("The object id is %s", obj["id"].(string))
+		//}
 	}
 	log.Printf("END GithubRestFileUploadAdaptor::LOAD %s", id)
 	return obj

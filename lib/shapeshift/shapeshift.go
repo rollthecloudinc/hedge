@@ -509,11 +509,19 @@ func InitializeHandler(c *ActionContext) Handler {
 			// @todo: Find the chapter that will be used to load the entity.
 			//proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 			directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-			loadChapter, err := repo.FindChapterByGUID(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, proxyPieces[len(proxyPieces)-1], os.Getenv("GITHUB_BRANCH"))
+			fileNameGuid := strings.Split(proxyPieces[len(proxyPieces)-1],".")[0]
+			loadChapter, err := repo.FindChapterByGUID(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, fileNameGuid, os.Getenv("GITHUB_BRANCH"))
 			if err != nil {
 				log.Print("Error looking up chapter for entity %s", proxyPieces[len(proxyPieces)-1])
 			}
 			log.Printf("Loading entity from chapter %s", loadChapter)
+			repoPieces := strings.Split(req.PathParameters["repo"], "-")
+			clusteringRepoPrefix := strings.Join(repoPieces[0:len(repoPieces)-1],"-")
+			log.Printf("The clustering repo prefix is %s", clusteringRepoPrefix)
+			if loadChapter != "0" {
+				loaderClusteringRep = req.PathParameters["owner"] + "/" + clusteringRepoPrefix + "-" + loadChapter + "-objects"
+			}
+			log.Printf("Entity will be loaded from the clustering repo %s", loaderClusteringRep)
 
 			ac.EntityManager.AddLoader("default", entity.GithubRestFileLoaderAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
@@ -524,11 +532,15 @@ func InitializeHandler(c *ActionContext) Handler {
 					UserName: GetUsername(req),
 				},
 			})
+			updateClusteringRepo := clusteringOwner + "/" + clusteringRepo
+			if (req.HTTPMethod == "PUT") {
+				updateClusteringRepo = loaderClusteringRep
+			}
 			ac.EntityManager.AddStorage("default", entity.GithubRestFileUploadAdaptor{
 				Config: entity.GithubRestFileUploadConfig{
 					Client:   ac.GithubRestClient,
 					// Repo:     req.PathParameters["owner"] + "/" + req.PathParameters["repo"],
-					Repo:     clusteringOwner + "/" + clusteringRepo,
+					Repo:     updateClusteringRepo,
 					Branch:   os.Getenv("GITHUB_BRANCH"),
 					Path:     strings.Join(proxyPieces[0:len(proxyPieces)-1], "/"),
 					UserName: GetUsername(req),

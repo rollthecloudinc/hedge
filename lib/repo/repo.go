@@ -341,14 +341,11 @@ func GetInstallationToken(input *GetInstallationTokenInput) (*github.Installatio
 
 }
 
-
 func AppendToFile(ctx context.Context, client *github.Client, owner, repo, filePath, guid string, branch string) error {
-	
-	//
 	opts := &github.RepositoryContentGetOptions{
 		Ref: branch, // Specify the branch name here
 	}
-	
+
 	// Step 1: Fetch the existing file contents.
 	fileContent, _, res, err := client.Repositories.GetContents(ctx, owner, repo, filePath, opts)
 	if err != nil {
@@ -370,20 +367,42 @@ func AppendToFile(ctx context.Context, client *github.Client, owner, repo, fileP
 		sha = fileContent.GetSHA()
 	}
 
-	// Step 2: Convert GUID string to binary and append it to the current content.
+	// Step 2: Process the content as fixed-length GUID chunks.
+	const guidLength = 32 // Hex-encoded 16 bytes = 32 characters.
+	// Split content into fixed-length chunks, ignoring formatting.
+	var allGUIDs []string
+	for i := 0; i+guidLength <= len(existingContent); i += guidLength {
+		allGUIDs = append(allGUIDs, existingContent[i:i+guidLength])
+	}
+
+	// Prepare the new GUID as a hex-encoded string.
 	binaryGUID, err := utils.EncodeStringToFixedBytes(guid, 16)
 	if err != nil {
 		return fmt.Errorf("failed to encode GUID: %w", err)
 	}
+	newHexGUID := hex.EncodeToString(binaryGUID)
 
-	// Convert binary into a readable hex string and append it.
-	newContent := existingContent + "\n" + hex.EncodeToString(binaryGUID)
+	// Append the new GUID to the list.
+	allGUIDs = append(allGUIDs, newHexGUID)
 
-	// Step 3: Update or create the file in the repository.
+	// Group GUIDs into lines of three, each line without spaces.
+	var lines []string
+	for i := 0; i < len(allGUIDs); i += 3 {
+		endIndex := i + 3
+		if endIndex > len(allGUIDs) {
+			endIndex = len(allGUIDs)
+		}
+		lines = append(lines, strings.Join(allGUIDs[i:endIndex], ""))
+	}
+
+	// Join lines with newlines to form the final content.
+	newContent := strings.Join(lines, "\n")
+
+	// Step 3: Update the file in the repository.
 	options := &github.RepositoryContentFileOptions{
 		Message: github.String("Appending content via go-github"),
 		Content: []byte(newContent),
-		SHA:     github.String(sha), // Use the SHA for updates (omit it for new files).
+		SHA:     github.String(sha), // Use the SHA for updates (omit for new files).
 		Branch:  github.String(branch),
 	}
 
@@ -397,8 +416,14 @@ func AppendToFile(ctx context.Context, client *github.Client, owner, repo, fileP
 }
 
 func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, repo, path, content string, branch string) error {
+	
+	//
+	opts := &github.RepositoryContentGetOptions{
+		Ref: branch, // Specify the branch name here
+	}
+	
 	// Check if the file exists
-	_, _, res, err := client.Repositories.GetContents(ctx, owner, repo, path, nil)
+	_, _, res, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
 	if err != nil {
 		if res != nil && res.StatusCode == 404 {
 			// File doesn't exist, create it
@@ -440,6 +465,7 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)
 	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "", branch)
 	if err != nil {
+		log.Printf("one %s", err.Error())
 		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath1, err)
 	}
 
@@ -447,6 +473,7 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 	gitkeepPath2 := fmt.Sprintf("%s/%d/.gitkeep", basePath, chapter)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "", branch)
 	if err != nil {
+		log.Print("two %s", err.Error())
 		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
 	}
 
@@ -454,6 +481,7 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 	zeroFilePath := fmt.Sprintf("%s/%d/%d.txt", basePath, chapter, page)
 	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "", branch)
 	if err != nil {
+		log.Print("three")
 		return "", fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
 	}
 
@@ -611,4 +639,106 @@ func createDevBranch(client *github.Client, owner string, repoName string) error
 	}
 
 	return nil
+}
+
+func FindChapterByGUID(
+	ctx context.Context, 
+	client *github.Client, 
+	owner, repo, directoryPath, guid, branch string,
+) (string, error) {
+    basePath := fmt.Sprintf("catalog/%s", directoryPath)
+
+    // Step 1: Encode the provided GUID into a 16-byte fixed format for comparison
+    encodedGuid, err := utils.EncodeStringToFixedBytes(guid, 16)
+    if err != nil {
+        return "", fmt.Errorf("error encoding GUID %s: %w", guid, err)
+    }
+    hexEncodedGuid := hex.EncodeToString(encodedGuid)
+    log.Printf("Encoded GUID as hex: %s", hexEncodedGuid)
+
+    // Step 2: Fetch the list of chapters from the base path
+    _, chapters, res, err := client.Repositories.GetContents(ctx, owner, repo, basePath, &github.RepositoryContentGetOptions{Ref: branch})
+    if err != nil {
+        if res != nil && res.StatusCode == 404 {
+            return "", fmt.Errorf("base path %s not found: %w", basePath, err)
+        }
+        return "", fmt.Errorf("failed to fetch chapters: %w", err)
+    }
+
+    // Step 3: Iterate over each chapter (directories within the base path)
+    for _, chapter := range chapters {
+        if chapter.GetType() != "dir" {
+            continue // Skip non-directory entries
+        }
+
+        chapterPath := chapter.GetPath()
+        log.Printf("Processing chapter: %s", chapterPath)
+
+        // Step 4: Fetch the pages (files) within the chapter
+        _, pages, _, err := client.Repositories.GetContents(ctx, owner, repo, chapterPath, &github.RepositoryContentGetOptions{Ref: branch})
+        if err != nil {
+            return "", fmt.Errorf("failed to fetch pages for chapter %s: %w", chapterPath, err)
+        }
+
+        // Step 5: Check each page (file) for the presence of the GUID
+        for _, page := range pages {
+            if page.GetType() == "dir" {
+                continue // Skip subdirectories
+            }
+
+            pagePath := page.GetPath()
+            log.Printf("Searching GUID in page: %s", pagePath)
+
+            // Fetch the page content only when necessary
+            pageFileContent, _, _, err := client.Repositories.GetContents(ctx, owner, repo, pagePath, &github.RepositoryContentGetOptions{Ref: branch})
+            if err != nil {
+                return "", fmt.Errorf("failed to fetch content for page %s: %w", pagePath, err)
+            }
+
+            rawContent, err := pageFileContent.GetContent() // Decode base64 content
+            if err != nil {
+                return "", fmt.Errorf("failed to decode content for page %s: %w", pagePath, err)
+            }
+
+            // Step 6: Manually process each line in the file content
+            matchFound := false
+            start := 0
+            for i := 0; i < len(rawContent); i++ {
+                if rawContent[i] == '\n' || i == len(rawContent)-1 {
+                    // Extract the line (account for EOF case where '\n' might not exist at the end)
+                    end := i
+                    if i == len(rawContent)-1 && rawContent[i] != '\n' {
+                        end = i + 1
+                    }
+
+                    line := strings.TrimSpace(rawContent[start:end])
+                    start = i + 1 // Move to the next line start
+
+                    if line == "" {
+                        continue // Skip empty lines
+                    }
+
+                    // Step 6.1: Split the line into individual GUIDs (fixed-length chunks)
+                    const guidLength = 32 // Hex-encoded GUID length
+                    for j := 0; j+guidLength <= len(line); j += guidLength {
+                        chunk := line[j : j+guidLength] // Extract each GUID chunk
+                        log.Printf("Comparing GUID chunk %s with target GUID %s", chunk, hexEncodedGuid)
+                        if chunk == hexEncodedGuid {
+                            // Match found
+                            log.Printf("Match found! GUID %s matches in chapter: %s, page: %s", guid, chapter.GetName(), page.GetName())
+                            return chapter.GetName(), nil
+                        }
+                    }
+                }
+            }
+
+            if matchFound {
+                break
+            }
+        }
+    }
+
+    // If no matches are found across all files, return default "0"
+    log.Printf("No match found for GUID: %s", guid)
+    return "0", nil
 }

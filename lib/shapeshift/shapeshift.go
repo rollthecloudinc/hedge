@@ -309,7 +309,7 @@ func InitializeHandler(c *ActionContext) Handler {
 		if singularName == "shapeshifter" {
 			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 			directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath)
+			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, os.Getenv("GITHUB_BRANCH"))
 			if err != nil {
 				log.Printf("Unable to ensure catalog")
 				return events.APIGatewayProxyResponse{StatusCode: 500}, nil
@@ -318,6 +318,12 @@ func InitializeHandler(c *ActionContext) Handler {
 				catalogPieces := strings.Split(catalogFile, "/")
 				chapter := catalogPieces[len(catalogPieces)-2]
 				log.Printf("The chapter is %s", chapter)
+				repoPieces := strings.Split(req.PathParameters["repo"], "-")
+				clusteringRepoPrefix := strings.Join(repoPieces[0:len(repoPieces)-1],"-")
+				log.Printf("The clustering repo prefix is %s", clusteringRepoPrefix)
+				if chapter != "0" {
+					clusteringRepo = clusteringRepoPrefix + "-" + chapter + "-objects"
+				}
 			}
 		}
 
@@ -543,6 +549,10 @@ func InitializeHandler(c *ActionContext) Handler {
 				} else {
 					catalogFile = c
 				}*/
+				err := repo.EnsureRepoCreate(ac.GithubRestClient, clusteringOwner, clusteringRepo, "clustering repo for " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"], false)
+				if err != nil {
+					return nil, fmt.Errorf("Could not ensure repo")
+				}
 				return ent, nil
 			})
 			ac.EntityManager.SetHook(entity.AfterSave, func(ent map[string]interface{}, m *entity.EntityManager) (map[string]interface{}, error) {
@@ -561,7 +571,7 @@ func InitializeHandler(c *ActionContext) Handler {
 					return nil, fmt.Errorf("Unable to ensure catalog.")
 				}*/
 				log.Print("Append id to catalog file " + catalogFile)
-				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], catalogFile, id)
+				repo.AppendToFile(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], catalogFile, id, os.Getenv("GITHUB_BRANCH"))
 				return ent, nil
 			})
 		}

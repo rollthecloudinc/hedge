@@ -342,9 +342,15 @@ func GetInstallationToken(input *GetInstallationTokenInput) (*github.Installatio
 }
 
 
-func AppendToFile(ctx context.Context, client *github.Client, owner, repo, filePath, guid string) error {
+func AppendToFile(ctx context.Context, client *github.Client, owner, repo, filePath, guid string, branch string) error {
+	
+	//
+	opts := &github.RepositoryContentGetOptions{
+		Ref: branch, // Specify the branch name here
+	}
+	
 	// Step 1: Fetch the existing file contents.
-	fileContent, _, res, err := client.Repositories.GetContents(ctx, owner, repo, filePath, nil)
+	fileContent, _, res, err := client.Repositories.GetContents(ctx, owner, repo, filePath, opts)
 	if err != nil {
 		if res != nil && res.StatusCode == 404 {
 			// If the file does not exist, we'll create it later.
@@ -378,6 +384,7 @@ func AppendToFile(ctx context.Context, client *github.Client, owner, repo, fileP
 		Message: github.String("Appending content via go-github"),
 		Content: []byte(newContent),
 		SHA:     github.String(sha), // Use the SHA for updates (omit it for new files).
+		Branch:  github.String(branch),
 	}
 
 	_, _, err = client.Repositories.UpdateFile(ctx, owner, repo, filePath, options)
@@ -389,7 +396,7 @@ func AppendToFile(ctx context.Context, client *github.Client, owner, repo, fileP
 	return nil
 }
 
-func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, repo, path, content string) error {
+func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, repo, path, content string, branch string) error {
 	// Check if the file exists
 	_, _, res, err := client.Repositories.GetContents(ctx, owner, repo, path, nil)
 	if err != nil {
@@ -398,6 +405,7 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 			options := &github.RepositoryContentFileOptions{
 				Message: github.String(fmt.Sprintf("Create %s via API", path)),
 				Content: []byte(content),
+				Branch:  github.String(branch),
 			}
 			_, _, err := client.Repositories.CreateFile(ctx, owner, repo, path, options)
 			if err != nil {
@@ -413,7 +421,7 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 	return nil
 }
 
-func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string) (string, error) {
+func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string, branch string) (string, error) {
 	basePath := fmt.Sprintf("catalog/%s", directoryPath)
 
 	// Seed the random number generator to get different results each time
@@ -430,21 +438,21 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 
 	// Step 1: Ensure the first .gitkeep file exists in /catalog/{directoryPath}/.gitkeep
 	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)
-	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "")
+	err := CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath1, "", branch)
 	if err != nil {
 		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath1, err)
 	}
 
 	// Step 2: Ensure the second .gitkeep file exists in /catalog/{directoryPath}/0/.gitkeep
 	gitkeepPath2 := fmt.Sprintf("%s/%d/.gitkeep", basePath, chapter)
-	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "")
+	err = CreateFileIfNotExists(ctx, client, owner, repo, gitkeepPath2, "", branch)
 	if err != nil {
 		return "", fmt.Errorf("error ensuring %s: %w", gitkeepPath2, err)
 	}
 
 	// Step 3: Ensure 0.txt file exists in /catalog/{directoryPath}/0/0.txt
 	zeroFilePath := fmt.Sprintf("%s/%d/%d.txt", basePath, chapter, page)
-	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "")
+	err = CreateFileIfNotExists(ctx, client, owner, repo, zeroFilePath, "", branch)
 	if err != nil {
 		return "", fmt.Errorf("error ensuring %s: %w", zeroFilePath, err)
 	}
@@ -482,6 +490,29 @@ func createRepo(client *github.Client, owner string, repoName string, descriptio
 	if err != nil {
 		return err
 	}
+
+	// Log the repository's URL
+	log.Printf("Repository created: %s\n", newRepo.GetHTMLURL())
+
+	// Create a README file in the repository
+	readmeContent := "# " + repoName + "\n\n" + description
+	readmeOptions := &github.RepositoryContentFileOptions{
+		Message: github.String("Add initial README file"),
+		Content: []byte(readmeContent),
+	}
+	_, _, err = client.Repositories.CreateFile(ctx, owner, repoName, "README.md", readmeOptions)
+	if err != nil {
+		return fmt.Errorf("failed to create README file: %w", err)
+	}
+
+	log.Println("README.md file successfully created.")
+
+	// Create the "dev" branch
+	if err := createDevBranch(client, owner, repoName); err != nil {
+		return fmt.Errorf("failed to create dev branch: %w", err)
+	}
+
+	log.Println("Dev branch successfully created.")
 
 	// Log or return the repository's URL
 	log.Printf("Repository created: %s\n", newRepo.GetHTMLURL())
@@ -549,5 +580,35 @@ func EnsureRepoCreate(client *github.Client, owner, repoName, description string
 	}
 
 	log.Printf("Repository '%s/%s' successfully created.\n", owner, repoName)
+	return nil
+}
+
+// createDevBranch creates a "dev" branch in the repository based on the default branch.
+func createDevBranch(client *github.Client, owner string, repoName string) error {
+	// Context for the API call
+	ctx := context.Background()
+
+	// Get the default branch reference (usually "main" or "master")
+	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if err != nil {
+		return fmt.Errorf("failed to fetch repository details: %w", err)
+	}
+
+	defaultBranch := repo.GetDefaultBranch() // Example: "main"
+	ref, _, err := client.Git.GetRef(ctx, owner, repoName, "refs/heads/"+defaultBranch)
+	if err != nil {
+		return fmt.Errorf("failed to fetch default branch reference: %w", err)
+	}
+
+	// Create the "dev" branch pointing to the same commit as the default branch
+	newBranchRef := &github.Reference{
+		Ref: github.String("refs/heads/dev"),               // New branch name
+		Object: &github.GitObject{SHA: ref.GetObject().SHA}, // Pointing to the same commit as the default branch
+	}
+	_, _, err = client.Git.CreateRef(ctx, owner, repoName, newBranchRef)
+	if err != nil {
+		return fmt.Errorf("failed to create dev branch: %w", err)
+	}
+
 	return nil
 }

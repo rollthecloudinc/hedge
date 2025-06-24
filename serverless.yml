@@ -25,6 +25,8 @@ custom:
   awsAccountId: ${file(./private.${opt:stage, 'dev'}.json):awsAccountId}
   defaultSigningUsername: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningUsername}
   defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
+  clusteringEnabled: ${file(./private.${opt:stage, 'dev'}.json):clusteringEnabled}
+  clusteringMax: ${file(./private.${opt:stage, 'dev'}.json):clusteringMax}
   cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
@@ -116,6 +118,8 @@ functions:
       ISSUER: ${self:custom.issuer}
       DEFAULT_SIGNING_USERNAME: ${self:custom.defaultSigningUsername}
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
+      CLUSTERING_ENABLED: ${self:custom.clusteringEnabled}
+      CLUSTERING_MAX: ${self:custom.clusteringMax}
       CLOUD_NAME: ${self:custom.cloudName}
       STAGE: ${opt:stage, 'dev'}
     events:

@@ -446,14 +446,28 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 	return nil
 }
 
-func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string, branch string) (string, error) {
+func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string, branch string, clusteringEnabled bool) (string, error) {
+	
+	var chapter int
+
+	if clusteringEnabled {
+		log.Print("Catalog ensuring with clustering.")
+	} else {
+		log.Print("Catalog ensuring without clustering chapter should default to 0.")
+	}
+
 	basePath := fmt.Sprintf("catalog/%s", directoryPath)
 
 	// Seed the random number generator to get different results each time
 	rand.Seed(time.Now().UnixNano())
 
 	// Generate a random number between 0 and 10 (inclusive)
-	chapter := rand.Intn(11) // 11 because Intn(n) generates [0, n)
+	// When clustering is disabled the chapter will always be 0 which is the master repo.
+	if clusteringEnabled {
+		chapter = rand.Intn(11) // 11 because Intn(n) generates [0, n)
+	} else {
+		chapter = 0
+	}
 
 	// Seed the random number generator to get different results each time
 	rand.Seed(time.Now().UnixNano())

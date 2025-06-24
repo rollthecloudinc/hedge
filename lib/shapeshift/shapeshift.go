@@ -208,6 +208,13 @@ func InitializeHandler(c *ActionContext) Handler {
 		var clusteringOwner string
 		var clusteringRepo string
 		var catalogFile string
+		var clusteringEnabled bool
+
+		if os.Getenv("CLUSTERING_ENABLED") == "true" {
+			clusteringEnabled = true
+		} else {
+			clusteringEnabled = false
+		}
 
 		usageLog := &utils.LogUsageLambdaInput{
 			UserId:       GetUserId(req),
@@ -309,7 +316,7 @@ func InitializeHandler(c *ActionContext) Handler {
 		if singularName == "shapeshifter" {
 			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 			directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, os.Getenv("GITHUB_BRANCH"))
+			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, os.Getenv("GITHUB_BRANCH"), clusteringEnabled)
 			if err != nil {
 				log.Printf("Unable to ensure catalog")
 				return events.APIGatewayProxyResponse{StatusCode: 500}, nil
@@ -573,9 +580,11 @@ func InitializeHandler(c *ActionContext) Handler {
 				} else {
 					catalogFile = c
 				}*/
-				err := repo.EnsureRepoCreate(ac.GithubRestClient, clusteringOwner, clusteringRepo, "clustering repo for " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"], false)
-				if err != nil {
-					return nil, fmt.Errorf("Could not ensure repo")
+				if clusteringEnabled {
+					err := repo.EnsureRepoCreate(ac.GithubRestClient, clusteringOwner, clusteringRepo, "clustering repo for " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"], false)
+					if err != nil {
+						return nil, fmt.Errorf("Could not ensure repo")
+					}
 				}
 				return ent, nil
 			})

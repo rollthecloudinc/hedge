@@ -329,15 +329,15 @@ functions:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}
   # Kill enforce contract for now because issue with esbuild json compilation.
-  #EnforceContract:
-  #  handler: enforce_contract.handler
-  #  role: EntityApiRole
-  #  runtime: nodejs16.x
-  #  package:
-  #    path: bazel-bin/func/enforce_contract
-  #    artifact: .serverless/EnforceContract.zip
-  #    include_globs:
-  #      - "**/enforce_contract.js"
+  EnforceContract:
+    handler: enforce_contract.handler
+    role: EntityApiRole
+    runtime: nodejs16.x
+    package:
+      path: bazel-bin/func/enforce_contract
+      artifact: .serverless/EnforceContract.zip
+      include_globs:
+        - "**/enforce_contract.js"
   Stream:
     handler: bootstrap
     role: EntityApiRole

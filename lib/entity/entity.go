@@ -1224,25 +1224,25 @@ func (v ContractValidatorAdaptor) Validate(entity map[string]interface{}, m *Ent
 		}
 	}
 
-	/*request := EnforceContractRequest{
+	request := EnforceContractRequest{
 		EntityName:          m.Config.SingularName,
 		Entity:              entity,
 		Contract:            contract,
 		UserId:              v.Config.UserId,
 		Site:                v.Config.Site,
 		LogUsageLambdaInput: m.Config.LogUsageLambdaInput,
-	}*/
+	}
 
-	/*payload, err := json.Marshal(request)
+	payload, err := json.Marshal(request)
 	if err != nil {
 		log.Printf("Error marshalling entity validation request: %s", err.Error())
 		valRes.Entity = entity
 		return valRes, errors.New("Error marshalling entity validation request")
-	}*/
+	}
 
 	var contractRes EnforceContractResponse
 
-	/*res2, err2 := v.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-EnforceContract"), Payload: payload})
+	res2, err2 := v.Config.Lambda.Invoke(&lambda.InvokeInput{FunctionName: aws.String("goclassifieds-api-" + m.Config.Stage + "-EnforceContract"), Payload: payload})
 	if err2 != nil {
 		log.Printf("error invoking entity validation: %s", err2.Error())
 		valRes.Entity = entity
@@ -1261,7 +1261,7 @@ func (v ContractValidatorAdaptor) Validate(entity map[string]interface{}, m *Ent
 		log.Printf("Lambda Response valid contract")
 		valRes.Entity = contractRes.Entity
 		return valRes, nil
-	}*/
+	}
 
 	valRes.Entity = entity
 	valRes.Errors = contractRes.Errors

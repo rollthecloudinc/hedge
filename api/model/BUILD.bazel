@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "model",
+    embed = [":model_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/model",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+
+go_library(
+    name = "model_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/model",
+    visibility = ["//visibility:private"],
+    deps = [
+      "@com_github_aws_aws_lambda_go//events",
+      "@com_github_aws_aws_lambda_go//lambda",
+    ],
+)

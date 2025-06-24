@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"strconv"
 	"text/template"
 
 	"goclassifieds/lib/entity"
@@ -216,6 +217,11 @@ func InitializeHandler(c *ActionContext) Handler {
 			clusteringEnabled = false
 		}
 
+		catalogPageMax, err := strconv.Atoi(os.Getenv("CATALOG_PAGE_MAX"))
+		if err != nil {
+			log.Print("Error converting catalog page max to int or undefined in config.")
+		}
+
 		usageLog := &utils.LogUsageLambdaInput{
 			UserId:       GetUserId(req),
 			Username:     GetUsername(req),
@@ -316,7 +322,7 @@ func InitializeHandler(c *ActionContext) Handler {
 		if singularName == "shapeshifter" {
 			proxyPieces := strings.Split(req.PathParameters["proxy"], "/")
 			directoryPath := strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
-			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, os.Getenv("GITHUB_BRANCH"), clusteringEnabled)
+			c, err := repo.EnsureCatalog(context.Background(), ac.GithubRestClient, req.PathParameters["owner"], req.PathParameters["repo"], directoryPath, os.Getenv("GITHUB_BRANCH"), clusteringEnabled, catalogPageMax)
 			if err != nil {
 				log.Printf("Unable to ensure catalog")
 				return events.APIGatewayProxyResponse{StatusCode: 500}, nil

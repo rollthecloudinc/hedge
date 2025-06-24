@@ -446,9 +446,10 @@ func CreateFileIfNotExists(ctx context.Context, client *github.Client, owner, re
 	return nil
 }
 
-func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string, branch string, clusteringEnabled bool) (string, error) {
+func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, directoryPath string, branch string, clusteringEnabled bool, pageMax int) (string, error) {
 	
 	var chapter int
+	var page int
 
 	if clusteringEnabled {
 		log.Print("Catalog ensuring with clustering.")
@@ -459,21 +460,27 @@ func EnsureCatalog(ctx context.Context, client *github.Client, owner, repo, dire
 	basePath := fmt.Sprintf("catalog/%s", directoryPath)
 
 	// Seed the random number generator to get different results each time
-	rand.Seed(time.Now().UnixNano())
 
 	// Generate a random number between 0 and 10 (inclusive)
 	// When clustering is disabled the chapter will always be 0 which is the master repo.
 	if clusteringEnabled {
+		rand.Seed(time.Now().UnixNano())
 		chapter = rand.Intn(11) // 11 because Intn(n) generates [0, n)
 	} else {
 		chapter = 0
 	}
 
 	// Seed the random number generator to get different results each time
-	rand.Seed(time.Now().UnixNano())
 
 	// Generate a random number between 0 and 10 (inclusive)
-	page := rand.Intn(11) // 11 because Intn(n) generates [0, n)
+	if pageMax == 0 {
+		log.Print("One page in catalog per entity.")
+		page = 0
+	} else {
+		log.Print("Multiple pages in catalog per entity.")
+		rand.Seed(time.Now().UnixNano())
+		page = rand.Intn(pageMax) // 11 because Intn(n) generates [0, n)
+	}
 
 	// Step 1: Ensure the first .gitkeep file exists in /catalog/{directoryPath}/.gitkeep
 	gitkeepPath1 := fmt.Sprintf("%s/.gitkeep", basePath)

@@ -27,6 +27,7 @@ custom:
   defaultSigningPassword: ${file(./private.${opt:stage, 'dev'}.json):defaultSigningPassword}
   clusteringEnabled: ${file(./private.${opt:stage, 'dev'}.json):clusteringEnabled}
   clusteringMax: ${file(./private.${opt:stage, 'dev'}.json):clusteringMax}
+  catalogPageMax: ${file(./private.${opt:stage, 'dev'}.json):catalogPageMax}
   cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
@@ -120,6 +121,7 @@ functions:
       DEFAULT_SIGNING_PASSWORD: ${self:custom.defaultSigningPassword}
       CLUSTERING_ENABLED: ${self:custom.clusteringEnabled}
       CLUSTERING_MAX: ${self:custom.clusteringMax}
+      CATALOG_PAGE_MAX: ${self:custom.catalogPageMax}
       CLOUD_NAME: ${self:custom.cloudName}
       STAGE: ${opt:stage, 'dev'}
     events:

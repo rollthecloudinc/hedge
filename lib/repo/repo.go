@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 	"fmt"
+	"os"
 	"math/rand"
+	"path/filepath"
 
 	"goclassifieds/lib/utils"
 
@@ -200,21 +202,36 @@ func CommitRest(c *github.Client, params *CommitParams) {
 	//log.Panic("made it")
 }
 
+// Entry point function that decides where to commit or save the data.
 func CommitRestOptimized(c *github.Client, params *CommitParams) {
+	if os.Getenv("SAVE_TO_FILE_SYSTEM") == "true" {
+		CommitToFileSystem(params)
+	} else {
+		CommitToGitHub(c, params)
+	}
+}
+
+// Function for committing directly to GitHub.
+func CommitToGitHub(c *github.Client, params *CommitParams) {
+
 	/*userInfo := &GithubUserInfo{
 		Name:  params.UserName,
 		Email: "vertigo@rollthecloud.com",
 	}*/
-	pieces := strings.Split(params.Repo, "/")
+
+	pieces := strings.Split(params.Repo, "/") // Split "org/repo" into ["org", "repo"]
+
 	opts := &github.RepositoryContentGetOptions{
 		Ref: params.Branch,
 	}
 	file, _, res, err := c.Repositories.GetContents(context.Background(), pieces[0], pieces[1], params.Path, opts)
 	if err != nil && res.StatusCode != 404 {
-		log.Print("Github get content failure.")
+		log.Print("GitHub get content failure.")
 		log.Panic(err)
 	}
+
 	if res.StatusCode == 404 {
+		// File does not exist, create it.
 		createOpts := &github.RepositoryContentFileOptions{
 			Branch:  github.String(params.Branch),
 			Content: *params.Data,
@@ -226,11 +243,12 @@ func CommitRestOptimized(c *github.Client, params *CommitParams) {
 		}
 		_, _, err := c.Repositories.CreateFile(context.Background(), pieces[0], pieces[1], params.Path, createOpts)
 		if err != nil {
-			log.Print("Github create failure.")
+			log.Print("GitHub create failure.")
 			log.Panic(err)
 		}
-		log.Print("Created github file")
+		log.Print("Created GitHub file")
 	} else {
+		// File exists, update it.
 		updateOpts := &github.RepositoryContentFileOptions{
 			Branch:  github.String(params.Branch),
 			Content: *params.Data,
@@ -239,16 +257,42 @@ func CommitRestOptimized(c *github.Client, params *CommitParams) {
 				Name:  github.String("Todd Zmijewski"/*userInfo.Name*/),
 				Email: github.String("angular.druid@gmail.com"/*userInfo.Email*/),
 			},
-			SHA: file.SHA,
+			SHA: file.SHA, // Required for the update request.
 		}
 		_, _, err := c.Repositories.UpdateFile(context.Background(), pieces[0], pieces[1], params.Path, updateOpts)
 		if err != nil {
-			log.Print("Github update failure.")
+			log.Print("GitHub update failure.")
 			log.Panic(err)
 		}
-		log.Print("Updated github file")
+		log.Print("Updated GitHub file")
+	}
+}
+
+// Function for saving data to the local filesystem.
+func CommitToFileSystem(params *CommitParams) {
+	// Check if the FILESYSTEM_ROOT environment variable is set.
+	root := os.Getenv("FILESYSTEM_ROOT")
+	if root == "" {
+		log.Panic("FILESYSTEM_ROOT environment variable is not set")
 	}
 
+	// Construct the full file path: root/repo/user/path
+	filePath := filepath.Join(root, params.Repo, params.UserName, params.Path)
+
+	// Ensure the directory structure exists
+	dir := filepath.Dir(filePath)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		log.Panic("Failed to create directories: ", err)
+	}
+
+	// Write the data to the file
+	err = os.WriteFile(filePath, *params.Data, 0644)
+	if err != nil {
+		log.Panic("Failed to write data to file: ", err)
+	}
+
+	log.Print("Data saved to filesystem at: " + filePath)
 }
 
 func GetUserInfo(client *github.Client) (*GithubUserInfo, error) {

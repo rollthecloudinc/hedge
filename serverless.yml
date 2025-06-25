@@ -28,6 +28,8 @@ custom:
   clusteringEnabled: ${file(./private.${opt:stage, 'dev'}.json):clusteringEnabled}
   clusteringMax: ${file(./private.${opt:stage, 'dev'}.json):clusteringMax}
   catalogPageMax: ${file(./private.${opt:stage, 'dev'}.json):catalogPageMax}
+  saveToFileSystem: ${file(./private.${opt:stage, 'dev'}.json):saveToFileSystem}
+  filesystemRoot: ${file(./private.${opt:stage, 'dev'}.json):filesystemRoot}
   cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
@@ -122,6 +124,8 @@ functions:
       CLUSTERING_ENABLED: ${self:custom.clusteringEnabled}
       CLUSTERING_MAX: ${self:custom.clusteringMax}
       CATALOG_PAGE_MAX: ${self:custom.catalogPageMax}
+      SAVE_TO_FILE_SYSTEM: ${self:custom.saveToFileSystem}
+      FILESYSTEM_ROOT: ${self:custom.filesystemRoot}
       CLOUD_NAME: ${self:custom.cloudName}
       STAGE: ${opt:stage, 'dev'}
     events:

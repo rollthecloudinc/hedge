@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Minimal OpenSearch instance using the smallest node type (t3.small.search) with fine-grained access control.
+
+Resources:
+  OpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: minimal-opensearch
+      EngineVersion: OpenSearch_2.5
+      ClusterConfig:
+        InstanceType: t3.small.search
+        InstanceCount: 1
+        DedicatedMasterEnabled: false
+        ZoneAwarenessEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp2
+        VolumeSize: 10
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: admin
+          MasterUserPassword: !Sub '${MasterPassword}'
+      EncryptionAtRestOptions:
+        Enabled: true # Enable encryption at rest
+      NodeToNodeEncryptionOptions:
+        Enabled: true # Enable node-to-node encryption
+      DomainEndpointOptions:
+        EnforceHTTPS: true # Enable HTTPS enforcement
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+
+Parameters:
+  MasterPassword:
+    Type: String
+    Description: Master user password for OpenSearch fine-grained access control
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: '[A-Za-z0-9@!?*#_+=^.-]+'
+    ConstraintDescription: Password must be 8-32 characters long and can include letters, numbers, and special characters.
+
+Outputs:
+  OpenSearchEndpoint:
+    Description: Endpoint of the OpenSearch domain
+    Value: !GetAtt OpenSearchDomain.Endpoint

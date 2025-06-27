@@ -31,7 +31,9 @@ Resources:
         Statement:
           - Effect: "Allow"
             Principal:
-              Federated: "cognito-identity.amazonaws.com"
+              Federated:
+                - "cognito-identity.amazonaws.com"
+                - "es.amazonaws.com" # Adding OpenSearch to allow it to assume the role
             Action:
               - "sts:AssumeRole"
       Policies:
@@ -46,6 +48,15 @@ Resources:
                   - "es:ESHttpPost"
                   - "es:ESHttpDelete"
                 Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
+              # Permissions required for Cognito integration
+              - Effect: "Allow"
+                Action:
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:ListUserPoolClients"
+                  - "cognito-identity:DescribeIdentityPool"
+                Resource:
+                  - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
+                  - !Sub 'arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${IdentityPoolId}'
 
   MyDomain:
     Type: "AWS::OpenSearchService::Domain"

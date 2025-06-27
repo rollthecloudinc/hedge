@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates a Distinct OpenSearch instance with Cognito authentication and fine-grained access control.
+
+Resources:
+  # IAM Role for Cognito and OpenSearch Authentication
+  DistinctCognitoAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DistinctOpenSearchAuthRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: "cognito-identity.amazonaws.com"
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPoolId
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': authenticated
+          - Effect: Allow
+            Principal:
+              Service: "es.amazonaws.com" # Allow OpenSearch Service to assume the role
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: DistinctOpenSearchAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'es:ESHttp*'
+                Resource: '*' # Further restriction is recommended based on access control requirements
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:DescribeUserPool' # Permission to describe the Cognito User Pool
+                  - 'cognito-identity:ListIdentityPools' # Permission to list identity pools
+                  - 'cognito-identity:GetIdentityPoolRoles' # Permission to get identity pool roles
+                  - 'cognito-identity:DescribeIdentityPool' # Permission to describe the Cognito Identity Pool
+                Resource:
+                  - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}' # Restrict to the Cognito User Pool
+                  - !Sub 'arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}' # Restrict to the Cognito Identity Pool
+
+  # OpenSearch Domain with Cognito Authentication Enabled
+  DistinctOpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: distinct-opensearch
+      EngineVersion: OpenSearch_2.5
+      ClusterConfig:
+        InstanceType: t3.small.search
+        InstanceCount: 1
+        DedicatedMasterEnabled: false
+        ZoneAwarenessEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp2
+        VolumeSize: 10
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: admin
+          MasterUserPassword: !Sub '${MasterPassword}'
+      CognitoOptions:
+        Enabled: true
+        IdentityPoolId: !Ref CognitoIdentityPoolId
+        UserPoolId: !Ref CognitoUserPoolId
+        RoleArn: !GetAtt DistinctCognitoAuthRole.Arn # Reference the corrected IAM Role here
+      EncryptionAtRestOptions:
+        Enabled: true # Enable encryption at rest
+      NodeToNodeEncryptionOptions:
+        Enabled: true # Enable node-to-node encryption
+      DomainEndpointOptions:
+        EnforceHTTPS: true # Enforce HTTPS
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+
+Parameters:
+  MasterPassword:
+    Type: String
+    Description: Master user password for OpenSearch fine-grained access control
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: '[A-Za-z0-9@!?*#_+=^.-]+'
+    ConstraintDescription: Password must be 8-32 characters long and can include letters, numbers, and special characters.
+
+  CognitoUserPoolId:
+    Type: String
+    Description: ID of the existing Cognito User Pool
+
+  CognitoIdentityPoolId:
+    Type: String
+    Description: ID of the existing Cognito Identity Pool
+
+Outputs:
+  DistinctOpenSearchEndpoint:
+    Description: Endpoint of the Distinct OpenSearch domain
+    Value: !GetAtt DistinctOpenSearchDomain.Endpoint

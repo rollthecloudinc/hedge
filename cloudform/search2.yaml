@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to deploy OpenSearch with Cognito authentication, Advanced Security, and CloudWatch logging."
+
+Parameters:
+  CognitoUserPoolId:
+    Description: "The ID of the existing Cognito User Pool (e.g., us-east-1_AbCdEfGhI)."
+    Type: String
+
+  CognitoIdentityPoolId:
+    Description: "The ID of the existing Cognito Identity Pool (e.g., us-east-1:12345678-1234-1234-1234-123456789012)."
+    Type: String
+
+  MasterUserARN:
+    Description: "The Amazon Resource Name (ARN) of the IAM user or role to serve as the master user for OpenSearch."
+    Type: String
+
+  InstanceType:
+    Description: "The instance type for the OpenSearch nodes."
+    Type: String
+    Default: "t3.small.search"
+    AllowedValues:
+      - t3.small.search
+      - m6g.large.search
+      - c5.large.search
+
+  VolumeSize:
+    Description: "The EBS volume size for each node (in GiB)."
+    Type: Number
+    Default: 10
+    MinValue: 10
+    MaxValue: 1000
+
+Resources:
+  OpenSearchDomain:
+    Type: "AWS::OpenSearchService::Domain"
+    Properties:
+      DomainName: "example-opensearch-domain"
+      EngineVersion: "OpenSearch_2.7"  # Update this to the latest supported version
+
+      # Cluster Configuration
+      ClusterConfig:
+        InstanceType: !Ref InstanceType  # Instance type provided by parameter
+        InstanceCount: 1                # Single node for simplicity
+        ZoneAwarenessEnabled: false     # Single-AZ deployment
+        DedicatedMasterEnabled: false
+
+      # Storage
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: "gp2"              # SSD storage
+        VolumeSize: !Ref VolumeSize
+
+      # Security and Encryption
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EncryptionAtRestOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
+
+      # Cognito Authentication
+      CognitoOptions:
+        Enabled: true
+        IdentityPoolId: !Ref CognitoIdentityPoolId
+        UserPoolId: !Ref CognitoUserPoolId
+        RoleArn: !GetAtt CognitoAccessRole.Arn
+
+      # Advanced Security
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: !Ref MasterUserARN
+
+      # Logging
+      LogPublishingOptions:
+        INDEX_SLOW_LOGS:
+          CloudWatchLogsLogGroupArn: !GetAtt OpenSearchLogGroup.Arn
+          Enabled: true
+        SEARCH_SLOW_LOGS:
+          CloudWatchLogsLogGroupArn: !GetAtt OpenSearchLogGroup.Arn
+          Enabled: true
+        ES_APPLICATION_LOGS:
+          CloudWatchLogsLogGroupArn: !GetAtt OpenSearchLogGroup.Arn
+          Enabled: true
+
+  # IAM Role for Cognito
+  CognitoAccessRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "opensearchservice.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "OpenSearchCognitoAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:CreateUserPoolClient"
+                  - "cognito-idp:DescribeUserPoolClient"
+                  - "cognito-identity:DescribeIdentityPool"
+                  - "cognito-identity:ListIdentityPools"
+                Resource: "*"
+
+  # CloudWatch Logs Group
+  OpenSearchLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: "/aws/opensearch/example"
+      RetentionInDays: 7  # Retain logs for 7 days
+
+  # CloudWatch Logs Resource Policy
+  LogGroupResourcePolicy:
+    Type: "AWS::Logs::ResourcePolicy"
+    Properties:
+      PolicyName: "OpenSearchLogsResourcePolicy"
+      PolicyDocument: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowLogsToOpenSearch",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "es.amazonaws.com"
+              },
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/opensearch/example:*"
+            }
+          ]
+        }
+
+Outputs:
+  OpenSearchEndpoint:
+    Description: "The endpoint of the OpenSearch domain"
+    Value: !GetAtt OpenSearchDomain.DomainEndpoint
+    Export:
+      Name: "OpenSearchDomainEndpoint"

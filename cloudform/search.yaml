@@ -1,5 +1,77 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS CloudFormation Sample Template: This template sets up the base search system.'
+Description: Hedge OpenSearch instance using the smallest node type (t3.small.search) with fine-grained access control.
+
+Resources:
+  CognitoAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'RtcCognitoOpenSearchRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "opensearchservice.amazonaws.com"
+            Action: "sts:AssumeRole"
+
+      Policies:
+        - PolicyName: !Sub 'RtcCognitoOpenSearchAccess${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:CreateUserPoolClient"
+                  - "cognito-idp:DescribeUserPoolClient"
+                  - "cognito-identity:DescribeIdentityPool"
+                  - "cognito-identity:ListIdentityPools"
+                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
+
+        - PolicyName: AllowCognitoActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'es:ESHttp*'
+                Resource:
+                  - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
+                  - !Sub 'arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${IdentityPoolId}'
+  OpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Sub 'rtc-classifieds-${EnvironmentName}-${VendorSuffix}'
+      EngineVersion: OpenSearch_2.19
+      ClusterConfig:
+        InstanceType: t3.small.search
+        InstanceCount: 1
+        DedicatedMasterEnabled: false
+        ZoneAwarenessEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp2
+        VolumeSize: 10
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: admin
+          MasterUserPassword: !Sub '${MasterPassword}'
+      EncryptionAtRestOptions:
+        Enabled: true # Enable encryption at rest
+      NodeToNodeEncryptionOptions:
+        Enabled: true # Enable node-to-node encryption
+      DomainEndpointOptions:
+        EnforceHTTPS: true # Enable HTTPS enforcement
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
 
 Parameters:
   EnvironmentName:
@@ -20,64 +92,16 @@ Parameters:
   IdentityPoolId:
     Description: The ID of the Cognito Identity Pool
     Type: String
+  MasterPassword:
+    Type: String
+    Description: Master user password for OpenSearch fine-grained access control
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: '[A-Za-z0-9@!?*#_+=^.-]+'
+    ConstraintDescription: Password must be 8-32 characters long and can include letters, numbers, and special characters.
 
-Resources:
-  CognitoOpenSearchRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      RoleName: !Sub 'RtcCognitoOpenSearchRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Federated:
-                - "cognito-identity.amazonaws.com"
-                - "es.amazonaws.com" # Adding OpenSearch to allow it to assume the role
-            Action:
-              - "sts:AssumeRole"
-      Policies:
-        - PolicyName: !Sub 'RtcCognitoOpenSearchAccess${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "es:ESHttpGet"
-                  - "es:ESHttpPut"
-                  - "es:ESHttpPost"
-                  - "es:ESHttpDelete"
-                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/rtc-classifieds-${EnvironmentName}-${VendorSuffix}/*'
-              # Permissions required for Cognito integration
-              - Effect: "Allow"
-                Action:
-                  - "cognito-idp:DescribeUserPool"
-                  - "cognito-idp:ListUserPoolClients"
-                  - "cognito-identity:DescribeIdentityPool"
-                Resource:
-                  - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
-                  - !Sub 'arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${IdentityPoolId}'
-
-  MyDomain:
-    Type: "AWS::OpenSearchService::Domain"
-    Properties:
-      DomainName: !Sub 'rtc-classifieds-${EnvironmentName}-${VendorSuffix}'
-      EngineVersion: "OpenSearch_2.13"
-      ClusterConfig:
-        InstanceType: "t3.small.search"
-        InstanceCount: 1
-      EBSOptions:
-        EBSEnabled: true
-        VolumeSize: 10
-      EncryptionAtRestOptions:
-        Enabled: false
-      NodeToNodeEncryptionOptions:
-        Enabled: false
-      DomainEndpointOptions:
-        EnforceHTTPS: true
-        TLSSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
-      CognitoOptions:
-        Enabled: true
-        UserPoolId: !Ref UserPoolId
-        IdentityPoolId: !Ref IdentityPoolId
-        RoleArn: !GetAtt CognitoOpenSearchRole.Arn
+Outputs:
+  OpenSearchEndpoint:
+    Description: Endpoint of the OpenSearch domain
+    Value: !GetAtt OpenSearchDomain.DomainEndpoint

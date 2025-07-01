@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role for Cognito-authenticated users to access OpenSearch and OpenSearch Dashboards.
+
+Resources:
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'CognitoAuthenticatedRole${EnvironmentNameCamelCase}${VendorSuffixCamelCase}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: "cognito-identity.amazonaws.com"
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPoolId
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": "authenticated"
+
+      Policies:
+        - PolicyName: OpenSearchAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "es:ESHttpGet"
+                  - "es:ESHttpPost"
+                  - "es:ESHttpPut"
+                  - "es:ESHttpDelete"
+                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${OpenSearchDomainName}/*'
+
+Parameters:
+  IdentityPoolId:
+    Type: String
+    Description: The ID of the Cognito Identity Pool (e.g., us-east-1:xxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx)
+  OpenSearchDomainName:
+    Type: String
+    Description: Name of the OpenSearch domain (e.g., rtc-classifieds-dev-rtc)
+  EnvironmentNameCamelCase:
+    Type: String
+    Description: The name of the environment in camel case (e.g., Dev, Prod)
+  VendorSuffixCamelCase:
+    Type: String
+    Description: Unique vendor suffix in camel case for multiple vendors under the same account
+
+Outputs:
+  CognitoRoleArn:
+    Description: ARN of the IAM Role created for Cognito-authenticated users
+    Value: !GetAtt CognitoAuthenticatedRole.Arn

@@ -140,7 +140,7 @@ func GetEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.AP
 
 func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
-	//pathPieces := strings.Split(req.Path, "/")
+	pathPieces := strings.Split(req.Path, "/")
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
@@ -160,10 +160,10 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 	if err != nil {
 		return res, err
 	}
-	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
-	// log.Print("Index Entity")
-	// ac.EntityManager.Save(createRes.Entity, "opensearch") // @todo: Just remove for now to get it up and running with Canva Hackathon
-	//}
+	if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+	 	log.Print("Index Entity")
+		ac.EntityManager.Save(createRes.Entity, "opensearch") // @todo: Just remove for now to get it up and running with Canva Hackathon
+	}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
 		"Content-Type": "application/json",
@@ -174,7 +174,7 @@ func CreateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 
 func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
 	var e map[string]interface{}
-	//pathPieces := strings.Split(req.Path, "/")
+	pathPieces := strings.Split(req.Path, "/")
 	res := events.APIGatewayProxyResponse{StatusCode: 500}
 	body := []byte(req.Body)
 	json.Unmarshal(body, &e)
@@ -191,10 +191,10 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 		return res, err
 	}
 	// @todo: Ignore just to get this working for Canva integration
-	//if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
-	// log.Print("Index Entity")
-	// ac.EntityManager.Save(updateRes.Entity, "opensearch")
-	//}
+	if len(pathPieces) > 3 && pathPieces[3] == "shapeshifter" {
+		log.Print("Index Entity")
+		ac.EntityManager.Save(updateRes.Entity, "opensearch")
+	}
 	res.StatusCode = 200
 	res.Headers = map[string]string{
 		"Content-Type": "application/json",
@@ -780,6 +780,8 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 
 	token := req.Headers["authorization"][7:]
 	log.Print("token: " + token)
+
+	log.Printf("awsSigner ISSUER: %s", os.Getenv("ISSUER"))
 
 	awsSigner := sign.AwsSigner{
 		Service:        "es",

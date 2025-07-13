@@ -30,6 +30,9 @@ custom:
   catalogPageMax: ${file(./private.${opt:stage, 'dev'}.json):catalogPageMax}
   saveToFileSystem: ${file(./private.${opt:stage, 'dev'}.json):saveToFileSystem}
   filesystemRoot: ${file(./private.${opt:stage, 'dev'}.json):filesystemRoot}
+  marvelApiPublicKey: ${file(./private.${opt:stage, 'dev'}.json):marvelApiPublicKey}
+  marvelApiPrivateKey: ${file(./private.${opt:stage, 'dev'}.json):marvelApiPrivateKey}
+  comicvineApiKey: ${file(./private.${opt:stage, 'dev'}.json):comicvineApiKey}
   cloudName: ${file(./private.${opt:stage, 'dev'}.json):cloudName}
 provider:
   name: aws
@@ -242,6 +245,9 @@ functions:
       PROXY_AVE_DOMAIN: ${self:custom.proxyAveDomain}
       PROXY_AVE_APIKEY: ${self:custom.aveApikey}
       PROXY_CARBONAWARE_DOMAIN: ${self:custom.proxyCarbonAwareDomain}
+      MARVEL_API_PUBLIC_KEY: ${self:custom.marvelApiPublicKey}
+      MARVEL_API_PRIVATE_KEY: ${self:custom.marvelApiPrivateKey}
+      COMICVINE_API_KEY: ${self:custom.comicvineApiKey}
       STAGE: ${opt:stage, 'dev'}
     events:
       - httpApi:
@@ -255,6 +261,9 @@ functions:
           method: GET
       - httpApi:
           path: /marvel/{proxy+}
+          method: GET
+      - httpApi:
+          path: /comicvine/{proxy+}
           method: GET
   ChatApi:
     handler: bootstrap

@@ -206,6 +206,47 @@ func UpdateEntity(req *events.APIGatewayProxyRequest, ac *ActionContext) (events
 func InitializeHandler(c *ActionContext) Handler {
 	return func(req *events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
+		// This is the original requst unmodified for reference.
+		// originalRequest := req
+
+		// Create a new request with modifications
+		req = utils.CopyRequest(req, func(r *events.APIGatewayProxyRequest) {
+			// Check whether `proxy` has only one path item (e.g., /person) and update accordingly
+			pathPieces := strings.Split(r.PathParameters["proxy"], "/")
+			if r.HTTPMethod == "POST" && len(pathPieces) == 1 {
+				// Extract 'id' from the JSON body of the request
+				id, err := utils.PluckPropertyFromJSON(r.Body, "id")
+				if err != nil || id == "" {
+					// Generate a new UUID if `id` is missing or empty and add to the payload dynamically.
+					id = utils.GenerateId()
+					log.Printf("Generated new UUID for id: %s", id)
+					var bodyData map[string]interface{}
+					err = json.Unmarshal([]byte(r.Body), &bodyData)
+					if err == nil {
+						bodyData["id"] = id
+						updatedBody, err := json.Marshal(bodyData)
+						if err == nil {
+							r.Body = string(updatedBody)
+						}
+					}
+				} else {
+					log.Printf("Extracted id: %s", id)
+				}
+
+				// Dynamically build the `proxy` path by appending the `id` to the existing proxy value
+				r.PathParameters["proxy"] = fmt.Sprintf("%s/%s", r.PathParameters["proxy"], id)
+
+				// Append the ID to the path
+				r.Path = fmt.Sprintf("%s/%s", r.Path, id)
+
+				log.Printf("Rewritten Path: %s", r.Path)
+				log.Printf("Updated Proxy: %s", r.PathParameters["proxy"])
+			}
+		})
+
+		// Print modified request for debugging
+		log.Printf("Modified Request: %+v", req)
+
 		var clusteringOwner string
 		var clusteringRepo string
 		var catalogFile string

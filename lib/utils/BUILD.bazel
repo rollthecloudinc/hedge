@@ -7,6 +7,7 @@ go_library(
         "uuid.go",
         "log.go",
         "compact.go",
+        "adub.go"
     ],
     importpath = "goclassifieds/lib/utils",
     visibility = ["//visibility:public"],

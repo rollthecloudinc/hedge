@@ -11,5 +11,9 @@ go_library(
         "@com_github_google_go_github_v46//github",
         "@org_golang_x_oauth2//:go_default_library",
         "@com_github_golang_jwt_jwt_v4//:go_default_library",
+        # "@org_golang_x_crypto//nacl/box",  # Add this line for golang.org/x/crypto
+        "@com_github_kevinburke_nacl//box:go_default_library", # THIS IS THE KEY CHANGE
+        "@com_github_aws_aws_sdk_go//service/lambda",
+        "@com_github_aws_aws_sdk_go//aws",
     ],
 )

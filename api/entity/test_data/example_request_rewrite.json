@@ -1,0 +1,98 @@
+{
+    "resource": "/{owner}/{repo}/shapeshifter/{proxy+}",
+    "path": "/rollthecloudinc/hedge-objects/shapeshifter/person/testiterwerewrwe",
+    "httpMethod": "POST",
+    "headers": {
+        "Content-Length": "83",
+        "Content-Type": "application/json",
+        "Host": "m7k310bu9a.execute-api.us-east-1.amazonaws.com",
+        "User-Agent": "insomnia/2021.5.3",
+        "X-Amzn-Trace-Id": "Root=1-68734508-577529522cd59b1f2551d4e4",
+        "X-Forwarded-For": "96.27.12.22",
+        "X-Forwarded-Port": "443",
+        "X-Forwarded-Proto": "https",
+        "accept": "*/*",
+        "authorization": "Bearer eyJraWQiOiJBVkFVblpuUkhaOHZlTm93UjBVTGUzbmZpZWFQVFZaalc2TkV4RFdTTDZ3PSIsImFsZyI6IlJTMjU2In0.eyJhdF9oYXNoIjoiYnlSMF9PcWE2WFJXNHhnd3hZdUgwdyIsInN1YiI6IjQ0ZThiNDM4LWEwNjEtNzBjYS1mYWE3LTNkM2U5M2MwMTVjYiIsImNvZ25pdG86Z3JvdXBzIjpbIkF1dGhlbnRpY2F0ZWRVc2VyIl0sImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAudXMtZWFzdC0xLmFtYXpvbmF3cy5jb21cL3VzLWVhc3QtMV9zV1JWMGtBZ1MiLCJwaG9uZV9udW1iZXJfdmVyaWZpZWQiOnRydWUsImNvZ25pdG86dXNlcm5hbWUiOiI0NGU4YjQzOC1hMDYxLTcwY2EtZmFhNy0zZDNlOTNjMDE1Y2IiLCJvcmlnaW5fanRpIjoiNGVlM2NhOTUtMmYxYS00MzVmLWE3ZGMtMjc1MWZlMTY1ZTJhIiwiY29nbml0bzpyb2xlcyI6WyJhcm46YXdzOmlhbTo6MDMyNDI1OTI0MTIxOnJvbGVcL0NvZ25pdG9BdXRoZW50aWNhdGVkUm9sZURldlJ0YyJdLCJhdWQiOiI3aDc3OG11aXJhOGRrcjY5ZHQzNWpoYmpvOCIsImV2ZW50X2lkIjoiZDkwZTg2ZWItNjEwNi00MTk0LTg3Y2QtNTJmNzMwNjlmM2ZlIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTIzODM4MTYsInBob25lX251bWJlciI6IisxNTg2ODg0MTUzMCIsImV4cCI6MTc1MjM4NzQxNiwiaWF0IjoxNzUyMzgzODE2LCJqdGkiOiI5NzZjMDEyMC1kYTVlLTRlMWEtYmU5NC1hNmY3MDFjMzNkMmIiLCJlbWFpbCI6ImFuZ3VsYXIuZHJ1aWRAZ21haWwuY29tIn0.FdVyu5AtmgnVE_qZ3IeOlzcOcbxRufQw32DWioK8wJiEZ1ZRQaYcnQ-pqdvKEYdiLc_A_t_0iSya5-BhdFpnU42qX_vbIH_zNjvRS-_0Q8sq06EruqMc0Pa49_nKkHnFisqcSyQvHvescLv_1A25C5ewhFR2HZx8w95JQKp2nKwJ4gU2QJcL5N0Dlcl8zfxsO4KtnNzcvOteNQXtXqOTrcgYeGL_-3S4GDWh3KCpFDD49A50oECxXfn_v1EZCraFLchA8dtt-rI7AsBvfidqqSNXSQbNMa-xLj-IyUNlfnoLwXPFYmBNh4zP23iu5Smyq7mtIRbQIRTMtkGo5cmtJA"
+    },
+    "multiValueHeaders": {
+        "Content-Length": [
+            "83"
+        ],
+        "Content-Type": [
+            "application/json"
+        ],
+        "Host": [
+            "m7k310bu9a.execute-api.us-east-1.amazonaws.com"
+        ],
+        "User-Agent": [
+            "insomnia/2021.5.3"
+        ],
+        "X-Amzn-Trace-Id": [
+            "Root=1-68734508-577529522cd59b1f2551d4e4"
+        ],
+        "X-Forwarded-For": [
+            "96.27.12.22"
+        ],
+        "X-Forwarded-Port": [
+            "443"
+        ],
+        "X-Forwarded-Proto": [
+            "https"
+        ],
+        "accept": [
+            "*/*"
+        ],
+        "authorization": [
+            "Bearer eyJraWQiOiJBVkFVblpuUkhaOHZlTm93UjBVTGUzbmZpZWFQVFZaalc2TkV4RFdTTDZ3PSIsImFsZyI6IlJTMjU2In0.eyJhdF9oYXNoIjoiYnlSMF9PcWE2WFJXNHhnd3hZdUgwdyIsInN1YiI6IjQ0ZThiNDM4LWEwNjEtNzBjYS1mYWE3LTNkM2U5M2MwMTVjYiIsImNvZ25pdG86Z3JvdXBzIjpbIkF1dGhlbnRpY2F0ZWRVc2VyIl0sImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAudXMtZWFzdC0xLmFtYXpvbmF3cy5jb21cL3VzLWVhc3QtMV9zV1JWMGtBZ1MiLCJwaG9uZV9udW1iZXJfdmVyaWZpZWQiOnRydWUsImNvZ25pdG86dXNlcm5hbWUiOiI0NGU4YjQzOC1hMDYxLTcwY2EtZmFhNy0zZDNlOTNjMDE1Y2IiLCJvcmlnaW5fanRpIjoiNGVlM2NhOTUtMmYxYS00MzVmLWE3ZGMtMjc1MWZlMTY1ZTJhIiwiY29nbml0bzpyb2xlcyI6WyJhcm46YXdzOmlhbTo6MDMyNDI1OTI0MTIxOnJvbGVcL0NvZ25pdG9BdXRoZW50aWNhdGVkUm9sZURldlJ0YyJdLCJhdWQiOiI3aDc3OG11aXJhOGRrcjY5ZHQzNWpoYmpvOCIsImV2ZW50X2lkIjoiZDkwZTg2ZWItNjEwNi00MTk0LTg3Y2QtNTJmNzMwNjlmM2ZlIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTIzODM4MTYsInBob25lX251bWJlciI6IisxNTg2ODg0MTUzMCIsImV4cCI6MTc1MjM4NzQxNiwiaWF0IjoxNzUyMzgzODE2LCJqdGkiOiI5NzZjMDEyMC1kYTVlLTRlMWEtYmU5NC1hNmY3MDFjMzNkMmIiLCJlbWFpbCI6ImFuZ3VsYXIuZHJ1aWRAZ21haWwuY29tIn0.FdVyu5AtmgnVE_qZ3IeOlzcOcbxRufQw32DWioK8wJiEZ1ZRQaYcnQ-pqdvKEYdiLc_A_t_0iSya5-BhdFpnU42qX_vbIH_zNjvRS-_0Q8sq06EruqMc0Pa49_nKkHnFisqcSyQvHvescLv_1A25C5ewhFR2HZx8w95JQKp2nKwJ4gU2QJcL5N0Dlcl8zfxsO4KtnNzcvOteNQXtXqOTrcgYeGL_-3S4GDWh3KCpFDD49A50oECxXfn_v1EZCraFLchA8dtt-rI7AsBvfidqqSNXSQbNMa-xLj-IyUNlfnoLwXPFYmBNh4zP23iu5Smyq7mtIRbQIRTMtkGo5cmtJA"
+        ]
+    },
+    "queryStringParameters": null,
+    "multiValueQueryStringParameters": null,
+    "pathParameters": {
+        "owner": "rollthecloudinc",
+        "proxy": "person/testiterwerewrwe",
+        "repo": "hedge-objects"
+    },
+    "stageVariables": null,
+    "requestContext": {
+        "accountId": "032425924121",
+        "resourceId": "POST /{owner}/{repo}/shapeshifter/{proxy+}",
+        "stage": "$default",
+        "domainName": "m7k310bu9a.execute-api.us-east-1.amazonaws.com",
+        "domainPrefix": "m7k310bu9a",
+        "requestId": "Noe5Vgs1IAMEaZQ=",
+        "protocol": "HTTP/1.1",
+        "identity": {
+            "cognitoIdentityPoolId": "",
+            "accountId": "",
+            "cognitoIdentityId": "",
+            "caller": "",
+            "apiKey": "",
+            "apiKeyId": "",
+            "accessKey": "",
+            "sourceIp": "96.27.12.22",
+            "cognitoAuthenticationType": "",
+            "cognitoAuthenticationProvider": "",
+            "userArn": "",
+            "userAgent": "insomnia/2021.5.3",
+            "user": ""
+        },
+        "resourcePath": "/{owner}/{repo}/shapeshifter/{proxy+}",
+        "authorizer": {
+            "at_hash": "byR0_Oqa6XRW4xgwxYuH0w",
+            "aud": "7h778muira8dkr69dt35jhbjo8",
+            "auth_time": 1752383816,
+            "claims": null,
+            "cognito:groups": null,
+            "cognito:roles": null,
+            "cognito:username": "44e8b438-a061-70ca-faa7-3d3e93c015cb",
+            "email": "angular.druid@gmail.com",
+            "email_verified": true,
+            "event_id": "d90e86eb-6106-4194-87cd-52f73069f3fe",
+            "exp": 1752387416,
+            "iat": 1752383816,
+            "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_sWRV0kAgS",
+            "jti": "976c0120-da5e-4e1a-be94-a6f701c33d2b",
+            "origin_jti": "4ee3ca95-2f1a-435f-a7dc-2751fe165e2a",
+            "phone_number": "+15868841530",
+            "phone_number_verified": true,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"strconv"
 	"text/template"
+	//"sync"
 
 	"goclassifieds/lib/entity"
 	"goclassifieds/lib/gov"
@@ -63,6 +64,15 @@ type ActionContext struct {
 	AdditionalResources *[]gov.Resource
 	CloudName           string
 	Bindings            *entity.VariableBindings
+}
+
+type RepoInitParams struct {
+	TemplateOwner string
+	TemplateRepo  string
+	NewRepoOwner  string
+	NewRepoName   string
+	Description   string
+	Private       bool
 }
 
 func GetEntities(req *events.APIGatewayProxyRequest, ac *ActionContext) (events.APIGatewayProxyResponse, error) {
@@ -656,6 +666,109 @@ func InitializeHandler(c *ActionContext) Handler {
 			})
 		}
 
+		// This entire block is an experiment with dynamically creating the repos.
+		// I'm not sure where it will go but for now its hear just to test.
+		/* ----------------------------------------- */
+
+		// Parameters for AutomateRepoInit calls
+		//---------------------------------------------------
+		// --------------------------------------------------
+		/*repoParams := []RepoInitParams{
+			{"rollthecloudinc", "spearhead", "rollthecloudinc", "new-climate-website8", "Repository for a new climate-aware website.", false},
+			{"rollthecloudinc", "spearhead-objects", "rollthecloudinc", "new-climate-website8-objects", "Repository for another climate-aware website.", false},
+			{"rollthecloudinc", "spearhead-objects-prod", "rollthecloudinc", "new-climate-website8-objects-prod", "Repository for yet another website.", false},
+			{"rollthecloudinc", "spearhead-build", "rollthecloudinc", "new-climate-website8-build", "Repository for yet another website.", false},
+			// Add as many parameters as needed
+		}
+
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(repoParams)) // Buffer for the maximum number of goroutines
+
+		// Run each initialization in parallel
+		for _, params := range repoParams {
+			wg.Add(1)
+			go func(params RepoInitParams) {
+				defer wg.Done()
+				err := AutomateRepoInit(
+					context.Background(),
+					ac, // Replace with appropriate arguments for `ac` if needed
+					params.TemplateOwner,
+					params.TemplateRepo,
+					params.NewRepoOwner,
+					params.NewRepoName,
+					params.Description,
+					params.Private,
+				)
+				if err != nil {
+					errChan <- err
+				}
+			}(params)
+		}
+
+		// Wait for all goroutines to finish
+		wg.Wait()
+		close(errChan)
+
+		// Check for errors
+		var hasErrors bool
+		for err := range errChan {
+			hasErrors = true
+			log.Printf("Error: %s\n", err.Error())
+		}
+
+		if hasErrors {
+			log.Fatal("One or more repository initializations failed.")
+		} else {
+			log.Println("Successfully automated repository initialization for all repositories.")
+		}*/
+
+		/* ----------------------------------------- */
+		/* ----------------------------------------- */
+
+		/*Create the dev and prod environments.
+
+		Create the variables - hard code them fo now.
+
+		- repo
+		- environment*/
+
+		// Carrying over the environments.
+		/*environmentName := "dev" // Example environment
+		err = repo.CreateEnvironment(context.Background(), ac.GithubRestClient.Client(), "rollthecloudinc", "new-climate-website8", environmentName)
+		if err != nil {
+			log.Fatalf("Failed to create environment '%s': %w", environmentName, err)
+		}
+		log.Printf("Environment '%s' created successfully.", environmentName)*/
+
+		/*environmentName := "dev" // Example environment
+		secretName := "PRODUCTION_API_TOKEN"
+		secretValue := "ghp_abcdefghijklmnopqrstuvwxyz1234567890ABCDEF"
+
+		// Step: Create environment secrets
+		err = repo.CreateGithubEnvironmentSecret(context.Background(), ac.GithubRestClient.Client(), ac.Lambda, "rollthecloudinc", "new-climate-website8", environmentName, secretName, secretValue, ac.Stage)
+		if err != nil {
+			log.Fatalf("Failed to create environment secret '%s': %w", secretName, err)
+		}
+
+		log.Printf("Environment secret '%s' created successfully in '%s'.", secretName, environmentName)*/
+
+		/* ----------------------------------------- */
+		/* ----------------------------------------- */
+
+		// Test creating github repository secret
+
+		// environmentName := "dev" // Example environment
+		secretName := "TEST_API_TOKEN"
+		secretValue := "ghp_abcdefghijklmnopqrstuvwxyz1234567890ABCDge"
+
+		// Step: Create environment secrets
+		err = repo.CreateGithubRepositorySecret(context.Background(), ac.GithubRestClient.Client(), ac.Lambda, "rollthecloudinc", "new-climate-website8", secretName, secretValue, ac.Stage)
+		if err != nil {
+			log.Fatalf("Failed to create repository secret '%s': %w", secretName, err)
+		}
+
+		log.Printf("Repository secret '%s' created successfullly.", secretName)
+
 		if entityName == pluralName && req.HTTPMethod == "GET" {
 			return GetEntities(req, ac)
 		} else if entityName == singularName && req.HTTPMethod == "GET" {
@@ -938,6 +1051,27 @@ func GrantAccessManager(params *gov.ResourceManagerParams, bindings *entity.Vari
 	}
 
 	return manager, nil
+}
+
+func AutomateRepoInit(ctx context.Context, ac *ActionContext, templateOwner, templateRepo, newRepoOwner, newRepoName, description string, private bool) error {
+	log.Printf("Creating repository '%s/%s' from template '%s/%s'...", newRepoOwner, newRepoName, templateOwner, templateRepo)
+
+	// Step 1: Create repository from template
+	err := repo.CreateFromTemplate(ctx, ac.GithubRestClient.Client(), templateOwner, templateRepo, newRepoOwner, newRepoName, description, private)
+	if err != nil {
+		return fmt.Errorf("failed to create repository from template: %w", err)
+	}
+
+	log.Printf("Repository '%s/%s' successfully created from template. Proceeding with dev branch creation...", newRepoOwner, newRepoName)
+
+	// Step 2: Create the "dev" branch
+	err = repo.CreateDevBranch(ac.GithubRestClient, newRepoOwner, newRepoName)
+	if err != nil {
+		return fmt.Errorf("failed to create dev branch: %w", err)
+	}
+
+	log.Println("Dev branch successfully created.")
+	return nil
 }
 
 func ShapeshiftActionContext() *ActionContext {

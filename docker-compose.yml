@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  bazel-environment:
+    build: .
+    image: bazel6-go17-nodejs
+    volumes:
+      - /home/tzmijewski/projects/hedge:/workspace
+      - ~/.aws:/root/.aws:ro
+    working_dir: /workspace
+    stdin_open: true
+    tty: true

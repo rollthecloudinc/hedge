@@ -1,23 +1,25 @@
 {
-    "resource": "/{owner}/{repo}/shapeshifter",
-    "path": "/my-owner/my-repo/shapeshifter",
-    "httpMethod": "POST",
-    "headers": {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer eyJraWQiOiJVTlRrNGhWaFVycTBrOHVBR3ZEWXNcL3cwZ1wvaVcrYjlQd2VPYk1iTTZTXC93PSIsImFsZyI6IlJTMjU2In0..."
-    },
-    "pathParameters": {
-      "owner": "my-owner",
-      "repo": "my-repo"
-    },
-    "queryStringParameters": {},
-    "requestContext": {
-      "authorizer": {
-        "claims": {
-          "sub": "mock-user-id",
-          "username": "mock-username"
-        }
+  "resource": "/{owner}/{repo}/shapeshifter/{proxy+}",
+  "path": "/my-owner/my-repo/shapeshifter/example/550e8400-e29b-41d4-a716-446655440000",
+  "httpMethod": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer eyJraWQiOiJVTlRrNGhWaFVycTBrOHVBR3ZEWXNcL3cwZ1wvaVcrYjlQd2VPYk1iTTZTXC93PSIsImFsZyI6IlJTMjU2In0..."
+  },
+  "pathParameters": {
+    "owner": "my-owner",
+    "repo": "my-repo",
+    "proxy": "example/550e8400-e29b-41d4-a716-446655440000"
+  },
+  "queryStringParameters": {},
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "mock-user-id",
+        "username": "mock-username"
       }
     },
-    "body": "{\"name\": \"MyEntity\", \"type\": \"example\", \"data\": {\"key\": \"value\"}}"
-  }
+    "requestId": "mock-request-id"
+  },
+  "body": "{\"id\": \"550e8400-e29b-41d4-a716-446655440000\", \"name\": \"GenericEntity\", \"type\": \"example\", \"attributes\": {\"key\": \"value\", \"key2\": \"value2\"}}"
+}

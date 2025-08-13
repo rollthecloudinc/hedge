@@ -11,8 +11,17 @@ import (
 	"time"
 	"fmt"
 	"os"
+	"io"
 	"math/rand"
 	"path/filepath"
+	"encoding/json"
+	"net/http"
+	"regexp"
+	crand "crypto/rand"
+
+	// "golang.org/x/crypto/nacl/box"
+	// Import the kevinburke/nacl/box package, aliasing it to avoid conflict if you also use golang.org/x/crypto/nacl/box
+	kb_nacl_box "github.com/kevinburke/nacl/box"
 
 	"goclassifieds/lib/utils"
 
@@ -20,6 +29,9 @@ import (
 	"github.com/google/go-github/v46/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/aws/aws-sdk-go/aws"
+	lambda "github.com/aws/aws-sdk-go/service/lambda"
 )
 
 type CommitParams struct {
@@ -44,6 +56,10 @@ type GetInstallationTokenInput struct {
 
 // Custom error in case the client is nil
 type errGithubNoClient struct{}
+
+// Constants for key sizes
+const PublicKeySize = 32
+const NonceSize = 24 // NaCl requires 24 bytes for the nonce
 
 func (e *errGithubNoClient) Error() string {
 	return "GitHub client is not provided"
@@ -601,7 +617,7 @@ func createRepo(client *github.Client, owner string, repoName string, descriptio
 	log.Println("README.md file successfully created.")
 
 	// Create the "dev" branch
-	if err := createDevBranch(client, owner, repoName); err != nil {
+	if err := CreateDevBranch(client, owner, repoName); err != nil {
 		return fmt.Errorf("failed to create dev branch: %w", err)
 	}
 
@@ -676,21 +692,37 @@ func EnsureRepoCreate(client *github.Client, owner, repoName, description string
 	return nil
 }
 
-// createDevBranch creates a "dev" branch in the repository based on the default branch.
-func createDevBranch(client *github.Client, owner string, repoName string) error {
+// CreateDevBranch creates a "dev" branch in the repository based on the default branch.
+func CreateDevBranch(client *github.Client, owner string, repoName string) error {
 	// Context for the API call
 	ctx := context.Background()
 
-	// Get the default branch reference (usually "main" or "master")
+	// Get the default branch name (e.g., "main" or "master")
 	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
 	if err != nil {
 		return fmt.Errorf("failed to fetch repository details: %w", err)
 	}
+	defaultBranch := repo.GetDefaultBranch() // Example: "main" or "master"
 
-	defaultBranch := repo.GetDefaultBranch() // Example: "main"
-	ref, _, err := client.Git.GetRef(ctx, owner, repoName, "refs/heads/"+defaultBranch)
-	if err != nil {
-		return fmt.Errorf("failed to fetch default branch reference: %w", err)
+	// Retry fetching the default branch reference with a timeout and an increasing delay
+	var ref *github.Reference
+	const maxRetries = 5       // Total number of retries
+	const retryDelay = 2 * time.Second // Delay between retries
+
+	for i := 1; i <= maxRetries; i++ {
+		ref, _, err = client.Git.GetRef(ctx, owner, repoName, "refs/heads/"+defaultBranch)
+		if err != nil {
+			if i == maxRetries {
+				// If the max retries are reached, return the error
+				return fmt.Errorf("failed to fetch default branch reference after %d retries: %w", maxRetries, err)
+			}
+			// Log the retry attempt and wait before trying again
+			log.Printf("Retry %d/%d: Waiting for default branch to become available...\n", i, maxRetries)
+			time.Sleep(retryDelay)
+			continue
+		}
+		// Successfully fetched the default branch reference
+		break
 	}
 
 	// Create the "dev" branch pointing to the same commit as the default branch
@@ -700,9 +732,10 @@ func createDevBranch(client *github.Client, owner string, repoName string) error
 	}
 	_, _, err = client.Git.CreateRef(ctx, owner, repoName, newBranchRef)
 	if err != nil {
-		return fmt.Errorf("failed to create dev branch: %w", err)
+		return fmt.Errorf("failed to create 'dev' branch: %w", err)
 	}
 
+	log.Println("Dev branch successfully created.")
 	return nil
 }
 
@@ -806,4 +839,445 @@ func FindChapterByGUID(
     // If no matches are found across all files, return default "0"
     log.Printf("No match found for GUID: %s", guid)
     return "0", nil
+}
+
+// CreateFromTemplate creates a new repository from a template using the REST API.
+func CreateFromTemplate(ctx context.Context, httpClient *http.Client, templateOwner, templateRepo, newRepoOwner, newRepoName, description string, private bool) error {
+	// Construct the API URL for the template repository generation
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/generate", templateOwner, templateRepo)
+
+	// Build the request payload
+	payload := map[string]interface{}{
+		"owner":       newRepoOwner, // Specify the repository owner dynamically
+		"name":        newRepoName,
+		"description": description,
+		"private":     private,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Create a POST request to the GitHub API
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Add necessary headers to the request
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Execute the request to create the repository from the template
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute API request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Handle non-success responses
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to create repository from template: received status code %d", resp.StatusCode)
+	}
+
+	log.Printf("Repository '%s/%s' created successfully from template.", newRepoOwner, newRepoName)
+
+	// Commit an initial file to ensure the repository is not empty
+	if err := CommitInitialFile(httpClient, newRepoOwner, newRepoName, description); err != nil {
+		return fmt.Errorf("failed to commit initial file: %w", err)
+	}
+
+	log.Printf("Initial file committed successfully to repository '%s/%s'.", newRepoOwner, newRepoName)
+
+	return nil
+}
+
+// CommitInitialFile commits a simple README.md file to the repository to ensure the default branch is created.
+func CommitInitialFile(httpClient *http.Client, repoOwner, repoName, description string) error {
+	// Construct the API URL for committing the file
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/README.md", repoOwner, repoName)
+
+	// Create the initial README content
+	readmeContent := fmt.Sprintf("# %s\n\n%s", repoName, description)
+
+	// Prepare the payload for committing the file
+	payload := map[string]interface{}{
+		"message": "Add initial README file",
+		"content": base64.StdEncoding.EncodeToString([]byte(readmeContent)), // Base64-encoded content
+		"branch":  "main", // Explicitly specify the default branch (commonly "main")
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Create a PUT request to commit the file
+	req, err := http.NewRequest("PUT", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Add necessary headers
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Execute the request
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to commit initial file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Handle non-success responses
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to commit initial file: received status code %d", resp.StatusCode)
+	}
+
+	log.Println("Successfully committed initial README.md file.")
+	return nil
+}
+
+// Helper to retrieve the access token associated with the HTTP client.
+func GetAccessTokenFromHttpClient(client *http.Client) string {
+	// Example: Use the transport or token source from the OAuth client to extract the token.
+	// You'll modify this based on how tokens are passed within the existing implementation.
+	tokenSource := client.Transport.(*oauth2.Transport).Source
+	token, _ := tokenSource.Token()
+	return token.AccessToken
+}
+
+// CreateEnvironment creates a GitHub environment using the HTTP client from go-github.
+func CreateEnvironment(ctx context.Context, httpClient *http.Client, owner, repo, environmentName string) error {
+	// Define the GitHub API URL for creating an environment
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s", owner, repo, environmentName)
+
+	// Define the payload (customize as needed)
+	payload := map[string]interface{}{
+		"reviewers": []interface{}{}, // You can define specific reviewers for deployment approvals here
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Create the PUT request
+	req, err := http.NewRequestWithContext(ctx, "PUT", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Execute the API call
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check the response status
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to create environment '%s': received HTTP status %d", environmentName, resp.StatusCode)
+	}
+
+	fmt.Printf("Environment '%s' created successfully!\n", environmentName)
+	return nil
+}
+
+func CreateGithubRepositorySecret(ctx context.Context, httpClient *http.Client, lambdaClient *lambda.Lambda, owner, repo, secretName, secretValue string, stage string) error {
+	// Step 1: Fetch the public key for the repository
+	keyURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/secrets/public-key", owner, repo)
+	req, err := http.NewRequestWithContext(ctx, "GET", keyURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request to fetch public key: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to fetch public key: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to fetch public key: HTTP %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	var keyResponse struct {
+		Key   string `json:"key"`
+		KeyID string `json:"key_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&keyResponse); err != nil {
+		return fmt.Errorf("failed to decode public key response: %w", err)
+	}
+	if keyResponse.Key == "" || keyResponse.KeyID == "" {
+		return fmt.Errorf("public key or key ID missing in GitHub response")
+	}
+
+	// Step 2: Encrypt the secret with Lambda encryption
+	encryptedValue, err := EncryptSecretValueWithLambda(secretValue, keyResponse.Key, lambdaClient, stage)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt secret value: %w", err)
+	}
+
+	// Step 3: Validate Base64-encoded value
+	if !isValidBase64(encryptedValue) {
+		return fmt.Errorf("invalid Base64-encoded encrypted value: %s", encryptedValue)
+	}
+
+	// Step 4: Send the encrypted secret to GitHub
+	secretURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/secrets/%s", owner, repo, secretName)
+	payload := map[string]string{
+		"encrypted_value": encryptedValue,
+		"key_id":          keyResponse.KeyID,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	req, err = http.NewRequestWithContext(ctx, "PUT", secretURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request for secret creation: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err = httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create repository secret: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create repository secret: received HTTP status %d, response body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Successfully created secret '%s' in repository '%s/%s'.", secretName, owner, repo)
+	return nil
+}
+
+// EncryptSecretValue encrypts a secret value using github.com/kevinburke/nacl/box.Seal,
+// manually prepending the ephemeral public key to mimic libsodium's crypto_box_seal.
+func EncryptSecretValue(publicKey, secretValue string) (string, error) {
+	log.Printf("DEBUG: Received public key string from GitHub: %s (length %d)", publicKey, len(publicKey))
+	log.Printf("DEBUG: Secret value string: \"%s\" (length %d)", secretValue, len(secretValue)) // ADDED DEBUG LOG
+
+	// Step 1: Decode the Base64-encoded public key (GitHub's public key) into raw bytes.
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode GitHub public key: %w", err)
+	}
+
+	log.Printf("DEBUG: Decoded public key bytes length: %d", len(publicKeyBytes))
+	log.Printf("DEBUG: Decoded public key hex: %s", hex.EncodeToString(publicKeyBytes))
+
+	var recipientPublicKey [32]byte
+	if len(publicKeyBytes) != 32 {
+		return "", fmt.Errorf("invalid length for GitHub public key: expected 32 bytes, got %d", len(publicKeyBytes))
+	}
+	copy(recipientPublicKey[:], publicKeyBytes)
+	log.Printf("DEBUG: Copied recipientPublicKeyArray hex: %s", hex.EncodeToString(recipientPublicKey[:]))
+
+
+	// Step 2: Generate an ephemeral key pair for the sender (our side).
+	ephemeralPublicKey, ephemeralPrivateKey, err := kb_nacl_box.GenerateKey(crand.Reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate ephemeral keypair for encryption: %w", err)
+	}
+	log.Printf("DEBUG: Generated ephemeral public key hex: %s", hex.EncodeToString(ephemeralPublicKey[:]))
+	log.Printf("DEBUG: Generated ephemeral private key hex: %s", hex.EncodeToString(ephemeralPrivateKey[:]))
+
+
+	// Step 3: Create an all-zero nonce for the box.Seal operation.
+	var nonce [24]byte // Initializes to all zeros
+	log.Printf("DEBUG: Nonce (all zeros) hex: %s", hex.EncodeToString(nonce[:]))
+
+
+	// Step 4: Encrypt the plain-text value.
+	// `nil` for 'out' argument, meaning Seal will allocate a new slice.
+	sealedMessage := kb_nacl_box.Seal(nil, []byte(secretValue), &nonce, &recipientPublicKey, ephemeralPrivateKey)
+	log.Printf("DEBUG: Sealed message (ciphertext) hex: %s", hex.EncodeToString(sealedMessage))
+	log.Printf("DEBUG: Sealed message length: %d", len(sealedMessage))
+
+
+	// Step 5: Prepend the ephemeral public key to the sealed message.
+	encryptedValueWithEphemeralKey := make([]byte, len(ephemeralPublicKey)+len(sealedMessage))
+	copy(encryptedValueWithEphemeralKey, ephemeralPublicKey[:])
+	copy(encryptedValueWithEphemeralKey[len(ephemeralPublicKey):], sealedMessage)
+	log.Printf("DEBUG: Final combined encrypted value hex: %s", hex.EncodeToString(encryptedValueWithEphemeralKey))
+	log.Printf("DEBUG: Final combined encrypted value length: %d", len(encryptedValueWithEphemeralKey))
+
+
+	// Step 6: Base64-encode the entire combined byte slice.
+	base64Encoded := base64.StdEncoding.EncodeToString(encryptedValueWithEphemeralKey)
+	log.Printf("DEBUG: Final Base64 encoded string: %s", base64Encoded)
+
+	return base64Encoded, nil
+}
+
+func CreateGithubEnvironmentSecret(ctx context.Context, httpClient *http.Client, lambdaClient *lambda.Lambda, owner, repo, environmentName, secretName, secretValue string, stage string) error {
+	// Step 1: Fetch the public key for the environment
+	keyURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s/secrets/public-key", owner, repo, environmentName)
+	req, err := http.NewRequestWithContext(ctx, "GET", keyURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request to fetch public key: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to fetch public key: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to fetch public key: HTTP %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	var keyResponse struct {
+		Key   string `json:"key"`
+		KeyID string `json:"key_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&keyResponse); err != nil {
+		return fmt.Errorf("failed to decode public key response: %w", err)
+	}
+	if keyResponse.Key == "" || keyResponse.KeyID == "" {
+		return fmt.Errorf("public key or key ID missing in GitHub response")
+	}
+
+	// Step 2: Encrypt the secret with Libsodium-compatible encryption
+	encryptedValue, err := EncryptSecretValueWithLambda(secretValue, keyResponse.Key, lambdaClient, stage)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt secret value: %w", err)
+	}
+
+	// Step 3: Validate Base64-encoded value
+	if !isValidBase64(encryptedValue) {
+		return fmt.Errorf("invalid Base64-encoded encrypted value: %s", encryptedValue)
+	}
+
+	// Step 4: Send the encrypted secret to GitHub
+	secretURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s/secrets/%s", owner, repo, environmentName, secretName)
+	payload := map[string]string{
+		"encrypted_value": encryptedValue,
+		"key_id":          keyResponse.KeyID,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	req, err = http.NewRequestWithContext(ctx, "PUT", secretURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request for secret creation: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err = httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create environment secret: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create environment secret: received HTTP status %d, response body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Successfully created secret '%s' in environment '%s' for repository '%s/%s'.", secretName, environmentName, owner, repo)
+	return nil
+}
+
+func EncryptSecretValueWithLambda(secretValue, publicKey string, lambdaClient *lambda.Lambda, stage string) (string, error) {
+	// Prepare the payload for the Lambda function
+	payload := map[string]string{
+		"publicKey":  publicKey,
+		"secretValue": secretValue,
+	}
+
+	// Marshal payload into JSON format
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payload to JSON: %w", err)
+	}
+
+	// Log the payload for debugging
+	log.Printf("Payload sent to Lambda: %s", string(payloadJSON))
+
+	// Invoke the Lambda function
+	result, err := lambdaClient.Invoke(&lambda.InvokeInput{
+		FunctionName:   aws.String("goclassifieds-api-" + stage + "-EncryptSecretValue"),
+		Payload:        payloadJSON,
+		InvocationType: aws.String("RequestResponse"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to invoke Lambda function: %w", err)
+	}
+
+	// Log the raw response for debugging
+	log.Printf("Raw Lambda response payload: %s", string(result.Payload))
+
+	// Check for Lambda function errors
+	if result.FunctionError != nil {
+		return "", fmt.Errorf("Lambda function error: %s", string(result.Payload))
+	}
+
+	// Parse the top-level Lambda response payload
+	var lambdaResponse struct {
+		StatusCode int    `json:"statusCode"`
+		Body       string `json:"body"` // The Body is a string containing a JSON object
+	}
+	if err := json.Unmarshal(result.Payload, &lambdaResponse); err != nil {
+		return "", fmt.Errorf("failed to parse Lambda response payload: %w", err)
+	}
+
+	// Check for invalid statusCode
+	if lambdaResponse.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected Lambda statusCode: %d", lambdaResponse.StatusCode)
+	}
+
+	// Parse the nested "body" field to extract the encryptedValue
+	var bodyResponse struct {
+		EncryptedValue string `json:"encryptedValue"`
+	}
+	if err := json.Unmarshal([]byte(lambdaResponse.Body), &bodyResponse); err != nil {
+		return "", fmt.Errorf("failed to parse nested body: %w", err)
+	}
+
+	// Ensure the encryptedValue is not empty
+	if bodyResponse.EncryptedValue == "" {
+		return "", fmt.Errorf("Lambda response contained an empty encrypted value")
+	}
+
+	// Log the extracted encrypted value
+	log.Printf("Encrypted Value (extracted): %s", bodyResponse.EncryptedValue)
+
+	// Validate the Base64-encoded string
+	if !isValidBase64(bodyResponse.EncryptedValue) {
+		return "", fmt.Errorf("invalid Base64-encoded encrypted value: %s", bodyResponse.EncryptedValue)
+	}
+
+	// Return the valid encrypted value
+	return bodyResponse.EncryptedValue, nil
+}
+
+// Helper function to validate Base64 strings
+func isValidBase64(s string) bool {
+	matched, _ := regexp.MatchString(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})$`, s)
+	return matched
 }

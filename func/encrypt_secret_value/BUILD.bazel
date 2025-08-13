@@ -1,0 +1,19 @@
+load("@npm//@bazel/esbuild:index.bzl", "esbuild")
+# load("//:node_deps.bzl", "setup_node_repositories")
+
+# setup_node_repositories()
+
+esbuild(
+    name = "encrypt_secret_value",
+    entry_point = "index.js",
+    platform = "node",
+    target = "node10",
+    tool = select({
+        "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
+        "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",
+        "@bazel_tools//src/conditions:linux_x86_64": "@esbuild_linux//:bin/esbuild",
+    }),
+    deps = [
+        "@npm//libsodium-wrappers"
+    ],
+)

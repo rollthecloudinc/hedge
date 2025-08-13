@@ -10,6 +10,7 @@
     "matcher": "^5.0.0",
     "serverless-custom-packaging-plugin": "^0.1.2",
     "serverless-knative": "^0.6.0",
-    "serverless-prune-plugin": "^2.0.1"
+    "serverless-prune-plugin": "^2.0.1",
+    "libsodium-wrappers": "^0.7.10"
   }
 }

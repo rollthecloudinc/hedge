@@ -1864,3 +1864,17 @@ go_repository(
     sum = "h1:+S+dSqQCN3MSU5vJRu1HqHrq00cJn6heIMU7X9hcsoo=",
     version = "v1.9.0",
 )
+
+go_repository(
+    name = "golang_org_x_crypto",
+    importpath = "golang.org/x/crypto",
+    version = "v0.0.0-20210817164053-32db794688a5",
+    sum = "h1:HWj/xjIHfjYU5nVXpTM0s39J9CbLn7Cc5a7IC5rwsMQ=",
+)
+
+go_repository(
+    name = "com_github_kevinburke_nacl",
+    importpath = "github.com/kevinburke/nacl",
+    sum = "h1:iTqvXyDl/9+n22FRhntcjISNS8UKRInulitx6GT9NjY=", # This will be automatically filled by Gazelle
+    version = "v0.0.0-20250518034207-4fa338b68f84", # Or the version from your go.mod
+)

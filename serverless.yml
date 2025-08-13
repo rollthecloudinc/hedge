@@ -38,7 +38,7 @@ provider:
   name: aws
   runtime: provided.al2023
   memorySize: 256
-  timeout: 10
+  timeout: 20
   websocketsApiName: goclassifieds-stream
   websocketsApiRouteSelectionExpression: $request.body.action # custom routes are selected by the value of the action property in the body
   #logs:
@@ -351,6 +351,15 @@ functions:
       artifact: .serverless/EnforceContract.zip
       include_globs:
         - "**/enforce_contract.js"
+  EncryptSecretValue:
+    handler: encrypt_secret_value.handler
+    role: EntityApiRole
+    runtime: nodejs16.x
+    package:
+      path: bazel-bin/func/encrypt_secret_value
+      artifact: .serverless/EncryptSecretValue.zip
+      include_globs:
+        - "**/encrypt_secret_value.js"
   Stream:
     handler: bootstrap
     role: EntityApiRole

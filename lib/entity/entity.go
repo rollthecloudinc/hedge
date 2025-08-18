@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	session "github.com/aws/aws-sdk-go/aws/session"
 	lambda "github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/mitchellh/mapstructure"
 	"github.com/shurcooL/githubv4"
@@ -69,6 +70,7 @@ type EntityConfig struct {
 	Stage               string
 	CloudName           string
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
+	Lambda              *lambda.Lambda // @TODO: We arn't even going to be doing this
 }
 
 type ValidateEntityRequest struct {
@@ -146,8 +148,10 @@ type DefaultManagerConfig struct {
 	EsClient            *elasticsearch7.Client
 	OsClient            *opensearch.Client
 	GithubV4Client      *githubv4.Client
+	GithubRestClient    *github.Client
 	Session             *session.Session
 	Lambda              *lambda.Lambda
+	Step                *sfn.SFN
 	Template            *template.Template
 	UserId              string
 	SingularName        string
@@ -158,6 +162,9 @@ type DefaultManagerConfig struct {
 	Site                string
 	CloudName           string
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
+	Repo     			string
+	Branch   			string
+	Contract 			string
 	BeforeSave          EntityHook
 	AfterSave           EntityHook
 	BeforeFind          EntityCollectionHook
@@ -176,16 +183,20 @@ type EntityAdaptorConfig struct {
 }
 
 type EntityManager struct {
-	Config          EntityConfig
-	Creator         Creator
-	Updator         Updator
-	Validators      map[string]Validator
-	Loaders         map[string]Loader
-	Finders         map[string]Finder
-	Storages        map[string]Storage
-	Authorizers     map[string]Authorization
-	Hooks           map[Hooks]EntityHook
-	CollectionHooks map[string]EntityCollectionHook
+	Config              		EntityConfig
+	Creator             		Creator
+	Updator             		Updator
+	Validators          		map[string]Validator
+	Loaders             		map[string]Loader
+	Finders             		map[string]Finder
+	Storages            		map[string]Storage
+	Authorizers         		map[string]Authorization
+	Hooks               		map[Hooks]EntityHook
+	CollectionHooks     		map[string]EntityCollectionHook
+	BeforeValidateAlterHooks	BeforeValidateAlterHooks
+	AfterValidateAlterHooks		AfterValidateAlterHooks
+	BeforeSaveHooks  			BeforeSaveHooks
+	AfterSaveHooks   			AfterSaveHooks
 }
 
 type Manager interface {
@@ -205,6 +216,10 @@ type Manager interface {
 	SetHook(name Hooks, entityHook EntityHook)
 	ExecuteHook(hook Hooks, entity map[string]interface{}) (map[string]interface{}, error)
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
+    ExecBeforeValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
+	ExecAfterValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
+	ExecAfterSaveHooks(entity map[string]interface{}, storage string) error
+	ExecBeforeSaveHooks(entity map[string]interface{}, storage string) error
 }
 
 type Storage interface {
@@ -218,6 +233,22 @@ type Loader interface {
 
 type Creator interface {
 	Create(entity map[string]interface{}, m *EntityManager) (*CreateEntityResponse, error)
+}
+
+type BeforeValidateAlterHooks interface {
+	ExecBeforeValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
+}
+
+type AfterValidateAlterHooks interface {
+	ExecAfterValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
+}
+
+type AfterSaveHooks interface {
+	ExecAfterSaveHooks(entity map[string]interface{}, storage string) error
+}
+
+type BeforeSaveHooks interface {
+	ExecBeforeSaveHooks(entity map[string]interface{}, storage string) error
 }
 
 type Updator interface {
@@ -367,6 +398,16 @@ type ContractValidatorConfig struct {
 	Contract string         `json:"contract"`
 }
 
+type GithubHooksConfig struct {
+	Lambda             *lambda.Lambda `json:"-"`
+	Step               *sfn.SFN    `json:"-"`
+	GithubClient       *github.Client `json:"-"`
+	Stage 	           string    `json:"stage"`		
+	Repo               string    `json:"repo"`
+	Branch             string    `json:"branch"`
+	Contract           string    `json:"contract"`
+}
+
 type S3LoaderAdaptor struct {
 	Config S3AdaptorConfig `json:"config"`
 }
@@ -482,6 +523,22 @@ type DefaultEntityTypeFinder struct {
 	Config DefaultEntityTypeFinderConfig `json:"config"`
 }
 
+type GithubBeforeValidateAlterHooks struct {
+	Config GithubHooksConfig `json:"config"`
+}
+
+type GithubAfterValidateAlterHooks struct {
+	Config GithubHooksConfig `json:"config"`
+}
+
+type GithubBeforeSaveHooks struct {
+	Config GithubHooksConfig `json:"config"`
+}
+
+type GithubAfterSaveHooks struct {
+	Config GithubHooksConfig `json:"config"`
+}
+
 type EntityType struct {
 	Id         string            `form:"id" json:"id" binding:"required" validate:"required"`
 	UserId     string            `form:"userId" json:"userId" binding:"required" validate:"required"`
@@ -503,6 +560,16 @@ type EntityAttribute struct {
 	Widget     string                 `form:"widget" json:"widget" binding:"required" validate:"required"`
 	Settings   map[string]interface{} `form:"settings" json:"settings"`
 	Attributes []EntityAttribute      `form:"attributes[]" json:"attributes" binding:"required" validate:"dive"`
+}
+
+type AfterSaveExecEntityRequest struct {
+	Storage		string        			 `json:"storage"`
+	Entity 		map[string]interface{}   `json:"entity"`
+	Stage 		string                   `json:"stage"`
+}
+
+type AfterSaveExecEntityResponse struct {
+
 }
 
 func (m EntityManager) Create(entity map[string]interface{}) (*CreateEntityResponse, error) {
@@ -528,6 +595,8 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 
 	ent, err := m.ExecuteHook(BeforeSave, entity)
 
+	m.ExecBeforeSaveHooks(entity, storage)
+
 	if err != nil {
 		log.Print(err)
 	}
@@ -538,6 +607,9 @@ func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 	if _, err := m.ExecuteHook(AfterSave, entity); err != nil {
 		log.Print(err)
 	}
+
+	m.ExecAfterSaveHooks(entity, storage)
+
 }
 
 func (m EntityManager) AddStorage(name string, storage Storage) {
@@ -610,6 +682,22 @@ func (m EntityManager) ExecuteCollectionHook(hook string, entities []map[string]
 		return entities, err
 	}
 	return entities, nil
+}
+
+func (m EntityManager) ExecBeforeValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error {
+	return m.BeforeValidateAlterHooks.ExecBeforeValidateAlterHooks(name, entity, res)
+}
+
+func (m EntityManager) ExecAfterValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error {
+	return m.AfterValidateAlterHooks.ExecAfterValidateAlterHooks(name, entity, res)
+}
+
+func (m EntityManager) ExecBeforeSaveHooks(entity map[string]interface{}, storage string) error {
+	return m.BeforeSaveHooks.ExecBeforeSaveHooks(entity, storage)
+}
+
+func (m EntityManager) ExecAfterSaveHooks(entity map[string]interface{}, storage string) error {
+	return m.AfterSaveHooks.ExecAfterSaveHooks(entity, storage)
 }
 
 func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
@@ -1611,6 +1699,159 @@ func (f CqlTemplateFinder) Find(query string, data *EntityFinderDataBag) []map[s
 	return rows
 }
 
+func (h GithubBeforeValidateAlterHooks) ExecBeforeValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error {
+	return nil
+}
+
+func (h GithubAfterValidateAlterHooks) ExecAfterValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error {
+	return nil
+}
+
+func (h GithubBeforeSaveHooks) ExecBeforeSaveHooks(entity map[string]interface{}, storage string) error {
+	return nil
+}
+
+func (h GithubAfterSaveHooks) ExecAfterSaveHooks(entity map[string]interface{}, storage string) error {
+	/*
+	Example contract:
+	{
+		"hooks": {
+			"AfterSave": [
+				{"name": "gosite-%stage-SiteInit", "type": "lambda"},
+				{"name": "gosite-%stage-SiteEnvironment", "type": "lambda"},
+				{"name": "gosite-%stage-SiteWrite", "type": "lambda"},
+				{"name": "gosite-%stage-ParentWorkflow", "type": "statemachine"}  // Example for state machine
+			]
+		},
+		"id": "site",
+		"schema": {"properties": {"repoName": {"description": "The site repository name", "type": "string"}}},
+		"userId": "44e8b438-a061-70ca-faa7-3d3e93c015cb"
+	}
+	*/
+
+	// Prepare the payload for Lambda
+	payload := AfterSaveExecEntityRequest{
+		Storage: storage,
+		Entity:  entity,
+		Stage:   h.Config.Stage,
+	}
+	payloadBytes, err := json.Marshal(payload) // Encode to JSON
+	if err != nil {
+		log.Printf("Error marshalling AfterSaveExecEntityRequest: %s", err.Error())
+		return err
+	}
+
+	// Fetch the contract
+	contract, err := GithubSaveHooksHelperContract(&h.Config)
+	if err != nil {
+		log.Printf("Error fetching contract: %v", err)
+		return err
+	}
+
+	// Check if the contract contains AfterSave hooks
+	afterSaveHooks, ok := contract["hooks"].(map[string]interface{})["AfterSave"].([]interface{})
+	if !ok {
+		log.Println("No AfterSave hooks found in contract")
+		return nil
+	}
+
+	// Iterate through each AfterSave hook in the contract
+	for _, rawHook := range afterSaveHooks {
+		hook, ok := rawHook.(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid hook format: %v", rawHook)
+			continue
+		}
+
+		// Replace %stage with Config.Stage in the hook name
+		rawHookName := fmt.Sprint(hook["name"])
+		hookName := strings.Replace(rawHookName, "%stage", h.Config.Stage, -1)
+		hookType := fmt.Sprint(hook["type"])
+
+		log.Printf("Executing AfterSave hook: name=%s, type=%s", hookName, hookType)
+
+		// Execute the hook in a separate goroutine
+		go func(localHookName string, localHookType string, localPayloadBytes []byte) {
+			switch localHookType  {
+			case "lambda":
+				log.Print("Starting execution of a lambda hook")
+
+				// Invoke Lambda function
+				_, err = h.Config.Lambda.Invoke(&lambda.InvokeInput{
+					FunctionName: aws.String(localHookName),
+					Payload:      localPayloadBytes, // Use the JSON-encoded bytes
+				})
+
+				if err != nil {
+					log.Printf("Error invoking Lambda function %s: %v", localHookName, err)
+					return
+				}
+
+				log.Printf("Successfully invoked Lambda hook: %s", localHookName)
+				break
+
+			case "statemachine":
+
+				if h.Config.Step == nil {
+					log.Printf("State Machine client is nil, cannot start State Machine: %s", localHookName)
+					return
+				}
+
+				log.Print("Starting execution of a statemachine hook 1")
+				log.Printf(string(localPayloadBytes))
+
+				stepInput := &sfn.StartExecutionInput{
+					StateMachineArn: aws.String(localHookName), // Expect the hookName to represent a State Machine ARN
+					Input:           aws.String(string(localPayloadBytes)),
+				}
+
+				log.Print("Starting execution of a statemachine hook 2")
+
+				// Start execution of the state machine
+				_, err = h.Config.Step.StartExecution(stepInput)
+
+				log.Print("Starting execution of a statemachine hook 3")
+				if err != nil {
+					log.Printf("Error starting State Machine %s: %v", localHookName, err)
+					return
+				}
+
+				log.Printf("Successfully started State Machine: %s", localHookName)
+				break
+
+			default:
+				log.Printf("Unsupported hook type: %s (hook name: %s)", localHookType, localHookName)
+			}
+		}(hookName, hookType, payloadBytes) // Pass hookName and hookType as arguments to ensure goroutine safety
+	}
+
+	return nil
+}
+
+func GithubSaveHooksHelperContract(c *GithubHooksConfig) (map[string]interface{}, error) {
+
+	var contract map[string]interface{}
+
+	pieces := strings.Split(c.Repo, "/")
+	opts := &github.RepositoryContentGetOptions{
+		Ref: c.Branch,
+	}
+	file, _, res, err := c.GithubClient.Repositories.GetContents(context.Background(), pieces[0], pieces[1], c.Contract, opts)
+	if err != nil || res.StatusCode != 200 {
+		log.Print("No contract detected for " + c.Contract)
+		return contract, nil
+	}
+	if err == nil && file != nil && file.Content != nil {
+		content, err := base64.StdEncoding.DecodeString(*file.Content)
+		if err == nil {
+			json.Unmarshal(content, &contract)
+		} else {
+			return contract, errors.New("Invalid contract unable to parse.")
+		}
+	}
+	return contract, nil
+}
+
 func TypeToEntity(entityType *EntityType) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(entityType); err != nil {
@@ -1983,6 +2224,15 @@ func GetManager(entityName string, c map[string]interface{}, s *EntityAdaptorCon
 }
 
 func NewDefaultManager(config DefaultManagerConfig) EntityManager {
+	githubConfig := GithubHooksConfig {
+		Lambda: config.Lambda,
+		Step: config.Step,
+		GithubClient: config.GithubRestClient,
+		Repo: config.Repo,
+		Branch: config.Branch,
+		Contract: config.Contract,
+		Stage: config.Stage,
+	}
 	return EntityManager{
 		Config: EntityConfig{
 			SingularName:        config.SingularName,
@@ -1991,6 +2241,7 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 			Stage:               config.Stage,
 			CloudName:           config.CloudName,
 			LogUsageLambdaInput: config.LogUsageLambdaInput,
+			Lambda:				 config.Lambda,
 		},
 		Creator: DefaultCreatorAdaptor{
 			Config: DefaultCreatorConfig{
@@ -2052,6 +2303,18 @@ func NewDefaultManager(config DefaultManagerConfig) EntityManager {
 				},
 			},
 		},
+		BeforeValidateAlterHooks: GithubBeforeValidateAlterHooks {
+			Config: githubConfig,
+		},
+		AfterValidateAlterHooks: GithubAfterValidateAlterHooks {
+			Config: githubConfig,
+		},
+		BeforeSaveHooks: GithubBeforeSaveHooks {
+			Config: githubConfig,
+		},
+		AfterSaveHooks: GithubAfterSaveHooks {
+			Config: githubConfig,
+		},
 		Authorizers: map[string]Authorization{},
 		Hooks: map[Hooks]EntityHook{},
 	}
@@ -2066,6 +2329,7 @@ func NewEntityTypeManager(config DefaultManagerConfig) EntityManager {
 			Stage:               config.Stage,
 			CloudName:           config.CloudName,
 			LogUsageLambdaInput: config.LogUsageLambdaInput,
+			Lambda:              config.Lambda,
 		},
 		Creator: EntityTypeCreatorAdaptor{
 			Config: DefaultCreatorConfig{

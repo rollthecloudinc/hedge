@@ -17,6 +17,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	crand "crypto/rand"
 
 	// "golang.org/x/crypto/nacl/box"
@@ -32,6 +35,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	lambda "github.com/aws/aws-sdk-go/service/lambda"
+	"golang.org/x/crypto/ssh"
 )
 
 type CommitParams struct {
@@ -1280,4 +1284,106 @@ func EncryptSecretValueWithLambda(secretValue, publicKey string, lambdaClient *l
 func isValidBase64(s string) bool {
 	matched, _ := regexp.MatchString(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})$`, s)
 	return matched
+}
+
+// GenerateSSHKeyPair generates an RSA SSH key pair programmatically.
+// Returns the private key and public key as strings in their required formats.
+func GenerateSSHKeyPair() (string, string, error) {
+	// Generate RSA private key
+	rsaPrivateKey, err := rsa.GenerateKey(crand.Reader, 2048) // 2048-bit key size
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate RSA private key: %w", err)
+	}
+
+	// Convert the private key to PEM format
+	privateKeyPEM, err := encodePrivateKeyToPEM(rsaPrivateKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode RSA private key to PEM format: %w", err)
+	}
+
+	// Generate the public key in OpenSSH format
+	publicKeyBytes, err := generatePublicKey(rsaPrivateKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate public key: %w", err)
+	}
+
+	// Convert the public key bytes to a string
+	publicKey := string(publicKeyBytes)
+
+	return privateKeyPEM, publicKey, nil
+}
+
+// encodePrivateKeyToPEM converts an RSA private key to PEM format.
+func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) (string, error) {
+	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+
+	// Create a PEM block with the private key
+	block := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	}
+
+	// Encode the private key into PEM format
+	var pemBuffer bytes.Buffer
+	err := pem.Encode(&pemBuffer, block)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode private key to PEM: %w", err)
+	}
+
+	return pemBuffer.String(), nil
+}
+
+// generatePublicKey generates an SSH public key from an RSA private key.
+func generatePublicKey(privateKey *rsa.PrivateKey) ([]byte, error) {
+	// Create an ssh.PublicKey from the private key's public part
+	publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate public key: %w", err)
+	}
+
+	// Marshal the public key into OpenSSH format
+	return ssh.MarshalAuthorizedKey(publicKey), nil
+}
+
+func CreateGithubDeployKey(ctx context.Context, httpClient *http.Client, owner, repo, keyTitle, publicKey string, readOnly bool) error {
+	// Step 1: Construct the GitHub API URL for deploy keys
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/keys", owner, repo)
+
+	// Step 2: Create the payload for the deploy key
+	payload := map[string]interface{}{
+		"title":     keyTitle,             // Title of the deploy key
+		"key":       publicKey,            // The public SSH key
+		"read_only": readOnly,             // Set to true for read-only deploy key
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal deploy key payload: %w", err)
+	}
+
+	// Step 3: Create the POST request for adding the deploy key
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request for deploy key creation: %w", err)
+	}
+
+	// Step 4: Add authorization and headers
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Step 5: Execute the HTTP request
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Step 6: Handle non-success responses
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create deploy key: received HTTP status %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Successfully created deploy key '%s' for repository '%s/%s'.", keyTitle, owner, repo)
+	return nil
 }

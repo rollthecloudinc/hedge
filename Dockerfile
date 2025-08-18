@@ -26,12 +26,20 @@ RUN wget https://github.com/bazelbuild/bazel/releases/download/5.4.0/bazel-5.4.0
     chmod +x /usr/local/bin/bazel && \
     bazel --version
 
-# Install Go 1.7
-RUN wget https://dl.google.com/go/go1.7.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go1.7.linux-amd64.tar.gz && \
-    rm go1.7.linux-amd64.tar.gz
+# Install Go 1.18 instead of Go 1.7
+RUN wget https://go.dev/dl/go1.18.10.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.18.10.linux-amd64.tar.gz && \
+    rm go1.18.10.linux-amd64.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
 RUN go version
+
+
+# Set GOPATH environment variable
+ENV GOPATH=/workspace/go
+ENV PATH="$GOPATH/bin:${PATH}"
+
+# Create GOPATH directory
+RUN mkdir -p $GOPATH/src $GOPATH/bin $GOPATH/pkg
 
 # Install Node.js using nvm (Node Version Manager)
 ENV NODE_VERSION=20

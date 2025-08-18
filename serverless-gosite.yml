@@ -1,0 +1,239 @@
+service: gosite-hooks
+frameworkVersion: '3'
+plugins:
+  - serverless-prune-plugin
+  - serverless-custom-packaging-plugin
+  - serverless-step-functions
+custom:
+  githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
+provider:
+  name: aws
+  runtime: provided.al2023
+  memorySize: 512
+  timeout: 45
+  httpApi:
+    payload: '1.0'
+    cors: true
+package:
+  individually: true
+resources:
+  Resources:
+    SiteRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/"
+        RoleName: site-${opt:region, 'us-east-1'}-lambdaRole
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - apigateway.amazonaws.com
+              Action: sts:AssumeRole   
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: gosite-site-api-lambda
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:DescribeLogGroups
+                    - logs:DescribeLogStreams
+                    - logs:GetLogEvents
+                    - logs:FilterLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      -
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: "Allow"
+                  Action:
+                    - "lambda:InvokeFunction"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "execute-api:Invoke"
+                    - "execute-api:ManageConnections"
+                  Resource: "*"
+functions:
+  SiteStart:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_start
+      artifact: .serverless/Site_Start.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+  SiteInit:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_init
+      artifact: .serverless/Site_Init.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+  SiteEnvironment:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_environment
+      artifact: .serverless/Site_Environment.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+  SiteWrite:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_write
+      artifact: .serverless/Site_Write.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+  SiteModify:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_modify
+      artifact: .serverless/Site_Modify.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+  SiteComplete:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_complete
+      artifact: .serverless/Site_Complete.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      STAGE: ${opt:stage, 'dev'}
+
+stepFunctions:
+  stateMachines:
+    SiteWorkflow:
+      name: SiteWorkflow
+      definition:
+        Comment: "State machine to handle dynamic payload with entity and operation"
+        StartAt: CheckStorage
+        States:
+          CheckStorage:
+            Type: Choice
+            Choices:
+              - Variable: "$.storage"
+                StringEquals: "default"
+                Next: StartFunction
+            Default: SilentTermination
+          SilentTermination:
+            Type: Pass
+            Result: "Skipped due to invalid storage"
+            End: true
+          StartFunction:
+            Type: Task
+            Resource: !GetAtt SiteStart.Arn
+            Parameters:
+              Input.$: "$"
+            ResultPath: "$.startResult"
+            Next: SiteInit
+
+          SiteInit:
+            Type: Task
+            Resource: !GetAtt SiteInit.Arn
+            Parameters:
+              Input.$: "$"
+            ResultPath: "$.siteInitResult"
+            Next: WaitForFiveSeconds
+
+          WaitForFiveSeconds:
+            Type: Wait
+            Seconds: 5
+            Next: ParallelExecution
+
+          ParallelExecution:
+            Type: Parallel
+            Branches:
+              - StartAt: SiteEnvironment
+                States:
+                  SiteEnvironment:
+                    Type: Task
+                    Resource: !GetAtt SiteEnvironment.Arn
+                    Parameters:
+                      Input.$: "$"
+                    ResultPath: "$.siteEnvironmentResult"
+                    End: true
+              - StartAt: SiteWrite
+                States:
+                  SiteWrite:
+                    Type: Task
+                    Resource: !GetAtt SiteWrite.Arn
+                    Parameters:
+                      Input.$: "$"
+                    ResultPath: "$.siteWriteResult"
+                    End: true
+            ResultPath: "$.parallelResults"
+            Next: MergeParallelResults
+
+          MergeParallelResults:
+            Type: Pass
+            Parameters:
+              mergedResults:
+                siteEnvironment.$: "$.parallelResults[0].siteEnvironmentResult"
+                siteWrite.$: "$.parallelResults[1].siteWriteResult"
+            ResultPath: "$.mergedResults"
+            Next: SiteModify
+
+          SiteModify:
+            Type: Task
+            Resource: !GetAtt SiteModify.Arn
+            Parameters:
+              mergedResults.$: "$.mergedResults"
+            ResultPath: "$.siteModifyResult"
+            Next: SiteComplete
+
+          SiteComplete:
+            Type: Task
+            Resource: !GetAtt SiteComplete.Arn
+            Parameters:
+              mergedResults.$: "$"
+            ResultPath: "$.siteCompleteResult"
+            End: true

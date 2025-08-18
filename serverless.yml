@@ -101,6 +101,9 @@ resources:
                     - "execute-api:Invoke"
                     - "execute-api:ManageConnections"
                   Resource: "*"
+                - Effect: "Allow"
+                  Action: "states:StartExecution"
+                  Resource: "*"
 functions:
   EntityApi:
     handler: bootstrap

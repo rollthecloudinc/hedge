@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "site_init",
+    embed = [":site_init_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/hooks/site_init",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+
+go_library(
+    name = "site_init_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/hooks/site_init",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//lib/entity",
+        "//lib/repo",
+        "@org_golang_x_oauth2//:go_default_library",
+        "@com_github_google_go_github_v46//github",
+        "@com_github_aws_aws_lambda_go//lambda",
+    ],
+)

@@ -15,12 +15,30 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"       // AWS session for SDK service creation
 )
 
-func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (entity.AfterSaveExecEntityResponse, error) {
+func handler(ctx context.Context, event map[string]interface{}) (entity.AfterSaveExecEntityResponse, error) {
 
+		// Navigate through the map to get the 'repoName'
+	input, ok := event["Input"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'Input' field from event")
+	}
+
+	ent, ok := input["entity"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'entity' field from Input")
+	}
+
+	repoName, ok := ent["repoName"].(string)
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'repoName' from entity")
+	}
+
+	// Log or use the 'repoName'
+	log.Printf("Repository Name: %s", repoName)
 	
 	owner := "rollthecloudinc"  // Hardcoded owner (to be replaced by payload.Entity in later iterations)
-	repoName := "site12"
-	repoBuildName := "site12-build"         // Hardcoded repo name (to be replaced by payload.Entity)
+	// repoName := "site12"
+	repoBuildName := repoName + "-build"         // Hardcoded repo name (to be replaced by payload.Entity)
 
 	// Validate environment variables
 	stage := os.Getenv("STAGE")

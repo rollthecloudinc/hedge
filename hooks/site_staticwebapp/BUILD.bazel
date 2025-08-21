@@ -1,0 +1,20 @@
+load("@npm//@bazel/esbuild:index.bzl", "esbuild")
+# load("//:node_deps.bzl", "setup_node_repositories")
+
+# setup_node_repositories()
+
+esbuild(
+    name = "site_staticwebapp",
+    entry_point = "index.js",
+    platform = "node",
+    target = "node18",
+    tool = select({
+        "@bazel_tools//src/conditions:darwin": "@esbuild_darwin//:bin/esbuild",
+        "@bazel_tools//src/conditions:windows": "@esbuild_windows//:esbuild.exe",
+        "@bazel_tools//src/conditions:linux_x86_64": "@esbuild_linux//:bin/esbuild",
+    }),
+    deps = [
+        "@npm//@azure/arm-appservice",
+        "@npm//@azure/identity",
+    ],
+)

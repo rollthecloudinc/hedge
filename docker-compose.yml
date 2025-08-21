@@ -5,7 +5,7 @@ services:
     build: .
     image: bazel6-go17-nodejs
     volumes:
-      - /home/tzmijewski/projects/hedge:/workspace
+      - ~/projects/hedge:/workspace
       - ~/.aws:/root/.aws:ro
     working_dir: /workspace
     stdin_open: true

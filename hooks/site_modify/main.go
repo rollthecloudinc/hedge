@@ -17,11 +17,30 @@ import (
 	"github.com/google/go-github/v46/github"
 )
 
-func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (entity.AfterSaveExecEntityResponse, error) {
+func handler(ctx context.Context, event map[string]interface{}) (entity.AfterSaveExecEntityResponse, error) {
 
-	siteName := "site12"
+	// Navigate through the map to get the 'repoName'
+	input, ok := event["Input"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'Input' field from event")
+	}
+
+	ent, ok := input["entity"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'entity' field from Input")
+	}
+
+	repoName, ok := ent["repoName"].(string)
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'repoName' from entity")
+	}
+
+	// Log or use the 'repoName'
+	log.Printf("Repository Name: %s", repoName)
+
+	siteName := repoName
 	owner := "rollthecloudinc"
-	repoName := "site12"
+	// repoName := "site13"
 	// repoBuildName := "site11-build"
 
 	// Validate environment variables

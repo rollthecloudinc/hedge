@@ -6,6 +6,10 @@ plugins:
   - serverless-step-functions
 custom:
   githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
+  subscriptionId: ${file(./private.${opt:stage, 'dev'}.json):subscriptionId}
+  servicePrincipleClientId: ${file(./private.${opt:stage, 'dev'}.json):servicePrincipleClientId}
+  servicePrincipleClientSecret: ${file(./private.${opt:stage, 'dev'}.json):servicePrincipleClientSecret}
+  servicePrincipleTenantId: ${file(./private.${opt:stage, 'dev'}.json):servicePrincipleTenantId}
 provider:
   name: aws
   runtime: provided.al2023
@@ -135,6 +139,34 @@ functions:
     environment:
       GITHUB_APP_ID: ${self:custom.githubAppId}
       STAGE: ${opt:stage, 'dev'}
+  SiteStaticWebApp:
+    handler: site_staticwebapp.handler
+    role: SiteRole
+    runtime: nodejs18.x
+    package:
+      path: bazel-bin/hooks/site_staticwebapp
+      artifact: .serverless/SiteStaticwebapp.zip
+      include_globs:
+        - "**/site_staticwebapp.js"
+    environment:
+      SUBSCRIPTION_ID: ${self:custom.subscriptionId}
+      SERVICE_PRINCIPLE_CLIENT_ID: ${self:custom.servicePrincipleClientId}
+      SERVICE_PRINCIPLE_CLIENT_SECRET: ${self:custom.servicePrincipleClientSecret}
+      SERVICE_PRINCIPLE_TENANT_ID: ${self:custom.servicePrincipleTenantId}
+  SiteDeploy:
+    handler: bootstrap
+    role: SiteRole
+    package:
+      path: bazel-bin/hooks/site_deploy
+      artifact: .serverless/Site_Deploy.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
   SiteComplete:
     handler: bootstrap
     role: SiteRole
@@ -174,7 +206,7 @@ stepFunctions:
             Parameters:
               Input.$: "$"
             ResultPath: "$.startResult"
-            Next: SiteInit
+            Next: SiteInit          
 
           SiteInit:
             Type: Task
@@ -182,11 +214,11 @@ stepFunctions:
             Parameters:
               Input.$: "$"
             ResultPath: "$.siteInitResult"
-            Next: WaitForFiveSeconds
+            Next: WaitForTenSeconds
 
-          WaitForFiveSeconds:
+          WaitForTenSeconds:
             Type: Wait
-            Seconds: 5
+            Seconds: 10
             Next: ParallelExecution
 
           ParallelExecution:
@@ -210,23 +242,43 @@ stepFunctions:
                       Input.$: "$"
                     ResultPath: "$.siteWriteResult"
                     End: true
-            ResultPath: "$.parallelResults"
-            Next: MergeParallelResults
+            ResultPath: "$.parallelExecutionResults"  # Retain results of ParallelExecution
+            Next: CombineParallelResults
 
-          MergeParallelResults:
+          CombineParallelResults:
             Type: Pass
             Parameters:
-              mergedResults:
-                siteEnvironment.$: "$.parallelResults[0].siteEnvironmentResult"
-                siteWrite.$: "$.parallelResults[1].siteWriteResult"
-            ResultPath: "$.mergedResults"
+              "storage.$": "$.storage"
+              "entity.$": "$.entity"
+              "stage.$": "$.stage"
+              "startResult.$": "$.startResult"
+              "siteInitResult.$": "$.siteInitResult"
+              "siteEnvironmentResult.$": "$.parallelExecutionResults[0].siteEnvironmentResult"
+              "siteWriteResult.$": "$.parallelExecutionResults[1].siteWriteResult"
+            ResultPath: "$"  # Place results directly into the root-level object
+            Next: SiteStaticWebApp
+
+          SiteStaticWebApp:
+            Type: Task
+            Resource: !GetAtt SiteStaticWebApp.Arn
+            Parameters:
+              Input.$: "$"
+            ResultPath: "$.siteStaticWebAppResult"
+            Next: SiteDeploy
+
+          SiteDeploy:
+            Type: Task
+            Resource: !GetAtt SiteDeploy.Arn
+            Parameters:
+              Input.$: "$"
+            ResultPath: "$.siteDeployResult"
             Next: SiteModify
 
           SiteModify:
             Type: Task
             Resource: !GetAtt SiteModify.Arn
             Parameters:
-              mergedResults.$: "$.mergedResults"
+              Input.$: "$"
             ResultPath: "$.siteModifyResult"
             Next: SiteComplete
 

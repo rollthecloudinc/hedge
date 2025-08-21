@@ -16,11 +16,30 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"       // AWS session for SDK service creation
 )
 
-func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (entity.AfterSaveExecEntityResponse, error) {
+func handler(ctx context.Context, event map[string]interface{}) (entity.AfterSaveExecEntityResponse, error) {
+
+	// Navigate through the map to get the 'repoName'
+	input, ok := event["Input"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'Input' field from event")
+	}
+
+	ent, ok := input["entity"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'entity' field from Input")
+	}
+
+	repoName, ok := ent["repoName"].(string)
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'repoName' from entity")
+	}
+
+	// Log or use the 'repoName'
+	log.Printf("Repository Name: %s", repoName)
 
 	owner := "rollthecloudinc"  // Hardcoded owner (to be replaced by payload.Entity in later iterations)
-	repoName := "site12"         // Hardcoded repo name (to be replaced by payload.Entity)
-	repoBuildName := "site12-build"
+	// repoName := "site13"         // Hardcoded repo name (to be replaced by payload.Entity)
+	repoBuildName := repoName + "-build" // "site13-build"
 
 	// Validate environment variables
 	stage := os.Getenv("STAGE")
@@ -61,6 +80,32 @@ func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (e
 	// Create OAuth2 HTTP client
 	srcToken := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: *installationToken.Token})
 	httpClient := oauth2.NewClient(ctx, srcToken)
+
+	// The environments for the repo require manual creation sometimes...
+	err = CreateEnvironmentIfNotExists(ctx, httpClient, owner, repoName, "dev")
+	if err != nil {
+		log.Printf("Failed to create environment dev on source repo: %v", err)
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to create GitHub environment dev on source repo: %w", err)
+	}
+
+	err = CreateEnvironmentIfNotExists(ctx, httpClient, owner, repoName, "prod")
+	if err != nil {
+		log.Printf("Failed to create environment prod on source repo: %v", err)
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to create GitHub environment prod on source repo: %w", err)
+	}
+
+	err = CreateEnvironmentIfNotExists(ctx, httpClient, owner, repoBuildName, "dev")
+	if err != nil {
+		log.Printf("Failed to create environment dev on build repo: %v", err)
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to create GitHub environment dev on build repo: %w", err)
+	}
+
+	// The environments for the build repo require manual creation.
+	err = CreateEnvironmentIfNotExists(ctx, httpClient, owner, repoBuildName, "prod")
+	if err != nil {
+		log.Printf("Failed to create environment prod on build repo: %v", err)
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to create GitHub environment prod on build repo: %w", err)
+	}
 
 	// Create environment secrets (example secret used here)
 	secretName := "DESTINATION_REPO"
@@ -170,6 +215,28 @@ func createEnvironmentSecret(ctx context.Context, httpClient *http.Client, lClie
 
 	log.Printf("Environment secret '%s' created successfully.", secretName)
 	return nil
+}
+
+func CreateEnvironmentIfNotExists(ctx context.Context, httpClient *http.Client, owner string, repoName string, environmentName string) error {
+
+	exists, err := repo.CheckGithubEnvironmentExists(ctx, httpClient, owner, repoName, environmentName)
+	if (err != nil) {
+		log.Printf("Failed to check whether environment exists: %v", err)
+		return fmt.Errorf("failed to check environment exists: %w", err)
+	}
+	
+	if exists {
+		return nil
+	}
+
+	err = repo.CreateGithubEnvironment(ctx, httpClient, owner, repoName, environmentName)
+	if err != nil {
+		log.Printf("Failed to create environment: %v", err)
+		return fmt.Errorf("failed to create GitHub environment: %w", err)
+	}
+	
+	return nil
+
 }
 
 func main() {

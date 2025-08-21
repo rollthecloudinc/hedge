@@ -22,7 +22,26 @@ type RepoInitParams struct {
 	Private       bool
 }
 
-func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (entity.AfterSaveExecEntityResponse, error) {
+func handler(ctx context.Context, event map[string]interface{}) (entity.AfterSaveExecEntityResponse, error) {
+
+	// Navigate through the map to get the 'repoName'
+	input, ok := event["Input"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'Input' field from event")
+	}
+
+	ent, ok := input["entity"].(map[string]interface{})
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'entity' field from Input")
+	}
+
+	repoName, ok := ent["repoName"].(string)
+	if !ok {
+		return entity.AfterSaveExecEntityResponse{}, fmt.Errorf("failed to parse 'repoName' from entity")
+	}
+
+	// Log or use the 'repoName'
+	log.Printf("Repository Name: %s", repoName)
 
 	// @todo: This will be retrieved from payload.
 	owner := "rollthecloudinc"
@@ -31,10 +50,10 @@ func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (e
 	// @params Owner
 
 	repoParams := []RepoInitParams{
-		{owner, "spearhead", owner, "site12", "Spearhead website source code.", false},
-		{owner, "spearhead-objects", owner, "site12-objects", "Sreadhead website objects repository.", false},
-		{owner, "spearhead-objects-prod", owner, "site12-objects-prod", "Spearhead website objects production repository", false},
-		{owner, "spearhead-build", owner, "site12-build", "Spearhead website distribution.", false},
+		{owner, "spearhead", owner, repoName, "Spearhead website source code.", false},
+		{owner, "spearhead-objects", owner, repoName + "-objects", "Sreadhead website objects repository.", false},
+		{owner, "spearhead-objects-prod", owner, repoName + "-objects-prod", "Spearhead website objects production repository", false},
+		{owner, "spearhead-build", owner, repoName + "-build", "Spearhead website distribution.", false},
 		// Add as many parameters as needed
 	}
 

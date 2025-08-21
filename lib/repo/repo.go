@@ -1130,6 +1130,81 @@ func EncryptSecretValue(publicKey, secretValue string) (string, error) {
 	return base64Encoded, nil
 }
 
+func CheckGithubEnvironmentExists(ctx context.Context, httpClient *http.Client, owner, repo, environmentName string) (bool, error) {
+	// Step 1: Define the endpoint for the environment check
+	environmentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s", owner, repo, environmentName)
+
+	// Step 2: Create the HTTP request
+	req, err := http.NewRequestWithContext(ctx, "GET", environmentURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request to check environment: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	// Step 3: Send the request to GitHub's API
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to check environment existence: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Step 4: Evaluate the response
+	if resp.StatusCode == http.StatusNotFound {
+		// Environment does not exist
+		return false, nil
+	} else if resp.StatusCode == http.StatusOK {
+		// Environment exists
+		return true, nil
+	} else {
+		// Unexpected response, capture response body for debugging
+		body, _ := io.ReadAll(resp.Body)
+		return false, fmt.Errorf("unexpected response: HTTP %d, response body: %s", resp.StatusCode, string(body))
+	}
+}
+
+func CreateGithubEnvironment(ctx context.Context, httpClient *http.Client, owner, repo, environmentName string) error {
+	// Step 1: Define the endpoint for creating an environment
+	environmentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s", owner, repo, environmentName)
+
+	// Step 2: Define the payload for the environment creation (can be expanded as needed)
+	payload := map[string]interface{}{
+		"deployment_branch_policy": nil, /*map[string]interface{}{
+			"protected_branches": false,
+			"custom_branch_policies": true,
+		/*},*/
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Step 3: Create the HTTP request
+	req, err := http.NewRequestWithContext(ctx, "PUT", environmentURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request for environment creation: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetAccessTokenFromHttpClient(httpClient))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Step 4: Send the request to GitHub's API
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create environment: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Step 5: Check the response for success
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create environment: received HTTP status %d, response body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Successfully created environment '%s' for repository '%s/%s'.", environmentName, owner, repo)
+	return nil
+}
+
 func CreateGithubEnvironmentSecret(ctx context.Context, httpClient *http.Client, lambdaClient *lambda.Lambda, owner, repo, environmentName, secretName, secretValue string, stage string) error {
 	// Step 1: Fetch the public key for the environment
 	keyURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/environments/%s/secrets/public-key", owner, repo, environmentName)

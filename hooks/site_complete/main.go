@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func handler(ctx context.Context, payload *entity.AfterSaveExecEntityRequest) (entity.AfterSaveExecEntityResponse, error) {
+func handler(ctx context.Context, event map[string]interface{}) (entity.AfterSaveExecEntityResponse, error) {
 
 	/**
 	 * This is where all the code goes to create action SECRETS

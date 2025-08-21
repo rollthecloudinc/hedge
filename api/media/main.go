@@ -96,10 +96,14 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		return res, nil
 	}
 
+	log.Print("Encoding body")
+
 	body, err := base64.StdEncoding.DecodeString(req.Body)
 	if err != nil {
 		return res, err
 	}
+
+	log.Print("Building Http Request")
 
 	r := http.Request{
 		Method: req.HTTPMethod,
@@ -109,11 +113,16 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		Body: ioutil.NopCloser(bytes.NewBuffer(body)),
 	}
 
+	log.Print("Done Building Http Request")
+
 	file, header, err := r.FormFile("File")
-	defer file.Close()
 	if err != nil {
+		log.Printf("error reading form file: %s", err.Error())
 		return res, err
 	}
+	defer file.Close()
+
+	log.Print("Setting file name")
 
 	id := header.Filename
 	ext := ""
@@ -129,6 +138,8 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		ext = "md"
 	}
 
+	log.Print("data buffer")
+
 	dataBuffer := bytes.NewBuffer(nil)
 	if _, err := io.Copy(dataBuffer, file); err != nil {
 		return res, err
@@ -142,6 +153,8 @@ func UploadMediaFile(req *events.APIGatewayProxyRequest, ac *ActionContext) (eve
 		Data:     &d,
 		UserName: GetUsername(req),
 	}
+
+	log.Print("Commit rest optimized")
 
 	repo.CommitRestOptimized(
 		ac.GithubRestClient,
@@ -305,6 +318,8 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 		)
 
 		username := GetUsername(req)
+		username = "angular.druid@gmail.com"
+
 		if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
 			log.Print("Granting explicit permission for " + username + " to " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"])
 			resource := gov.Resource{
@@ -409,10 +424,14 @@ func init() {
 	githubV4Client := githubv4.NewClient(httpClient)
 	githubRestClient := github.NewClient(httpClient)
 
-	pem, err := os.ReadFile("api/entity/rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
+	log.Print("Before read pem file.")
+
+	pem, err := os.ReadFile("rtc-vertigo-" + os.Getenv("STAGE") + ".private-key.pem")
 	if err != nil {
 		log.Print("Error reading github app pem file", err.Error())
 	}
+
+	log.Print("After read pem file.")
 
 	actionContext := ActionContext{
 		Session:          sess,

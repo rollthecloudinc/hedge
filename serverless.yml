@@ -184,8 +184,10 @@ functions:
     package:
       path: bazel-bin/api/media
       artifact: .serverless/MediaApi.zip
+      libs: api/media
       include_globs:
         - "**/bootstrap"
+        - "**/*.pem"
     environment:
       BUCKET_NAME: ${self:custom.bucketName}
       STAGE: ${opt:stage, 'dev'}
@@ -369,8 +371,10 @@ functions:
     package:
       path: bazel-bin/api/stream
       artifact: .serverless/Stream.zip
+      libs: api/stream
       include_globs:
         - "**/bootstrap"
+        - "**/AmazonRootCA1.pem"
     environment:
       KEYSPACE_USERNAME: ${self:custom.keyspaceUsername}
       KEYSPACE_PASSWORD: ${self:custom.keyspacePassword}

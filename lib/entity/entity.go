@@ -13,6 +13,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"io"
 
 	"goclassifieds/lib/attr"
 	"goclassifieds/lib/es"
@@ -70,7 +71,7 @@ type EntityConfig struct {
 	Stage               string
 	CloudName           string
 	LogUsageLambdaInput *utils.LogUsageLambdaInput
-	Lambda              *lambda.Lambda // @TODO: We arn't even going to be doing this
+	Lambda              *lambda.Lambda // @TODO: We arn't even going to be doing this - yes we are arn't we? - lambda hook- right?
 }
 
 type ValidateEntityRequest struct {
@@ -218,7 +219,7 @@ type Manager interface {
 	ExecuteCollectionHook(hook string, entities []map[string]interface{}) ([]map[string]interface{}, error)
     ExecBeforeValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
 	ExecAfterValidateAlterHooks(name string, entity map[string]interface{}, res *EntityValidationResponse) error
-	ExecAfterSaveHooks(entity map[string]interface{}, storage string) error
+	ExecAfterSaveHooks(input *ExecAfterSaveHooksInput) error
 	ExecBeforeSaveHooks(entity map[string]interface{}, storage string) error
 }
 
@@ -244,7 +245,7 @@ type AfterValidateAlterHooks interface {
 }
 
 type AfterSaveHooks interface {
-	ExecAfterSaveHooks(entity map[string]interface{}, storage string) error
+	ExecAfterSaveHooks(input *ExecAfterSaveHooksInput) error
 }
 
 type BeforeSaveHooks interface {
@@ -507,6 +508,9 @@ type EntityTypeCreatorAdaptor struct {
 	Config DefaultCreatorConfig `json:"config"`
 }
 
+type NoopValidatorAdaptor struct {
+}
+
 type DefaultValidatorAdaptor struct {
 	Config DefaultValidatorConfig `json:"config"`
 }
@@ -566,10 +570,20 @@ type AfterSaveExecEntityRequest struct {
 	Storage		string        			 `json:"storage"`
 	Entity 		map[string]interface{}   `json:"entity"`
 	Stage 		string                   `json:"stage"`
+	Contract 	string                   `json:"contract"`
+	Owner 		string                   `json:"owner"`
+	Repo 		string                   `json:"repo"`
+	OldEntity 	map[string]interface{}   `json:"oldEntity"`
 }
 
 type AfterSaveExecEntityResponse struct {
 
+}
+
+type ExecAfterSaveHooksInput struct {
+	Entity map[string]interface{}
+	Storage string
+	OldEntity map[string]interface{}
 }
 
 func (m EntityManager) Create(entity map[string]interface{}) (*CreateEntityResponse, error) {
@@ -592,23 +606,41 @@ func (m EntityManager) Purge(storage string, entities ...map[string]interface{})
 func (m EntityManager) Save(entity map[string]interface{}, storage string) {
 
 	log.Print("EntityManager:save " + storage)
+	id := fmt.Sprint(entity[m.Config.IdKey])
+
+	var oldEntity map[string]interface{}
+	if id != "" {
+		// Try loading the old entity
+		oldEntity = m.Load(id, "default") // Use the default loader
+		if oldEntity != nil {
+			log.Printf("Old entity with ID %s successfully loaded", id)
+		}
+	}
 
 	ent, err := m.ExecuteHook(BeforeSave, entity)
 
+	// @todo: These ause issue when no github connection exists
+	// Like with chat and stream...
 	m.ExecBeforeSaveHooks(entity, storage)
 
 	if err != nil {
 		log.Print(err)
 	}
 
-	id := fmt.Sprint(ent[m.Config.IdKey])
 	m.Storages[storage].Store(id, ent)
 
 	if _, err := m.ExecuteHook(AfterSave, entity); err != nil {
 		log.Print(err)
 	}
 
-	m.ExecAfterSaveHooks(entity, storage)
+	// @todo: These cause issue when no github connection exists
+	// Like with chat and stream...
+	execAfterSaveHooksInput := &ExecAfterSaveHooksInput{
+		Entity: entity,
+		Storage: storage,
+		OldEntity: oldEntity,
+	}
+	m.ExecAfterSaveHooks(execAfterSaveHooksInput)
 
 }
 
@@ -696,8 +728,8 @@ func (m EntityManager) ExecBeforeSaveHooks(entity map[string]interface{}, storag
 	return m.BeforeSaveHooks.ExecBeforeSaveHooks(entity, storage)
 }
 
-func (m EntityManager) ExecAfterSaveHooks(entity map[string]interface{}, storage string) error {
-	return m.AfterSaveHooks.ExecAfterSaveHooks(entity, storage)
+func (m EntityManager) ExecAfterSaveHooks(input *ExecAfterSaveHooksInput) error {
+	return m.AfterSaveHooks.ExecAfterSaveHooks(input)
 }
 
 func (l S3LoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
@@ -798,7 +830,7 @@ func (s GithubFileLoaderAdaptor) Load(id string, m *EntityManager) map[string]in
 }
 
 func (s GithubRestFileLoaderAdaptor) Load(id string, m *EntityManager) map[string]interface{} {
-	log.Printf("BEGIN GithubRestFileUploadAdaptor::LOAD %s", id)
+	log.Printf("BEGIN GithubRestFileLoaderAdaptor::LOAD %s", id)
 	var obj map[string]interface{}
 	pieces := strings.Split(s.Config.Repo, "/")
 	opts := &github.RepositoryContentGetOptions{
@@ -806,23 +838,35 @@ func (s GithubRestFileLoaderAdaptor) Load(id string, m *EntityManager) map[strin
 	}
 	suffix := ""
 	if id != "" {
-		suffix = "/" + id
+		suffix = "/" + id + ".json"
 	}
-	log.Print("Github Rest Fetch " + pieces[0] + "/" + pieces[1] + ":" + s.Config.Path + suffix)
-	file, _, res, err := s.Config.Client.Repositories.GetContents(context.Background(), pieces[0], pieces[1], s.Config.Path+suffix, opts)
-	if err != nil && res.StatusCode != 404 {
-		log.Print("Github get content failure.")
-		log.Panic(err)
+	log.Printf("Attempting to fetch GitHub content: %s:/%s:%s:%s", pieces[0], pieces[1], s.Config.Path, suffix)
+
+	file, _, res, err := s.Config.Client.Repositories.GetContents(context.Background(), pieces[0], pieces[1], s.Config.Path + suffix, opts)
+	if err != nil {
+		if res != nil && res.StatusCode == 404 {
+			log.Printf("Entity with ID %s not found in GitHub repository.", id)
+			return nil // Return nil if the entity does not exist
+		}
+		log.Fatalf("Error fetching GitHub content: %v", err)
 	}
-	if err == nil && file != nil && file.Content != nil {
-		content, _ := base64.StdEncoding.DecodeString(*file.Content)
-		//if err != nil {
-			log.Printf(string(content))
-			json.Unmarshal(content, &obj)
-			log.Printf("The object id is %s", obj["id"].(string))
-		//}
+	if file == nil || file.Content == nil {
+		log.Printf("No content found for entity ID %s", id)
+		return nil // Safeguard against unexpected nil content
 	}
-	log.Printf("END GithubRestFileUploadAdaptor::LOAD %s", id)
+
+	content, err := base64.StdEncoding.DecodeString(*file.Content)
+	if err != nil {
+		log.Printf("Failed to decode base64 content for entity ID %s: %v", id, err)
+		return nil
+	}
+
+	err = json.Unmarshal(content, &obj)
+	if err != nil {
+		log.Printf("Failed to unmarshal JSON for entity ID %s: %v", id, err)
+		return nil
+	}
+	log.Printf("END GithubRestFileLoaderAdaptor::LOAD %s", id)
 	return obj
 }
 
@@ -881,7 +925,7 @@ func (s OpensearchStorageAdaptor) Store(id string, entity map[string]interface{}
 	if err := json.NewEncoder(&buf).Encode(entity); err != nil {
 		log.Fatalf("Error encoding body: %s", err)
 	}
-	log.Print("OpensearchStorageAdaptor index " + s.Config.Index + "for id " + id)
+	log.Print("OpensearchStorageAdaptor index " + s.Config.Index + " for id " + id)
 	req := opensearchapi.IndexRequest{
 		Index:      s.Config.Index,
 		DocumentID: id,
@@ -890,11 +934,21 @@ func (s OpensearchStorageAdaptor) Store(id string, entity map[string]interface{}
 	}
 	res, err := req.Do(context.Background(), s.Config.Client)
 
-	if res != nil && res.IsError() {
-		var body []byte
-		res.Body.Read(body)
-		log.Print("OpensearchStorageAdaptor response error status "+res.Status(), string(body))
+	if res != nil {
+		// Always close the response body
+		defer res.Body.Close() 
+
+		if res.IsError() {
+			// Read the response body
+			body, readErr := io.ReadAll(res.Body)
+			if readErr != nil {
+				log.Printf("OpensearchStorageAdaptor response error status %s, but failed to read body: %s", res.Status(), readErr)
+			} else {
+				log.Printf("OpensearchStorageAdaptor response error status %s, body: %s", res.Status(), string(body))
+			}
+		}
 	}
+
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)
 	}
@@ -909,6 +963,7 @@ func (s OpensearchStorageAdaptor) Purge(m *EntityManager, entities ...map[string
 }
 
 func (s CqlStorageAdaptor) Store(id string, entity map[string]interface{}) {
+	log.Print("CqlStorageAdaptor")
 	values := make([]interface{}, 0)
 	cols := make([]string, 0)
 	bind := make([]string, 0)
@@ -1221,6 +1276,15 @@ func (a ResourceAuthorizationEmbeddedAdaptor) CanWrite(id string, m *EntityManag
 	}
 
 	return grant, nil
+}
+
+func (v NoopValidatorAdaptor) Validate(entity map[string]interface{}, m *EntityManager) (*EntityValidationResponse, error) {
+
+	valRes := &EntityValidationResponse{}
+	valRes.Entity = entity
+
+	return valRes, nil
+
 }
 
 func (v DefaultValidatorAdaptor) Validate(entity map[string]interface{}, m *EntityManager) (*EntityValidationResponse, error) {
@@ -1711,7 +1775,7 @@ func (h GithubBeforeSaveHooks) ExecBeforeSaveHooks(entity map[string]interface{}
 	return nil
 }
 
-func (h GithubAfterSaveHooks) ExecAfterSaveHooks(entity map[string]interface{}, storage string) error {
+func (h GithubAfterSaveHooks) ExecAfterSaveHooks(input *ExecAfterSaveHooksInput) error {
 	/*
 	Example contract:
 	{
@@ -1729,11 +1793,21 @@ func (h GithubAfterSaveHooks) ExecAfterSaveHooks(entity map[string]interface{}, 
 	}
 	*/
 
+	entity := input.Entity
+	storage := input.Storage
+	oldEntity := input.OldEntity
+
+	pieces := strings.Split(h.Config.Repo, "/")
+
 	// Prepare the payload for Lambda
 	payload := AfterSaveExecEntityRequest{
 		Storage: storage,
 		Entity:  entity,
 		Stage:   h.Config.Stage,
+		Contract: h.Config.Contract,
+		Owner: pieces[0],
+		Repo: pieces[1],
+		OldEntity: oldEntity,
 	}
 	payloadBytes, err := json.Marshal(payload) // Encode to JSON
 	if err != nil {
@@ -1746,6 +1820,12 @@ func (h GithubAfterSaveHooks) ExecAfterSaveHooks(entity map[string]interface{}, 
 	if err != nil {
 		log.Printf("Error fetching contract: %v", err)
 		return err
+	}
+
+	// No hooks need to be processed so bail out.
+	_, hasHooks := contract["hooks"]
+	if !hasHooks {
+		return nil
 	}
 
 	// Check if the contract contains AfterSave hooks

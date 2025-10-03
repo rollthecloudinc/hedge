@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "index",
+    embed = [":index_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    importpath = "goclassifieds/api/index",
+    visibility = ["//visibility:public"],
+    out = "bootstrap"
+)
+
+go_library(
+    name = "index_lib",
+    srcs = ["main.go"],
+    importpath = "goclassifieds/api/index",
+    visibility = ["//visibility:private"],
+    deps = [
+      "//lib/repo",
+      "//lib/search",
+      "@com_github_aws_aws_lambda_go//events",
+      "@com_github_aws_aws_lambda_go//lambda",
+      "@org_golang_x_oauth2//:go_default_library",
+      "@com_github_google_go_github_v46//github",
+    ],
+)

@@ -317,7 +317,12 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 			&oauth2.Token{AccessToken: *installationToken.Token},
 		)
 
-		username := GetUsername(req)
+		/**
+		 * This is a major security risk now that we don't have easy access to match
+		 * the repo to an email since username is no longer being used on registration
+		 * instead email is used.
+		 */
+		/*username := GetUsername(req)
 		username = "angular.druid@gmail.com"
 
 		if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
@@ -330,7 +335,7 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 				Operation: gov.Write,
 			}
 			additionalResources = append(additionalResources, resource)
-		}
+		}*/
 
 		httpClient := oauth2.NewClient(context.Background(), srcToken)
 		githubRestClient = github.NewClient(httpClient)

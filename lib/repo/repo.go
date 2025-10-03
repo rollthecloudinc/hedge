@@ -392,7 +392,16 @@ func GetInstallationToken(input *GetInstallationTokenInput) (*github.Installatio
 
 	if targetInstallation != nil {
 		log.Printf("matched installation %d", targetInstallation.ID)
-		tokenOpts := &github.InstallationTokenOptions{}
+		tokenOpts := &github.InstallationTokenOptions{
+			//Permissions: &github.InstallationPermissions{
+				/*Emails:          github.String("read"),     // Access to user emails
+				Contents:        github.String("write"),  */   // Repository contents access
+				// RepositoryHooks: github.String("read"),     // Hook management
+				// Metadata:        github.String("read"),     // Repository metadata
+				/*Repository:      github.String("write"),    // Manage repositories
+				Create:          github.String("write"),*/   // Permission for creating repositories
+			//},
+		}
 		installationToken, _, err := githubRestClient.Apps.CreateInstallationToken(context.Background(), *targetInstallation.ID, tokenOpts)
 		if err != nil {
 			log.Print("Error generating instllation token", err.Error())
@@ -856,6 +865,7 @@ func CreateFromTemplate(ctx context.Context, httpClient *http.Client, templateOw
 		"name":        newRepoName,
 		"description": description,
 		"private":     private,
+		"include_all_branches": false,
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {

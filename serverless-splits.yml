@@ -5,6 +5,7 @@ plugins:
   - serverless-custom-packaging-plugin
 custom:
   githubToken: ${file(./private.${opt:stage, 'dev'}.json):githubToken}
+  githubAppId: ${file(./private.${opt:stage, 'dev'}.json):githubAppId}
 provider:
   name: aws
   runtime: provided.al2023
@@ -85,3 +86,52 @@ functions:
       - httpApi:
           path: /model/{proxy+}
           method: POST
+  IndexApi:
+    handler: bootstrap
+    role: SplitsRole
+    package:
+      path: bazel-bin/api/index
+      artifact: .serverless/IndexApi.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+    events:
+      - httpApi:
+          path: /{owner}/{repo}/index/{index}
+          method: GET
+      - httpApi:
+          path: /{owner}/{repo}/search
+          method: POST
+  IndexCreateHook:
+    handler: bootstrap
+    role: SplitsRole
+    package:
+      path: bazel-bin/hooks/index_create
+      artifact: .serverless/Index_Create.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}
+  EntityIndexHook:
+    handler: bootstrap
+    role: SplitsRole
+    package:
+      path: bazel-bin/hooks/entity_index
+      artifact: .serverless/Entity_Index.zip
+      libs: api/entity
+      include_globs:
+        - "**/bootstrap"
+        - "**/*.json.tmpl"
+        - "**/*.pem"
+    environment:
+      GITHUB_APP_ID: ${self:custom.githubAppId}
+      STAGE: ${opt:stage, 'dev'}

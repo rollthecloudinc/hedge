@@ -33,6 +33,8 @@ func Connect(req *events.APIGatewayWebsocketProxyRequest, ac *ActionContext) (ev
 	//log.Print("user id = " + ac.UserId)
 	obj := make(map[string]interface{})
 	obj["connId"] = req.RequestContext.ConnectionID
+	obj["userId"] = ac.UserId
+	obj["createdAt"] = time.Now()
 	_, err := ac.ConnManager.Create(obj)
 	if err != nil {
 		log.Print(err)
@@ -131,6 +133,9 @@ func CreateConnectionManager(ac *ActionContext) entity.EntityManager {
 		Authorizers: map[string]entity.Authorization{
 			"default": entity.NoopAuthorizationAdaptor{},
 		},
+		Validators: map[string]entity.Validator{
+			"default": entity.NoopValidatorAdaptor{},
+		},
 	}
 	return manager
 }
@@ -161,7 +166,7 @@ func init() {
 	cluster.Port = 9142
 	cluster.Consistency = gocql.LocalQuorum
 	cluster.Authenticator = &gocql.PasswordAuthenticator{Username: os.Getenv("KEYSPACE_USERNAME"), Password: os.Getenv("KEYSPACE_PASSWORD")}
-	cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "api/chat/AmazonRootCA1.pem", EnableHostVerification: true}
+	cluster.SslOpts = &gocql.SslOptions{Config: &tls.Config{ServerName: "cassandra.us-east-1.amazonaws.com"}, CaPath: "AmazonRootCA1.pem", EnableHostVerification: true}
 	cluster.PoolConfig = gocql.PoolConfig{HostSelectionPolicy: /*gocql.TokenAwareHostPolicy(*/ gocql.DCAwareRoundRobinPolicy("us-east-1") /*)*/}
 	cSession, err := cluster.CreateSession()
 	if err != nil {

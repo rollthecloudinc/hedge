@@ -569,6 +569,8 @@ func InitializeHandler(c *ActionContext) Handler {
 			var loaderPath string
 			if req.HTTPMethod == "GET" {
 				loaderPath = strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
+			} else if req.HTTPMethod == "PUT" {
+				loaderPath = strings.Join(proxyPieces[0:len(proxyPieces)-1], "/")
 			} else {
 				loaderPath = req.PathParameters["proxy"]
 			}
@@ -810,10 +812,13 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 			&oauth2.Token{AccessToken: *installationToken.Token},
 		)
 
-		username := GetUsername(req)
-		username = "ng-druid" // force it just to see if we can get a write going...
+		// username := GetUsername(req)
+		// username = "ng-druid" // force it just to see if we can get a write going...
 
-		if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
+		/**
+		 * Require explicit permissions for now to write to repo.
+		 */
+		/*if username == os.Getenv("DEFAULT_SIGNING_USERNAME") || username == req.PathParameters["owner"] {
 			log.Print("Granting explicit permission for " + username + " to " + req.PathParameters["owner"] + "/" + req.PathParameters["repo"])
 			resource := gov.Resource{
 				User:      GetUserId(req),
@@ -823,10 +828,21 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 				Operation: gov.Write,
 			}
 			additionalResources = append(additionalResources, resource)
-		}
+		}*/
 
 		httpClient := oauth2.NewClient(context.Background(), srcToken)
 		githubRestClient = github.NewClient(httpClient)
+
+		emails, _, err := githubRestClient.Users.ListEmails(context.Background(), nil)
+    	if err != nil {
+        	log.Print("Error retrieving user emails: ", err.Error())
+    	} else {
+			// Log fetched email addresses
+        	for _, email := range emails {
+            	log.Printf("User email: %s (primary: %t, verified: %t)", email.Email, email.Primary, email.Verified)
+        	}
+		}
+
 	}
 
 	httpClient := oauth2.NewClient(context.Background(), srcToken)

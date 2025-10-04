@@ -85,6 +85,23 @@ type Match struct {
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
 }
 
+// NestedDoc defines a filter that must be applied to individual objects within a document array. (NEW)
+type NestedDoc struct {
+    Path string `json:"path"` // The field path to the array (e.g., "seller.reviews")
+    Bool Bool   `json:"bool"` // The Boolean logic applied to each object in the array
+}
+
+
+// Exists defines a filter that matches documents where the specified field is present and non-null. (NEW)
+type Exists struct {
+    Field string `json:"field"`
+}
+
+// Missing defines a filter that matches documents where the specified field is missing or null. (NEW)
+type Missing struct {
+    Field string `json:"field"`
+}
+
 // Case wraps one condition type (Term, Bool, Filter, Match, Range, GeoDistance).
 type Case struct {
 	Term        *Term        `json:"term,omitempty"`
@@ -93,6 +110,9 @@ type Case struct {
 	Match       *Match       `json:"match,omitempty"`
 	Range       *Range       `json:"range,omitempty"`      // NEW: Range query
 	GeoDistance *GeoDistance `json:"geoDistance,omitempty"` // NEW: Geospatial query
+	NestedDoc   *NestedDoc 	 `json:"nested,omitempty"` // NEW: Geospatial query
+	Missing     *Missing 	 `json:"missing,omitempty"`
+	Exists      *Exists 	 `json:"exists,omitempty"`
 }
 
 // Bool implements the recursive AND/OR/NOT logic.
@@ -685,7 +705,34 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		return EvaluateGeoDistance(data, c.GeoDistance)
 	}
 
-	// D) Extract Condition and default Operation (for Term/Filter/Match)
+	// D) Handle Nested Document logic (NEW)
+    if c.NestedDoc != nil {
+        return EvaluateNestedDoc(data, c.NestedDoc, ctx, client, indexInput) // <-- ADD THIS BLOCK
+    }
+
+    // E) Handle Exists logic (NEW)
+    if c.Exists != nil {
+        // We use resolveRawDotNotation.
+        // It returns (value, true) if the path exists, even if value is nil.
+        // We consider it EXISTS if the path traversal succeeds AND the final value is NOT nil.
+        val, exists := resolveRawDotNotation(data, c.Exists.Field)
+        log.Printf("Evaluate: Checking EXISTS for field '%s'. Exists: %t, Value is nil: %t", c.Exists.Field, exists, val == nil)
+        
+        // A field exists if the path traversal succeeded (exists=true) AND the value is not nil.
+        return exists && val != nil
+    }
+
+    // F) Handle Missing logic (NEW)
+    if c.Missing != nil {
+        // The opposite of Exists.
+        val, exists := resolveRawDotNotation(data, c.Missing.Field)
+        log.Printf("Evaluate: Checking MISSING for field '%s'. Exists: %t, Value is nil: %t", c.Missing.Field, exists, val == nil)
+        
+        // A field is missing if the path failed (exists=false) OR the value is nil.
+        return !exists || val == nil
+    }
+
+	// G) Extract Condition and default Operation (for Term/Filter/Match)
 	var condition Condition
 	var defaultOp Operation = Equal
 
@@ -752,6 +799,44 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 	}
 
 	return EvaluateBool(condition, targetValue, defaultOp)
+}
+
+// EvaluateNestedDoc applies a Boolean query to every object within a target array path.
+// The parent document matches if the nested Bool evaluates to true for AT LEAST ONE
+// object in the array.
+func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
+    // 1. Resolve the path to the array using the raw dot notation helper.
+    arrayValue, exists := resolveRawDotNotation(data, nested.Path)
+    if !exists {
+        log.Printf("EvaluateNestedDoc: Array path '%s' not found.", nested.Path)
+        return false
+    }
+
+    // 2. Ensure the resolved value is indeed an array (slice of interface{}).
+    array, ok := arrayValue.([]interface{})
+    if !ok {
+        log.Printf("EvaluateNestedDoc: Field '%s' is not an array (found type %T).", nested.Path, arrayValue)
+        return false
+    }
+
+    // 3. Iterate through the array elements and apply the nested Bool logic.
+    for i, item := range array {
+        // Each item in the array must be treated as a separate map (nested document).
+        itemMap, mapOk := item.(map[string]interface{})
+        if !mapOk {
+            log.Printf("EvaluateNestedDoc: Element %d in array is not a map (found type %T). Skipping.", i, item)
+            continue
+        }
+
+        // Recursively evaluate the nested Bool logic on the current itemMap.
+        if nested.Bool.Evaluate(itemMap, ctx, client, indexInput) {
+            // Found one nested document that satisfies the entire Bool criteria.
+            return true
+        }
+    }
+
+    // If the loop finishes, no nested document satisfied the condition.
+    return false
 }
 
 // ----------------------------------------------------

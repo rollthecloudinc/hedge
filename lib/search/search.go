@@ -123,6 +123,13 @@ type Aggregation struct {
 	Name string `json:"name"` // Human-readable name for this group level
 	// GroupBy is a slice to support sequential multi-field grouping at this level
 	GroupBy []string `json:"groupBy"`
+
+    // NEW FIELD FOR DATE HISTOGRAM
+    DateHistogram *DateHistogram `json:"dateHistogram,omitempty"`
+
+    // NEW FIELD FOR TOP HITS
+    TopHits *TopHits `json:"topHits,omitempty"`
+
 	// NEW: For histogram/range aggregation (only one field per map is usually used)
 	RangeBuckets map[string][]RangeBucket `json:"rangeBuckets,omitempty"` // Key=Field Name, Value=Buckets
 
@@ -131,6 +138,19 @@ type Aggregation struct {
 
 	// Recursive definition for the next level of aggregation
 	Aggs *Aggregation `json:"aggs,omitempty"`
+}
+
+// NEW STRUCT
+type DateHistogram struct {
+    Field string `json:"field"` // Field containing the date (e.g., "created_at")
+    Interval string `json:"interval"` // Bucket size: "minute", "hour", "day", "month", "year"
+}
+
+// NEW STRUCT
+type TopHits struct {
+    Size int `json:"size"` // Number of top documents to return
+    Sort []SortField `json:"sort,omitempty"` // How to sort them (reuses existing SortField)
+    Source []string `json:"source,omitempty"` // Which fields to project (reuses existing source projection)
 }
 
 // SortField defines how to sort the final result set
@@ -213,6 +233,9 @@ type Bucket struct {
 	Key     string                 `json:"key"`
 	Count   int                    `json:"count"`
 	Metrics map[string]interface{} `json:"metrics,omitempty"`
+
+    // NEW FIELD TO STORE TOP HITS
+    TopHits []map[string]interface{} `json:"topHits,omitempty"` 
 
 	// Nested buckets for the next level of grouping
 	Buckets []Bucket `json:"buckets,omitempty"`
@@ -893,6 +916,38 @@ func calculatePercentile(docs []map[string]interface{}, field string, percentile
 	return values[i] + fraction*(values[i+1]-values[i])
 }
 
+// In search/package.go
+
+// calculateCardinality counts the number of unique string values for a field.
+func calculateCardinality(docs []map[string]interface{}, field string) int {
+    uniqueValues := make(map[string]struct{})
+    
+    // Log the start of the calculation
+    log.Printf("CalculateCardinality: Starting calculation for field '%s' on %d documents.", field, len(docs))
+    
+    for i, doc := range docs {
+        // Use resolveDotNotation to get the string value for comparison
+        valStr, exists := resolveDotNotation(doc, field)
+        
+        if exists {
+            // Log successful retrieval and the value found
+            log.Printf("CalculateCardinality DEBUG: Doc %d: Found value '%s'", i, valStr)
+            
+            // Add the value to the set of unique strings
+            uniqueValues[valStr] = struct{}{}
+        } else {
+            // Log when a field is missing or the traversal failed
+            log.Printf("CalculateCardinality DEBUG: Doc %d: Field '%s' not found or failed traversal.", i, field)
+        }
+    }
+    
+    // Log the final count
+    finalCount := len(uniqueValues)
+    log.Printf("CalculateCardinality: Completed. Found %d unique values for field '%s'.", finalCount, field)
+    
+    return finalCount
+}
+
 // CalculateMetrics iterates through the Aggregation's requested metrics and computes them. (UPDATED)
 func CalculateMetrics(groupDocs []map[string]interface{}, metrics []MetricRequest) map[string]interface{} {
 	results := make(map[string]interface{})
@@ -933,6 +988,10 @@ func CalculateMetrics(groupDocs []map[string]interface{}, metrics []MetricReques
 					log.Printf("CalculateMetrics: Invalid percentile value in request, defaulting to 50th.")
 				}
 				calculatedValue = calculatePercentile(groupDocs, sourceField, p)
+            case "cardinality", "unique_count": // NEW
+				// Ensure the value is calculated and cast it to float64 for result consistency
+				count := calculateCardinality(groupDocs, sourceField)
+				calculatedValue = float64(count) // Cast int to float64
 			case "count":
 				// Count is implicit in the aggregation logic, but supported here for field-level count
 				values := extractNumericValues(groupDocs, sourceField)
@@ -1152,16 +1211,30 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
 // Recursive Aggregation Logic (UPDATED for Range Buckets)
 // ----------------------------------------------------
 
+// In search/package.go
+
 // ExecuteAggregation recursively groups and calculates metrics on a list of documents.
 func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucket {
-    if agg == nil || (len(agg.GroupBy) == 0 && len(agg.RangeBuckets) == 0) {
-        log.Print("ExecuteAggregation: No grouping defined. Returning empty buckets.")
+    // Check for valid request and determine if any grouping mechanism is active.
+    hasGrouping := len(agg.GroupBy) > 0 || len(agg.RangeBuckets) > 0 || agg.DateHistogram != nil
+    hasMetrics := agg != nil && len(agg.Metrics) > 0
+
+    if !hasGrouping {
+        if hasMetrics {
+            // SPECIAL CASE: Only metrics requested (top-level aggregation).
+            log.Print("ExecuteAggregation: No grouping defined. Calculating top-level metrics.")
+            
+            // Create a single, anonymous bucket for the entire document set.
+            topBucket := processGroup(agg, "", docs) 
+            return []Bucket{topBucket}
+        }
+        
+        // Final exit if neither grouping nor metrics are defined.
+        log.Print("ExecuteAggregation: No grouping or metrics defined. Returning empty buckets.")
         return []Bucket{}
     }
-    
-    // 1. Determine the Bucketing Strategy (GroupBy or RangeBuckets)
-    
-    // Grouping by a field value
+
+    // --- 1. Standard GroupBy (Field Value Grouping) ---
     if len(agg.GroupBy) > 0 {
         groupByField := agg.GroupBy[0] // Only use the first field for this level
         log.Printf("ExecuteAggregation: Grouping by field '%s'", groupByField)
@@ -1181,7 +1254,7 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
         }
         return buckets
 
-    // Grouping by numeric ranges (Histogram)
+    // --- 2. Grouping by numeric ranges (Histogram) ---
     } else if len(agg.RangeBuckets) > 0 {
         // RangeBuckets is a map, we process the first (and typically only) entry
         var field string
@@ -1206,7 +1279,8 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
             
             // Find which range bucket this value belongs to
             for _, r := range ranges {
-                if val >= r.From && (r.To == 0.0 || val < r.To) { // To=0.0 implies no upper bound
+                // To=0.0 implies no upper bound
+                if val >= r.From && (r.To == 0.0 || val < r.To) { 
                     rangeGroups[r.Key] = append(rangeGroups[r.Key], doc)
                     break 
                 }
@@ -1220,9 +1294,64 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
             buckets = append(buckets, newBucket)
         }
         return buckets
+    
+    // --- 3. Grouping by Date Histogram (Time-based Grouping) ---
+    } else if agg.DateHistogram != nil {
+        dh := agg.DateHistogram
+        log.Printf("ExecuteAggregation: Grouping by Date Histogram on field '%s' with interval '%s'", dh.Field, dh.Interval)
+
+        groups := make(map[string][]map[string]interface{})
+        
+        // Define the Go time format based on the requested interval
+        var format string
+        switch strings.ToLower(dh.Interval) {
+        case "minute":
+            format = "2006-01-02T15:04" // Year-Month-DayTHour:Minute
+        case "hour":
+            format = "2006-01-02T15"    // Year-Month-DayTHour
+        case "day":
+            format = "2006-01-02"       // Year-Month-Day
+        case "month":
+            format = "2006-01"          // Year-Month
+        case "year":
+            format = "2006"             // Year
+        default:
+            log.Printf("ExecuteAggregation: Invalid date histogram interval '%s'.", dh.Interval)
+            return []Bucket{}
+        }
+
+        for _, doc := range docs {
+            valStr, exists := resolveDotNotation(doc, dh.Field)
+            if !exists {
+                continue
+            }
+            
+            t, err := tryParseDate(valStr) 
+            if err != nil {
+                continue 
+            }
+            
+            // Format the time to the chosen precision to create the bucket key
+            key := t.Format(format)
+            groups[key] = append(groups[key], doc)
+        }
+        
+        // Convert map to buckets
+        buckets := make([]Bucket, 0, len(groups))
+        for key, groupDocs := range groups {
+            newBucket := processGroup(agg, key, groupDocs)
+            buckets = append(buckets, newBucket)
+        }
+        
+        // Sort buckets chronologically by key (the formatted date string)
+        sort.Slice(buckets, func(i, j int) bool {
+            return buckets[i].Key < buckets[j].Key
+        })
+        
+        return buckets
     }
 
-    return []Bucket{}
+    return []Bucket{} 
 }
 
 // processGroup handles metric calculation and recursion for a single group of documents.
@@ -1237,16 +1366,35 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
         newBucket.Metrics = CalculateMetrics(groupDocs, agg.Metrics)
     }
 
+    // NEW: Handle Top Hits
+    if agg.TopHits != nil && agg.TopHits.Size > 0 {
+        hitsDocs := groupDocs // Start with all documents in the group
+        
+        // 1. Apply Top Hits Sorting
+        if len(agg.TopHits.Sort) > 0 {
+            // NOTE: We must clone hitsDocs before sorting if we need the original order for other ops,
+            // but for aggregation context, mutating the slice is acceptable since we only use it here.
+            ApplySort(hitsDocs, agg.TopHits.Sort)
+        }
+        
+        // 2. Apply Top Hits Paging (Limit/Size)
+        // Use ApplyPaging logic: offset=0, limit=TopHits.Size
+        hitsDocs = ApplyPaging(hitsDocs, agg.TopHits.Size, 0) 
+        
+        // 3. Apply Top Hits Projection
+        if len(agg.TopHits.Source) > 0 {
+            hitsDocs = ProjectFields(hitsDocs, agg.TopHits.Source)
+        }
+        
+        newBucket.TopHits = hitsDocs
+    }
+
     // 3. Handle Nested Aggregations
     if agg.Aggs != nil {
         newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
     }
     return newBucket
 }
-
-// NOTE: GetIndexById is not implemented here. It is assumed to be in another file (e.g., repo/index.go)
-// and handles fetching the index config JSON from GitHub.
-
 
 // ----------------------------------------------------
 // GitHub Index Configuration Retrieval (UNCHANGED)

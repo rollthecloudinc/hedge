@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
+	"unicode"
+	"text/template"
 	"encoding/json"
 	"encoding/base64"
 	"sort" // REQUIRED for Median, Percentile, Min/Max, and general result sorting
@@ -83,6 +86,7 @@ type Match struct {
 	Value     string     `json:"value,omitempty"`
 	SubQuery  *Query     `json:"subquery,omitempty"` // Full recursive Query object
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
+	Fuzziness *int       `json:"fuzziness,omitempty"` // NEW: Max edit distance for fuzzy matching
 }
 
 // NestedDoc defines a filter that must be applied to individual objects within a document array. (NEW)
@@ -102,6 +106,12 @@ type Missing struct {
     Field string `json:"field"`
 }
 
+// Template defines a condition where the document is matched if the execution
+// of the provided Go template code returns a "true" value. (NEW)
+type Template struct {
+    Code string `json:"code"` // The Go template string to execute (must resolve to "true")
+}
+
 // Case wraps one condition type (Term, Bool, Filter, Match, Range, GeoDistance).
 type Case struct {
 	Term        *Term        `json:"term,omitempty"`
@@ -113,6 +123,7 @@ type Case struct {
 	NestedDoc   *NestedDoc 	 `json:"nested,omitempty"` // NEW: Geospatial query
 	Missing     *Missing 	 `json:"missing,omitempty"`
 	Exists      *Exists 	 `json:"exists,omitempty"`
+	Template    *Template    `json:"template,omitempty"`   // NEW: Template-based condition
 }
 
 // Bool implements the recursive AND/OR/NOT logic.
@@ -583,6 +594,80 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
 	return false
 }
 
+
+// EvaluateMatch handles the logic for the Match condition, supporting fuzzy search
+// via Levenshtein distance or standard text-based operations.
+func EvaluateMatch(data map[string]interface{}, m *Match) bool {
+    // 1. Resolve the target value from the document
+    targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
+    if !exists || targetValueRaw == nil {
+        return false
+    }
+    
+    // Ensure the document value is a clean string
+    documentText := fmt.Sprintf("%v", targetValueRaw)
+    conditionValue := m.Value
+
+    // 2. Check for Fuzziness (Highest Priority)
+    if m.Fuzziness != nil {
+        maxDistance := *m.Fuzziness
+        
+        // Tokenize the document text. We split by any character that is not a letter or number.
+        tokens := strings.FieldsFunc(documentText, func(r rune) bool {
+            return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+        })
+
+        // Iterate through each token and check distance
+        for _, token := range tokens {
+            if token == "" {
+                continue // Skip empty tokens
+            }
+            
+            // Perform distance check against the lowercased token and condition value
+            distance := LevenshteinDistance(strings.ToLower(token), strings.ToLower(conditionValue))
+
+            if distance <= maxDistance {
+                log.Printf("EvaluateMatch: Fuzzy MATCH! Token: '%s', Condition: '%s', Dist: %d", token, conditionValue, distance)
+                return true // Match found for this document!
+            }
+        }
+        
+        // No fuzzy match found
+        return false 
+    }
+
+    // 3. Fallback to Modifier Operations (Standard Text Search)
+    
+    // Lowercase both values for case-insensitive comparison
+    targetValue := strings.ToLower(documentText)
+    conditionValueLower := strings.ToLower(conditionValue)
+
+    // Determine the operation. Default to Contains (0) if modifiers are missing.
+    op := Contains // Assuming Contains is defined as 0
+    if m.Modifiers != nil {
+        op = m.Modifiers.Operation
+    }
+
+    switch op {
+    case Contains: 
+        return strings.Contains(targetValue, conditionValueLower)
+        
+    case StartsWith: 
+        return strings.HasPrefix(targetValue, conditionValueLower)
+        
+    case EndsWith: 
+        return strings.HasSuffix(targetValue, conditionValueLower)
+        
+    case Equal: 
+        // Strict case-insensitive equality
+        return targetValue == conditionValueLower
+        
+    default:
+        // Fallback to Contains for any unrecognized operation
+        return strings.Contains(targetValue, conditionValueLower)
+    }
+}
+
 // EvaluateRange performs range checks (numeric or date).
 func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
 	targetValue, exists := resolveDotNotation(data, field)
@@ -644,6 +729,66 @@ func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
 
 	log.Printf("EvaluateRange: Numeric match for field '%s'.", field)
 	return true
+}
+
+// EvaluateTemplate executes a Go template against the document data.
+// It matches if the executed template output is a "truthy" string (e.g., "true", "1", non-empty).
+// For simplicity, we require the template to render the exact string "true" to pass.
+// search/package.go (Evaluation Logic)
+
+// ... (Requires import "strconv" at the top of the file)
+
+// search/package.go (Evaluation Logic)
+
+// EvaluateTemplate executes a Go template against the document data.
+// It matches if the executed template output is the exact string "true".
+func EvaluateTemplate(data map[string]interface{}, tmpl *Template) bool {
+    
+    // The user's input (tmpl.Code) should now contain the full, explicit 
+    // Go template string, including all necessary {{ }} wrappers.
+    templateCode := tmpl.Code
+
+    // 1. Parse the template (No function map registration)
+    t, err := template.New("condition").Parse(templateCode) 
+    
+    if err != nil {
+        log.Printf("EvaluateTemplate: Failed to parse template code: %v", err)
+        return false
+    }
+
+    // 2. Execute the template against the document data
+    var buf bytes.Buffer
+    // Pass the document map as the root object '.'
+    if err := t.Execute(&buf, data); err != nil {
+        // If execution fails (e.g., field access error), treat as non-match.
+        log.Printf("EvaluateTemplate: Failed to execute template: %v", err)
+        return false
+    }
+
+    // 3. Check the output for a truthy value
+    output := strings.TrimSpace(buf.String())
+
+    // --- FIX: Robust Output Cleaning ---
+    
+    // 1. Attempt to decode the escaped string.
+    if unquotedOutput, err := strconv.Unquote(output); err == nil {
+        output = unquotedOutput
+    }
+    
+    // 2. Fallback: If unquote failed, or if the string still contains artifacts, 
+    //    manually remove common artifacts (backslashes and quotes).
+    output = strings.ReplaceAll(output, `\`, "")
+    output = strings.ReplaceAll(output, `"`, "")
+    
+    // 3. Re-trim whitespace just in case
+    output = strings.TrimSpace(output)
+    // --- END FIX ---
+    
+    // Define "truthy" output: Must be an exact match for the clean string "true".
+    isTrue := strings.EqualFold(output, "true")
+
+    log.Printf("EvaluateTemplate: Template executed. Output: '%s'. Matched: %t", output, isTrue)
+    return isTrue
 }
 
 func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
@@ -732,7 +877,17 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
         return !exists || val == nil
     }
 
-	// G) Extract Condition and default Operation (for Term/Filter/Match)
+    // G) Handle Template logic (NEW)
+    if c.Template != nil {
+        return EvaluateTemplate(data, c.Template)
+    }
+
+    // H) Handle Match logic (UPDATED)
+    if c.Match != nil {
+        return EvaluateMatch(data, c.Match) // <-- Call the new specific function
+    }
+
+	// I) Extract Condition and default Operation (for Term/Filter/Match)
 	var condition Condition
 	var defaultOp Operation = Equal
 
@@ -1479,6 +1634,62 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
         newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
     }
     return newBucket
+}
+
+// search/package.go (Helper Functions)
+
+// LevenshteinDistance calculates the Damerau-Levenshtein distance between two strings.
+func LevenshteinDistance(s1, s2 string) int {
+    r1 := []rune(s1)
+    r2 := []rune(s2)
+    n := len(r1)
+    m := len(r2)
+
+    if n == 0 { return m }
+    if m == 0 { return n }
+
+    // Initialize (n+1) x (m+1) matrix
+    d := make([][]int, n+1)
+    for i := range d {
+        d[i] = make([]int, m+1)
+        d[i][0] = i
+    }
+    for j := 1; j <= m; j++ {
+        d[0][j] = j
+    }
+
+    // Fill the distance matrix
+    for i := 1; i <= n; i++ {
+        for j := 1; j <= m; j++ {
+            cost := 1
+            if r1[i-1] == r2[j-1] {
+                cost = 0 // Characters match
+            }
+
+            // Standard Levenshtein calculation
+            d[i][j] = min3(
+                d[i-1][j]+1,      // Deletion
+                d[i][j-1]+1,      // Insertion
+                d[i-1][j-1]+cost, // Substitution
+            )
+
+            // Damerau (Adjacent Transposition) calculation
+            if i > 1 && j > 1 && r1[i-1] == r2[j-2] && r1[i-2] == r2[j-1] {
+                // Transposition cost
+                d[i][j] = min(d[i][j], d[i-2][j-2]+1)
+            }
+        }
+    }
+    return d[n][m]
+}
+
+// Helper for min3 function (you may already have this)
+func min(a, b int) int {
+    if a < b { return a }
+    return b
+}
+func min3(a, b, c int) int {
+    return min(min(a, b), c)
 }
 
 // ----------------------------------------------------

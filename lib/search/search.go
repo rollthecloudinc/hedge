@@ -10,6 +10,7 @@ import (
 	"time"
 	"encoding/json"
 	"encoding/base64"
+	"sort" // REQUIRED for Median and Min/Max calculations
 	"github.com/google/go-github/v46/github"
 )
 
@@ -42,21 +43,21 @@ type Modifiers struct {
 type Term struct {
 	Field     string     `json:"field"`
 	Value     string     `json:"value,omitempty"`
-	SubQuery  *Query     `json:"subquery,omitempty"` // NEW: Full recursive Query object
+	SubQuery  *Query     `json:"subquery,omitempty"` // Full recursive Query object
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
 }
 
 type Filter struct {
 	Field     string     `json:"field"`
 	Value     string     `json:"value,omitempty"`
-	SubQuery  *Query     `json:"subquery,omitempty"` // NEW: Full recursive Query object
+	SubQuery  *Query     `json:"subquery,omitempty"` // Full recursive Query object
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
 }
 
 type Match struct {
 	Field     string     `json:"field"`
 	Value     string     `json:"value,omitempty"`
-	SubQuery  *Query     `json:"subquery,omitempty"` // NEW: Full recursive Query object
+	SubQuery  *Query     `json:"subquery,omitempty"` // Full recursive Query object
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
 }
 
@@ -76,13 +77,33 @@ type Bool struct {
 	Not  []Case `json:"not,omitempty"`  // Negation of the first element
 }
 
+// MetricRequest defines a single metric calculation type to perform across multiple fields.
+type MetricRequest struct {
+    Type    string            `json:"type"`  // e.g., "sum", "avg", "median", "mode", "min", "max"
+    // A map where Key=Source Field (e.g., "total_price"), Value=Result Name (e.g., "total_sales")
+    Fields map[string]string `json:"fields"` 
+}
+
+// Aggregation holds metrics and nested grouping logic.
+type Aggregation struct {
+    Name    string             `json:"name"` // Human-readable name for this group level
+    // GroupBy is a slice to support sequential multi-field grouping at this level
+    GroupBy []string           `json:"groupBy"` 
+    // Metrics is a slice of requests, supporting multiple types and fields
+    Metrics []MetricRequest  `json:"metrics,omitempty"`
+    
+    // Recursive definition for the next level of aggregation
+    Aggs    *Aggregation       `json:"aggs,omitempty"` 
+}
+
 // Query defines a standard single search, which can now be used recursively.
 type Query struct {
 	Bool      Bool                   `json:"bool"`
 	Index     string                 `json:"index"`
-	// Composite map defines key values for partitioning (e.g., "user_id": "12345")
-	Composite map[string]interface{} `json:"composite"` 
-    ResultField string                 `json:"resultField,omitempty"` // NEW: Field to select/return from this query (used for subqueries)
+	Composite map[string]interface{} `json:"composite,omitempty"`
+	ResultField string                 `json:"resultField,omitempty"` // Field to select/return from this query (used for subqueries)
+	
+	Aggs      *Aggregation           `json:"aggs,omitempty"` // Top-level aggregation definition
 }
 
 // UnionQuery combines the results of multiple standard Queries.
@@ -91,21 +112,20 @@ type UnionQuery struct {
 }
 
 // TopLevelQuery wraps either a single Query or a UnionQuery.
-// This is the structure the main handler unmarshals the request body into.
 type TopLevelQuery struct {
 	Query *Query      `json:"query,omitempty"`
 	Union *UnionQuery `json:"union,omitempty"`
 }
 
 // ----------------------------------------------------
-// Condition Interface and Implementations (Updated for SubQuery)
+// Condition Interface and Implementations
 // ----------------------------------------------------
 
 // Condition is an interface that all simple condition structs must satisfy.
 type Condition interface {
 	GetField() string
 	GetValue() string
-	GetSubQuery() *Query      // NEW: Retrieve the recursive Query
+	GetSubQuery() *Query
 	GetModifiers() *Modifiers
 }
 
@@ -125,13 +145,33 @@ func (m Match) GetSubQuery() *Query      { return m.SubQuery }
 func (m Match) GetModifiers() *Modifiers { return m.Modifiers }
 
 // ----------------------------------------------------
+// Aggregation Result Structures
+// ----------------------------------------------------
+
+// Bucket represents a single group result.
+type Bucket struct {
+    Key     string                 `json:"key"`     
+    Count   int                    `json:"count"`   
+    Metrics map[string]interface{} `json:"metrics,omitempty"` 
+    
+    // Nested buckets for the next level of grouping
+    Buckets []Bucket               `json:"buckets,omitempty"` 
+}
+
+// AggregationResult wraps the top-level buckets.
+type AggregationResult struct {
+    Name    string   `json:"name"`
+    Buckets []Bucket `json:"buckets"`
+}
+
+// ----------------------------------------------------
 // Helper Functions (Dot Notation, Date Parsing)
 // ----------------------------------------------------
 
 // resolveDotNotation safely traverses a nested map[string]interface{} using a dot-separated path (e.g., "user.name").
 func resolveDotNotation(data map[string]interface{}, path string) (string, bool) {
     if data == nil {
-		log.Print("resolveDotNotation: Data is nil.")
+		// Log removed here as it can be very noisy in recursion
         return "", false
     }
 
@@ -141,7 +181,6 @@ func resolveDotNotation(data map[string]interface{}, path string) (string, bool)
 	for i, part := range parts {
 		val, ok := current[part]
 		if !ok {
-			log.Printf("resolveDotNotation: Path segment '%s' not found.", part)
 			return "", false
 		}
 
@@ -157,13 +196,11 @@ func resolveDotNotation(data map[string]interface{}, path string) (string, bool)
 			case bool:
 				return strconv.FormatBool(v), true
 			default:
-				log.Printf("resolveDotNotation: Final value type unsupported for comparison: %T", v)
 				return "", false
 			}
 		} else {
 			nextMap, ok := val.(map[string]interface{})
 			if !ok {
-				log.Printf("resolveDotNotation: Intermediate segment '%s' is not a map.", part)
 				return "", false
 			}
 			current = nextMap
@@ -197,6 +234,7 @@ func tryParseDate(value string) (time.Time, error) {
 
 // EvaluateBool performs the actual comparison logic (date, string, numeric, set).
 func EvaluateBool(c Condition, targetValue string, op Operation) bool {
+    // ... (logic remains unchanged) ...
     conditionValue := c.GetValue()
 
     // 1. Date/Time Comparison Attempt
@@ -206,9 +244,7 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
     isDateOperation := errTT == nil && errCT == nil
 
     if isDateOperation {
-        log.Printf("EvaluateBool: Performing date comparison for op %v.", op)
         switch op {
-        // ... (Date comparison logic remains the same) ...
         case Equal:
             return targetTime.Equal(conditionTime)
         case NotEqual:
@@ -244,7 +280,6 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
         conditionFloat, errC := strconv.ParseFloat(conditionValue, 64)
 
         if errT == nil && errC == nil {
-            log.Printf("EvaluateBool: Performing numeric comparison for op %v.", op)
             switch op {
             case GreaterThan:
                 return targetFloat > conditionFloat
@@ -256,14 +291,12 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
                 return targetFloat <= conditionFloat
             }
         } else {
-            log.Printf("EvaluateBool: Failed to parse values as numbers (%s vs %s).", targetValue, conditionValue)
             return false 
         }
     }
 
-    // 4. Set Operations (In/NotIn) - for string values only (when no SubQuery is used)
+    // 4. Set Operations (In/NotIn)
     if op == In || op == NotIn {
-        log.Printf("EvaluateBool: Performing simple string set operation.")
         validValues := strings.Split(conditionValue, ",")
         valueSet := make(map[string]struct{})
         for _, v := range validValues {
@@ -283,10 +316,9 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
     return false
 }
 
-// Bool.Evaluate recursively processes the nested Bool structure.
-// It requires context (ctx, client) and index details (indexInput) for potential subqueries.
+// Bool.Evaluate and Case.Evaluate logic remains unchanged
+
 func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
-	
 	// 1. ALL (AND logic)
 	if len(b.All) > 0 {
 		for _, c := range b.All {
@@ -319,7 +351,6 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 
 	// 4. NOT (Negation logic)
 	if len(b.Not) > 0 {
-		// Only evaluate the first element for NOT
 		if len(b.Not) > 1 {
             log.Print("Bool.Evaluate: Warning, 'not' array has more than one element; only the first is evaluated.")
         }
@@ -329,7 +360,6 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 	return true // Empty Bool matches
 }
 
-// Case.Evaluate processes a single Case, handling recursive Bool calls and subquery execution.
 func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
 	// A) Handle nested Boolean logic
 	if c.Bool != nil {
@@ -359,10 +389,8 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		subQuery := condition.GetSubQuery()
         
         localCheckField := condition.GetField() 
-        
-        // Determine the field to select from the subquery results.
-        // It MUST be specified in the subquery's ResultField.
         resultField := subQuery.ResultField
+        
         if resultField == "" {
             log.Printf("Case.Evaluate: Subquery must specify 'resultField' for IN/NOT IN operation.")
             return false
@@ -370,27 +398,23 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		
         log.Printf("Case.Evaluate: Executing recursive subquery. Target index: %s, Result field: %s", subQuery.Index, resultField)
         
-		// Execute the full recursive subquery search
 		subResultData, err := ExecuteSubQuery(ctx, client, indexInput, subQuery, resultField)
 		if err != nil {
 			log.Printf("Case.Evaluate: Error executing subquery: %v", err)
 			return false 
 		}
 		
-		// Convert results to a lookup set
 		subResultSet := make(map[string]struct{})
 		for _, val := range subResultData {
 			subResultSet[val] = struct{}{}
 		}
 
-		// Get the local document's field value to check against the set
 		localValue, exists := resolveDotNotation(data, localCheckField)
 		if !exists { 
             log.Printf("Case.Evaluate: Local check field '%s' not found in document.", localCheckField)
             return false 
         }
 		
-		// Perform the final check (IN or NOT IN)
 		_, localValueIsInSet := subResultSet[localValue]
 
 		if defaultOp == In {
@@ -403,15 +427,167 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
     
 	// --- 2. Standard Value Evaluation (Dot notation) ---
     
-	// Get the field value from the current document using dot notation
 	targetValue, exists := resolveDotNotation(data, condition.GetField())
 	if !exists {
-        log.Printf("Case.Evaluate: Standard target field '%s' not found in document.", condition.GetField())
 		return false
 	}
 
-	// Perform the comparison using the determined value and operation
 	return EvaluateBool(condition, targetValue, defaultOp)
+}
+
+// ----------------------------------------------------
+// Metric Calculation Functions (New/Updated)
+// ----------------------------------------------------
+
+// extractNumericValues attempts to extract and convert a list of field values to float64.
+func extractNumericValues(docs []map[string]interface{}, field string) []float64 {
+    values := make([]float64, 0, len(docs))
+    for _, doc := range docs {
+        valStr, exists := resolveDotNotation(doc, field)
+        if !exists {
+            continue
+        }
+        if floatVal, err := strconv.ParseFloat(valStr, 64); err == nil {
+            values = append(values, floatVal)
+        } else {
+            // Log warning about unparseable values
+            log.Printf("CalculateMetrics: Could not parse value '%s' in field '%s' as float.", valStr, field)
+        }
+    }
+    return values
+}
+
+// calculateSum calculates the sum of all numeric values for a field in the group.
+func calculateSum(docs []map[string]interface{}, field string) float64 {
+    values := extractNumericValues(docs, field)
+    var sum float64
+    for _, v := range values {
+        sum += v
+    }
+    return sum
+}
+
+// calculateAvg calculates the average (mean) of all numeric values for a field.
+func calculateAvg(docs []map[string]interface{}, field string) float64 {
+    values := extractNumericValues(docs, field)
+    if len(values) == 0 {
+        return 0.0
+    }
+    return calculateSum(docs, field) / float64(len(values))
+}
+
+// calculateMedian calculates the median of all numeric values for a field.
+func calculateMedian(docs []map[string]interface{}, field string) float64 {
+    values := extractNumericValues(docs, field)
+    if len(values) == 0 {
+        return 0.0
+    }
+    
+    // Sort the slice 
+    sort.Float64s(values) 
+    n := len(values)
+    
+    if n%2 == 1 {
+        // Odd number of elements
+        return values[n/2]
+    }
+    // Even number of elements
+    return (values[n/2-1] + values[n/2]) / 2.0
+}
+
+// calculateMode finds the most frequently occurring string value (Mode).
+func calculateMode(docs []map[string]interface{}, field string) string {
+    counts := make(map[string]int)
+    for _, doc := range docs {
+        valStr, exists := resolveDotNotation(doc, field)
+        if exists {
+            counts[valStr]++
+        }
+    }
+    
+    var mode string
+    maxCount := -1
+    
+    for val, count := range counts {
+        if count > maxCount {
+            maxCount = count
+            mode = val
+        }
+    }
+    return mode 
+}
+
+// calculateMin finds the minimum numeric value for a field.
+func calculateMin(docs []map[string]interface{}, field string) float64 {
+    values := extractNumericValues(docs, field)
+    if len(values) == 0 {
+        return 0.0 // Return 0.0 or a very large number if appropriate
+    }
+    
+    minVal := values[0]
+    for _, v := range values {
+        if v < minVal {
+            minVal = v
+        }
+    }
+    return minVal
+}
+
+// calculateMax finds the maximum numeric value for a field.
+func calculateMax(docs []map[string]interface{}, field string) float64 {
+    values := extractNumericValues(docs, field)
+    if len(values) == 0 {
+        return 0.0 // Return 0.0 or a very small number if appropriate
+    }
+    
+    maxVal := values[0]
+    for _, v := range values {
+        if v > maxVal {
+            maxVal = v
+        }
+    }
+    return maxVal
+}
+
+// CalculateMetrics iterates through the Aggregation's requested metrics and computes them.
+func CalculateMetrics(groupDocs []map[string]interface{}, metrics []MetricRequest) map[string]interface{} {
+    results := make(map[string]interface{})
+
+    for _, req := range metrics {
+        calcType := strings.ToLower(req.Type)
+        
+        if len(req.Fields) == 0 {
+            continue
+        }
+
+        for sourceField, resultName := range req.Fields {
+            if resultName == "" {
+                continue
+            }
+            
+            var calculatedValue interface{}
+            
+            switch calcType {
+            case "sum":
+                calculatedValue = calculateSum(groupDocs, sourceField)
+            case "avg", "mean": // Added "mean" as an alias for "avg"
+                calculatedValue = calculateAvg(groupDocs, sourceField)
+            case "median":
+                calculatedValue = calculateMedian(groupDocs, sourceField)
+            case "mode":
+                calculatedValue = calculateMode(groupDocs, sourceField)
+            case "min":
+                calculatedValue = calculateMin(groupDocs, sourceField)
+            case "max":
+                calculatedValue = calculateMax(groupDocs, sourceField)
+            default:
+                log.Printf("CalculateMetrics: Unknown metric type '%s'. Skipping field '%s'.", req.Type, sourceField)
+                continue
+            }
+            results[resultName] = calculatedValue
+        }
+    }
+    return results
 }
 
 // ----------------------------------------------------
@@ -419,7 +595,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 // ----------------------------------------------------
 
 // ExecuteSubQuery fetches a list of values (e.g., IDs) by executing a full, nested search.
-// This is the core function for recursive subquery execution.
+// ... (logic remains unchanged) ...
 func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetIndexConfigurationInput, subQuery *Query, resultField string) ([]string, error) {
     
     log.Printf("ExecuteSubQuery: Starting recursive search for index '%s' and composite keys: %+v", subQuery.Index, subQuery.Composite)
@@ -442,7 +618,6 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
     
     contentPath := ""
     if len(subQuery.Composite) > 0 {
-        // Build the path using composite keys provided in the subquery
         for idx, f := range fields {
             fStr := f.(string)
             compositeVal, found := subQuery.Composite[fStr]
@@ -455,7 +630,6 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
         }
         log.Printf("ExecuteSubQuery: Using composite path: %s", contentPath)
     } else {
-        // Fall back to searchRootPath if no composite keys are provided
         searchRootPath, ok := subIndexObject["searchRootPath"].(string)
         if ok {
             contentPath = searchRootPath
@@ -473,7 +647,7 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
     )
     if err != nil || dirContents == nil {
         log.Printf("ExecuteSubQuery: Failed to fetch contents from path '%s': %v", contentPath, err)
-        return nil, nil // Return empty results rather than an error if path is just missing
+        return nil, nil
     }
 
     // 4. Filter contents using the subQuery's Bool logic and extract the target field
@@ -487,11 +661,9 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
         var itemData map[string]interface{}
         if json.Unmarshal([]byte(itemBody), &itemData) == nil {
             
-            // Execute the subQuery's BOOL evaluation recursively
             match := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput)
             
             if match {
-                // Extract the value of the target field (resultField) from the matching document
                 if val, exists := resolveDotNotation(itemData, resultField); exists {
                     results = append(results, val)
                 }
@@ -501,6 +673,75 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
     log.Printf("ExecuteSubQuery: Completed. Found %d matching results to return.", len(results))
     return results, nil
 }
+
+
+// ----------------------------------------------------
+// Recursive Aggregation Logic
+// ----------------------------------------------------
+
+// ExecuteAggregation recursively groups and calculates metrics on a list of documents.
+func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucket {
+    if agg == nil || len(agg.GroupBy) == 0 {
+        log.Print("ExecuteAggregation: Aggregation is nil or GroupBy field list is empty, terminating recursion.")
+        return nil
+    }
+
+    // This map holds the aggregated groups at the *current* level.
+    groups := make(map[string][]map[string]interface{})
+    groups[""] = docs // Start with all documents in a single initial group
+    
+    finalGroupedBuckets := make(map[string][]map[string]interface{})
+
+    // 1. Process Sequential Grouping (Field1, then Field2, etc.)
+    for fieldIndex, field := range agg.GroupBy {
+        newGroups := make(map[string][]map[string]interface{})
+        log.Printf("ExecuteAggregation: Grouping field %d/%d by '%s'.", fieldIndex+1, len(agg.GroupBy), field)
+
+        for compositeKey, groupDocs := range groups {
+            for _, doc := range groupDocs {
+                
+                keyVal, exists := resolveDotNotation(doc, field)
+                if !exists {
+                    keyVal = "_missing_" 
+                }
+                
+                newKey := keyVal
+                if compositeKey != "" {
+                    newKey = compositeKey + ":" + keyVal
+                }
+                
+                newGroups[newKey] = append(newGroups[newKey], doc)
+            }
+        }
+        groups = newGroups 
+        finalGroupedBuckets = newGroups 
+    }
+
+    // 2. Build Buckets from the final grouping map
+    buckets := make([]Bucket, 0, len(finalGroupedBuckets))
+    for compositeKey, groupDocs := range finalGroupedBuckets {
+        
+        // --- 3. Metric Calculation ---
+        metricResults := CalculateMetrics(groupDocs, agg.Metrics)
+
+        bucket := Bucket{
+            Key:     compositeKey, 
+            Count:   len(groupDocs),
+            Metrics: metricResults, 
+        }
+        
+        // 4. Recurse for nested aggregations
+        if agg.Aggs != nil {
+            log.Printf("ExecuteAggregation: Found nested aggregation '%s' under composite key '%s'. Recursing...", agg.Aggs.Name, compositeKey)
+            bucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
+        }
+
+        buckets = append(buckets, bucket)
+    }
+
+    return buckets
+}
+
 
 // ----------------------------------------------------
 // GitHub Index Configuration Retrieval

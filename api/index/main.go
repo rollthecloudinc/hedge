@@ -1,32 +1,32 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"strings"
-	"encoding/base64"
-	"encoding/json"
-	"goclassifieds/lib/repo" // Assuming this package provides GetInstallationTokenInput/GetInstallationToken
-	"goclassifieds/lib/search" // Contains Query, TopLevelQuery, Bool, ExecuteSubQuery, etc.
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/google/go-github/v46/github"
-	"golang.org/x/oauth2"
+    "context"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "strings"
+    "encoding/base64"
+    "encoding/json"
+    "goclassifieds/lib/repo" // Assuming this package provides GetInstallationTokenInput/GetInstallationToken
+    "goclassifieds/lib/search" // Contains Query, TopLevelQuery, Bool, ExecuteSubQuery, AggregationResult, etc.
+    "github.com/aws/aws-lambda-go/events"
+    "github.com/aws/aws-lambda-go/lambda"
+    "github.com/google/go-github/v46/github"
+    "golang.org/x/oauth2"
 )
 
 // handler is the entry point for the AWS Lambda function, managing all search and retrieval logic.
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
-	owner := request.PathParameters["owner"]
-	repoName := request.PathParameters["repo"]
-	branch := "dev"
+    owner := request.PathParameters["owner"]
+    repoName := request.PathParameters["repo"]
+    branch := "dev"
     
     // --- 1. Determine Search Mode & Unmarshal Union/Single Query ---
-	isSearchRequest := request.HTTPMethod == "POST"
-	if !isSearchRequest {
+    isSearchRequest := request.HTTPMethod == "POST"
+    if !isSearchRequest {
         log.Print("Handler received non-POST request; complex queries require POST.")
         return events.APIGatewayProxyResponse{
             StatusCode: http.StatusMethodNotAllowed,
@@ -61,8 +61,15 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         }, nil
     }
     
+    // Determine if aggregation is requested. We use the Aggs structure from the first query.
+    var aggregationRequest *search.Aggregation
+    if len(queriesToExecute) > 0 && queriesToExecute[0].Aggs != nil {
+        aggregationRequest = queriesToExecute[0].Aggs
+        log.Printf("Aggregation requested: %s", aggregationRequest.Name)
+    }
+
     // --- 2. Setup GitHub Client and Token (Only once) ---
-	githubAppID := os.Getenv("GITHUB_APP_ID")
+    githubAppID := os.Getenv("GITHUB_APP_ID")
     if githubAppID == "" {
         log.Print("environment variable GITHUB_APP_ID is missing")
         return events.APIGatewayProxyResponse{
@@ -71,40 +78,42 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         }, nil
     }
 
-	// NOTE: Reading PEM file is sensitive and assumes a secure execution environment.
-	pemFilePath := fmt.Sprintf("rtc-vertigo-%s.private-key.pem", os.Getenv("STAGE"))
-	pem, err := os.ReadFile(pemFilePath)
-	if err != nil {
-		log.Printf("Failed to read PEM file '%s': %v", pemFilePath, err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
-			Body:       "failed to load GitHub app PEM file",
-		}, nil
-	}
+    // NOTE: Reading PEM file is sensitive and assumes a secure execution environment.
+    pemFilePath := fmt.Sprintf("rtc-vertigo-%s.private-key.pem", os.Getenv("STAGE"))
+    pem, err := os.ReadFile(pemFilePath)
+    if err != nil {
+        log.Printf("Failed to read PEM file '%s': %v", pemFilePath, err)
+        return events.APIGatewayProxyResponse{
+            StatusCode: http.StatusInternalServerError,
+            Body:       "failed to load GitHub app PEM file",
+        }, nil
+    }
 
-	// Get installation token
-	getTokenInput := &repo.GetInstallationTokenInput{
-		GithubAppPem: pem,
-		Owner:        owner,
-		GithubAppId:  githubAppID,
-	}
-	installationToken, err := repo.GetInstallationToken(getTokenInput)
-	if err != nil {
-		log.Printf("Error generating GitHub installation token for owner '%s': %v", owner, err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
-			Body:       "Error generating GitHub installation token for owner",
-		}, nil
-	}
+    // Get installation token
+    getTokenInput := &repo.GetInstallationTokenInput{
+        GithubAppPem: pem,
+        Owner:        owner,
+        GithubAppId:  githubAppID,
+    }
+    installationToken, err := repo.GetInstallationToken(getTokenInput)
+    if err != nil {
+        log.Printf("Error generating GitHub installation token for owner '%s': %v", owner, err)
+        return events.APIGatewayProxyResponse{
+            StatusCode: http.StatusInternalServerError,
+            Body:       "Error generating GitHub installation token for owner",
+        }, nil
+    }
 
-	// Create authenticated GitHub client
-	srcToken := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: *installationToken.Token})
-	httpClient := oauth2.NewClient(ctx, srcToken)
-	githubRestClient := github.NewClient(httpClient)
+    // Create authenticated GitHub client
+    srcToken := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: *installationToken.Token})
+    httpClient := oauth2.NewClient(ctx, srcToken)
+    githubRestClient := github.NewClient(httpClient)
 
     // --- 3. Main Execution Loop for Union Queries ---
     
     finalResults := make([]string, 0)
+    // NEW: Slice to hold all matching documents (map[string]interface{}) for aggregation
+    allDocuments := make([]map[string]interface{}, 0) 
     
     // Loop through each query defined in the Union
     for i, currentQuery := range queriesToExecute {
@@ -203,26 +212,65 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
             match := currentQuery.Bool.Evaluate(itemData, ctx, githubRestClient, getIndexInput) 
             
             if match {
-                currentQueryResults = append(currentQueryResults, itemBody)
+                if aggregationRequest != nil {
+                    // NEW: Store the document map for aggregation
+                    allDocuments = append(allDocuments, itemData)
+                } else {
+                    // Existing: Store the raw JSON string
+                    currentQueryResults = append(currentQueryResults, itemBody)
+                }
             }
         }
         
-        // Combine results from the current query (UNION ALL behavior)
-        finalResults = append(finalResults, currentQueryResults...)
-        log.Printf("Query %d finished. Returned %d results.", i+1, len(currentQueryResults))
+        // Combine results only if NOT aggregating (Aggregation will use allDocuments later)
+        if aggregationRequest == nil {
+            finalResults = append(finalResults, currentQueryResults...)
+        }
+        log.Printf("Query %d finished. Returned %d intermediate results.", i+1, len(currentQueryResults))
     }
 
-    // --- 4. Final Response ---
+    // --- 4. Final Response (Aggregation vs. Standard) ---
     
-    log.Printf("--- UNION COMPLETED. Total results: %d ---", len(finalResults))
-    return events.APIGatewayProxyResponse{
-        StatusCode: http.StatusOK,
-        // Join the combined results with commas and wrap in brackets
-        Body:       fmt.Sprintf("[%s]", strings.Join(finalResults, ",")),
-    }, nil
+    if aggregationRequest != nil {
+        log.Printf("--- AGGREGATION COMPLETED. Processing %d total documents. ---", len(allDocuments))
+
+        // Execute the recursive aggregation function on the combined document set
+        resultsBuckets := search.ExecuteAggregation(allDocuments, aggregationRequest)
+        
+        aggResult := search.AggregationResult{
+            Name:    aggregationRequest.Name,
+            Buckets: resultsBuckets,
+        }
+
+        responseBody, err := json.Marshal(aggResult)
+        if err != nil {
+            log.Printf("Error marshaling aggregation result: %v", err)
+            return events.APIGatewayProxyResponse{
+                StatusCode: http.StatusInternalServerError,
+                Body:       "Error generating aggregation response.",
+            }, nil
+        }
+        
+        return events.APIGatewayProxyResponse{
+            StatusCode: http.StatusOK,
+            Headers:    map[string]string{"Content-Type": "application/json"},
+            Body:       string(responseBody),
+        }, nil
+
+    } else {
+        // Standard Search or Union Query: Return raw list of documents
+        log.Printf("--- UNION COMPLETED. Total results: %d ---", len(finalResults))
+        
+        return events.APIGatewayProxyResponse{
+            StatusCode: http.StatusOK,
+            Headers:    map[string]string{"Content-Type": "application/json"},
+            // Join the combined results with commas and wrap in brackets
+            Body:       fmt.Sprintf("[%s]", strings.Join(finalResults, ",")),
+        }, nil
+    }
 }
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile) // Maintain useful logging flags
-	lambda.Start(handler)
+    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile) // Maintain useful logging flags
+    lambda.Start(handler)
 }

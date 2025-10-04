@@ -833,7 +833,7 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
 		httpClient := oauth2.NewClient(context.Background(), srcToken)
 		githubRestClient = github.NewClient(httpClient)
 
-		emails, _, err := githubRestClient.Users.ListEmails(context.Background(), nil)
+		/*emails, _, err := githubRestClient.Users.ListEmails(context.Background(), nil)
     	if err != nil {
         	log.Print("Error retrieving user emails: ", err.Error())
     	} else {
@@ -841,7 +841,7 @@ func RequestActionContext(ac *ActionContext, req *events.APIGatewayProxyRequest)
         	for _, email := range emails {
             	log.Printf("User email: %s (primary: %t, verified: %t)", email.Email, email.Primary, email.Verified)
         	}
-		}
+		}*/
 
 	}
 

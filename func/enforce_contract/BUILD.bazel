@@ -15,5 +15,6 @@ esbuild(
     }),
     deps = [
         "@npm//ajv",
+        "@npm//ajv-formats",
     ],
 )

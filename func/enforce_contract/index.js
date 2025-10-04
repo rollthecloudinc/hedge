@@ -1,5 +1,8 @@
 const Ajv = require("ajv")
+const addFormats = require("ajv-formats")
+
 const ajv = new Ajv() // options can be passed, e.g. {allErrors: true}
+addFormats(ajv)
 
 module.exports.handler = function(event, context, callback) {
   console.log('hello world');

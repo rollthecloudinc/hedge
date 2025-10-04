@@ -6,6 +6,7 @@
     "@bazel/ibazel": "^0.15.10",
     "@bazel/typescript": "3.8.0",
     "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "cssjson": "^2.1.3",
     "libsodium-wrappers": "^0.7.10",
     "matcher": "^5.0.0",
@@ -14,6 +15,7 @@
     "serverless-prune-plugin": "^2.0.1"
   },
   "dependencies": {
+    "serverless": "^3.40.0",
     "serverless-step-functions": "^3.23.3"
   }
 }

@@ -40,6 +40,11 @@ func Analyze(text string) []string {
     // 5. Post-Stemming Cleanup (Short/Numeric tokens)
     tokens = filterShortAndNumericTokens(tokens)
 
+    // --- NEW STEP 6: N-GRAM GENERATION ---
+    // Generate bi-grams (2-grams) and tri-grams (3-grams) from the cleaned, stemmed tokens.
+    // We use minN=1 to keep the original tokens (unigrams) in the final list.
+    tokens = tokenNGramFilter(tokens, 1, 3) 
+
     return tokens
 }
 
@@ -237,4 +242,54 @@ func advancedRuleStem(word string) string {
     }
 
     return word
+}
+
+// tokenNGramFilter generates N-gram tokens (e.g., bi-grams and tri-grams)
+// from a list of base tokens. This is useful for phrase matching and context.
+func tokenNGramFilter(tokens []string, minN, maxN int) []string {
+    if len(tokens) == 0 {
+        return tokens
+    }
+
+    // Start with the original tokens (unigrams)
+    nGramTokens := make([]string, 0, len(tokens)*maxN)
+    if minN <= 1 {
+        nGramTokens = append(nGramTokens, tokens...)
+    }
+
+    // Generate N-grams from minN up to maxN
+    for n := minN; n <= maxN; n++ {
+        if n <= 1 {
+            continue // Skip unigrams if already added or if minN starts at 1
+        }
+        
+        // Ensure we have enough tokens to form an N-gram
+        if len(tokens) < n {
+            break 
+        }
+
+        // Iterate through the tokens to form the N-grams
+        for i := 0; i <= len(tokens)-n; i++ {
+            nGram := strings.Join(tokens[i:i+n], " ")
+            nGramTokens = append(nGramTokens, nGram)
+        }
+    }
+    
+    // We remove duplicates since "high quality" might appear multiple times 
+    // in a longer string like "very high quality item" and "high quality new".
+    // This simple deduplication is important before indexing.
+    return removeDuplicates(nGramTokens)
+}
+
+// removeDuplicates is a simple helper function to clean up the token list.
+func removeDuplicates(tokens []string) []string {
+    keys := make(map[string]bool)
+    list := []string{}
+    for _, entry := range tokens {
+        if _, value := keys[entry]; !value {
+            keys[entry] = true
+            list = append(list, entry)
+        }
+    }
+    return list
 }

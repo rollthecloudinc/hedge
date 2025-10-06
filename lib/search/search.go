@@ -87,6 +87,7 @@ type Match struct {
 	SubQuery  *Query     `json:"subquery,omitempty"` // Full recursive Query object
 	Modifiers *Modifiers `json:"modifiers,omitempty"`
 	Fuzziness *int       `json:"fuzziness,omitempty"` // NEW: Max edit distance for fuzzy matching
+	Boost	  *float64   `json:"boost,omitempty"`     // NEW: Relevance boost factor (default 1.0)
 }
 
 // NestedDoc defines a filter that must be applied to individual objects within a document array. (NEW)
@@ -408,7 +409,7 @@ func Haversine(lat1, lon1, lat2, lon2 float64) float64 {
 // It supports two formats for document coordinates:
 // 1. Nested Object (e.g., {"coordinates": {"lat": 42.0, "lon": -83.0}})
 // 2. Comma-separated String (e.g., {"location": "42.0,-83.0"})
-func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) bool {
+func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) (bool, float64) {
     var docLat, docLon float64
     var err error
 
@@ -416,7 +417,7 @@ func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) bool
     fieldValue, exists := resolveRawDotNotation(itemData, geo.Field)
     if !exists {
         log.Printf("GeoDistance: Field '%s' not found in document.", geo.Field)
-        return false
+        return false, 0.0
     }
 
     // --- CASE 1: Nested Object (e.g., {"coordinates": {"lat": N, "lon": N}}) ---
@@ -426,20 +427,20 @@ func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) bool
 
         if !latExists || !lonExists {
             log.Printf("GeoDistance: Required 'lat' or 'lon' not found in nested object for field '%s'.", geo.Field)
-            return false
+            return false, 0.0
         }
 
         // Parse Latitude
         docLat, err = parseCoordinate(latVal)
         if err != nil {
             log.Printf("GeoDistance: Failed to parse latitude from object (%v): %v", latVal, err)
-            return false
+            return false, 0.0
         }
         // Parse Longitude
         docLon, err = parseCoordinate(lonVal)
         if err != nil {
             log.Printf("GeoDistance: Failed to parse longitude from object (%v): %v", lonVal, err)
-            return false
+            return false, 0.0
         }
 
     // --- CASE 2: Comma-separated String (e.g., {"location": "N,N"}) ---
@@ -447,22 +448,22 @@ func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) bool
         coords := strings.Split(geoValueStr, ",")
         if len(coords) != 2 {
             log.Printf("GeoDistance: Invalid string coordinate format for field '%s': %s (Expected 'N,N')", geo.Field, geoValueStr)
-            return false
+            return false, 0.0
         }
 
         docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
         if err != nil {
             log.Printf("GeoDistance: Failed to parse string latitude: %s", coords[0])
-            return false
+            return false, 0.0
         }
         docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
         if err != nil {
             log.Printf("GeoDistance: Failed to parse string longitude: %s", coords[1])
-            return false
+            return false, 0.0
         }
     } else {
         log.Printf("GeoDistance: Field '%s' value is neither a nested object nor a string.", geo.Field)
-        return false
+        return false, 0.0
     }
 
     // Log inputs
@@ -487,7 +488,7 @@ func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) bool
     log.Printf("GeoDistance: Doc coords (%.4f, %.4f). Calculated distance: %.2f %s. Required: %.2f %s", 
         docLat, docLon, targetDistance, searchUnit, geo.Distance, searchUnit)
 
-    return targetDistance <= geo.Distance
+    return targetDistance <= geo.Distance, 0.0
 }
 
 // parseCoordinate is a helper to convert various types to float64.
@@ -597,82 +598,119 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
 
 // EvaluateMatch handles the logic for the Match condition, supporting fuzzy search
 // via Levenshtein distance or standard text-based operations.
-func EvaluateMatch(data map[string]interface{}, m *Match) bool {
-    // 1. Resolve the target value from the document
-    targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
-    if !exists || targetValueRaw == nil {
-        return false
+// It returns match status (bool) and the calculated relevance score (float64).
+func EvaluateMatch(data map[string]interface{}, m *Match) (bool, float64) {
+	// Initialize boost. If not set in JSON, default to 1.0.
+	boost := 1.0
+    // 2. Check if the *float64 pointer (m.Boost) is set
+    if m.Boost != nil {
+        // 3. If it is set, dereference the pointer to get the float64 value
+        boost = *m.Boost
     }
-    
-    // Ensure the document value is a clean string
-    documentText := fmt.Sprintf("%v", targetValueRaw)
-    conditionValue := m.Value
 
-    // 2. Check for Fuzziness (Highest Priority)
-    if m.Fuzziness != nil {
-        maxDistance := *m.Fuzziness
-        
-        // Tokenize the document text. We split by any character that is not a letter or number.
-        tokens := strings.FieldsFunc(documentText, func(r rune) bool {
-            return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-        })
+	// 1. Resolve the target value from the document
+	targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
+	if !exists || targetValueRaw == nil {
+		return false, 0.0 // Changed: Return 0.0 score
+	}
 
-        // Iterate through each token and check distance
-        for _, token := range tokens {
-            if token == "" {
-                continue // Skip empty tokens
-            }
-            
-            // Perform distance check against the lowercased token and condition value
-            distance := LevenshteinDistance(strings.ToLower(token), strings.ToLower(conditionValue))
+	// Ensure the document value is a clean string
+	documentText := fmt.Sprintf("%v", targetValueRaw)
+	conditionValue := m.Value
 
-            if distance <= maxDistance {
-                log.Printf("EvaluateMatch: Fuzzy MATCH! Token: '%s', Condition: '%s', Dist: %d", token, conditionValue, distance)
-                return true // Match found for this document!
-            }
+	// 2. Check for Fuzziness (Highest Priority)
+	if m.Fuzziness != nil {
+		maxDistance := *m.Fuzziness
+		
+		// Tokenize the document text. We split by any character that is not a letter or number.
+		tokens := strings.FieldsFunc(documentText, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+		})
+
+		maxScore := 0.0
+		matchFound := false
+
+		// Iterate through each token and check distance
+		for _, token := range tokens {
+			if token == "" {
+				continue // Skip empty tokens
+			}
+			
+			// Perform distance check against the lowercased token and condition value
+			distance := LevenshteinDistance(strings.ToLower(token), strings.ToLower(conditionValue))
+
+			if distance <= maxDistance {
+				matchFound = true
+                
+                // Calculate base score: 1.0 + (1.0 * proximity/match quality)
+                // Score bonus reduces as distance increases: (maxDistance - distance) / maxDistance
+				baseScore := 1.0 + ((float64(maxDistance) - float64(distance)) / float64(maxDistance))
+				score := baseScore * boost
+				if score > maxScore {
+					maxScore = score // Track the highest score from any matching token
+				}
+			}
+		}
+		
+		if matchFound {
+			log.Printf("EvaluateMatch: Fuzzy MATCH. Max Score: %.2f", maxScore)
+			return true, maxScore // Changed: Return calculated score
+		}
+		// No fuzzy match found
+		return false, 0.0 // Changed: Return 0.0 score
+	}
+
+	// 3. Fallback to Modifier Operations (Standard Text Search)
+	
+	// Lowercase both values for case-insensitive comparison
+	targetValue := strings.ToLower(documentText)
+	conditionValueLower := strings.ToLower(conditionValue)
+
+	// Determine the operation. Default to Contains (0) if modifiers are missing.
+	op := Contains
+	if m.Modifiers != nil {
+		op = m.Modifiers.Operation
+	}
+
+	matchFound := false
+	baseScore := 1.0 // Default score for simple text matches (used for Contains, StartsWith, EndsWith)
+
+	switch op {
+	case Contains: 
+		matchFound = strings.Contains(targetValue, conditionValueLower)
+        if matchFound && targetValue == conditionValueLower {
+            baseScore = 1.1 // Small bonus for an exact field match
         }
-        
-        // No fuzzy match found
-        return false 
-    }
+		
+	case StartsWith: 
+		matchFound = strings.HasPrefix(targetValue, conditionValueLower)
+		
+	case EndsWith: 
+		matchFound = strings.HasSuffix(targetValue, conditionValueLower)
+		
+	case Equal: 
+		matchFound = targetValue == conditionValueLower
+		baseScore = 1.2 // Higher score for strict equality
 
-    // 3. Fallback to Modifier Operations (Standard Text Search)
-    
-    // Lowercase both values for case-insensitive comparison
-    targetValue := strings.ToLower(documentText)
-    conditionValueLower := strings.ToLower(conditionValue)
+	default:
+		// Fallback to Contains for any unrecognized operation
+		matchFound = strings.Contains(targetValue, conditionValueLower)
+	}
 
-    // Determine the operation. Default to Contains (0) if modifiers are missing.
-    op := Contains // Assuming Contains is defined as 0
-    if m.Modifiers != nil {
-        op = m.Modifiers.Operation
-    }
+	if matchFound {
+		score := baseScore * boost
+		log.Printf("EvaluateMatch: Standard MATCH. Op: %v, Final Score: %.2f", op, score)
+		return true, score // Changed: Return calculated score
+	}
 
-    switch op {
-    case Contains: 
-        return strings.Contains(targetValue, conditionValueLower)
-        
-    case StartsWith: 
-        return strings.HasPrefix(targetValue, conditionValueLower)
-        
-    case EndsWith: 
-        return strings.HasSuffix(targetValue, conditionValueLower)
-        
-    case Equal: 
-        // Strict case-insensitive equality
-        return targetValue == conditionValueLower
-        
-    default:
-        // Fallback to Contains for any unrecognized operation
-        return strings.Contains(targetValue, conditionValueLower)
-    }
+	return false, 0.0 // Changed: Return 0.0 score
 }
 
 // EvaluateRange performs range checks (numeric or date).
-func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
+func EvaluateRange(data map[string]interface{}, field string, r *Range) (bool, float64) {
 	targetValue, exists := resolveDotNotation(data, field)
 	if !exists {
-		return false
+		return false, 0.0
 	}
 
 	// 1. Try Date Comparison
@@ -683,35 +721,35 @@ func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
 		if r.From != nil {
 			fromTime, errF := tryParseDate(*r.From)
 			if errF != nil || targetTime.Before(fromTime) {
-				return false
+				return false, 0.0
 			}
 		}
 		if r.To != nil {
 			toTime, errT := tryParseDate(*r.To)
 			// Range is typically exclusive, so targetTime must be strictly Before
 			if errT != nil || !targetTime.Before(toTime) {
-				return false
+				return false, 0.0
 			}
 		}
 		log.Printf("EvaluateRange: Date match for field '%s'.", field)
-		return true
+		return true, 0.0
 	}
 
 	// 2. Try Numeric Comparison
 	targetFloat, errT := strconv.ParseFloat(targetValue, 64)
 	if errT != nil {
 		log.Printf("EvaluateRange: Field '%s' is neither numeric nor a date.", field)
-		return false
+		return false, 0.0
 	}
 
 	if r.From != nil {
 		fromFloat, errF := strconv.ParseFloat(*r.From, 64)
 		if errF != nil {
 			log.Printf("EvaluateRange: Invalid numeric 'from' value: %s", *r.From)
-			return false
+			return false, 0.0
 		}
 		if targetFloat < fromFloat {
-			return false
+			return false, 0.0
 		}
 	}
 
@@ -719,16 +757,16 @@ func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
 		toFloat, errT := strconv.ParseFloat(*r.To, 64)
 		if errT != nil {
 			log.Printf("EvaluateRange: Invalid numeric 'to' value: %s", *r.To)
-			return false
+			return false, 0.0
 		}
 		// Range is typically exclusive: [From, To)
 		if targetFloat >= toFloat {
-			return false
+			return false, 0.0
 		}
 	}
 
 	log.Printf("EvaluateRange: Numeric match for field '%s'.", field)
-	return true
+	return true, 0.0
 }
 
 // EvaluateTemplate executes a Go template against the document data.
@@ -742,7 +780,7 @@ func EvaluateRange(data map[string]interface{}, field string, r *Range) bool {
 
 // EvaluateTemplate executes a Go template against the document data.
 // It matches if the executed template output is the exact string "true".
-func EvaluateTemplate(data map[string]interface{}, tmpl *Template) bool {
+func EvaluateTemplate(data map[string]interface{}, tmpl *Template) (bool, float64) {
     
     // The user's input (tmpl.Code) should now contain the full, explicit 
     // Go template string, including all necessary {{ }} wrappers.
@@ -753,7 +791,7 @@ func EvaluateTemplate(data map[string]interface{}, tmpl *Template) bool {
     
     if err != nil {
         log.Printf("EvaluateTemplate: Failed to parse template code: %v", err)
-        return false
+        return false, 0.0
     }
 
     // 2. Execute the template against the document data
@@ -762,7 +800,7 @@ func EvaluateTemplate(data map[string]interface{}, tmpl *Template) bool {
     if err := t.Execute(&buf, data); err != nil {
         // If execution fails (e.g., field access error), treat as non-match.
         log.Printf("EvaluateTemplate: Failed to execute template: %v", err)
-        return false
+        return false, 0.0
     }
 
     // 3. Check the output for a truthy value
@@ -788,39 +826,72 @@ func EvaluateTemplate(data map[string]interface{}, tmpl *Template) bool {
     isTrue := strings.EqualFold(output, "true")
 
     log.Printf("EvaluateTemplate: Template executed. Output: '%s'. Matched: %t", output, isTrue)
-    return isTrue
+    return isTrue, 0.0
 }
 
-func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
-	// ... (Existing Bool logic remains unchanged) ...
-	// 1. ALL (AND logic)
+func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
+	totalScore := 0.0
+
+	// 1. ALL (Logical AND)
 	if len(b.All) > 0 {
+		matchCount := 0
+		
 		for _, c := range b.All {
-			if !c.Evaluate(data, ctx, client, indexInput) {
-				return false
+			// Changed: Capture score from Case.Evaluate
+			matched, score := c.Evaluate(data, ctx, client, indexInput)
+			
+			if !matched {
+				return false, 0.0 // Single failure in ALL fails the whole Bool
 			}
+			
+			// Score aggregation: SUM all scores for ALL/AND conditions
+			totalScore += score
+			matchCount++
 		}
-		return true
+		
+		if matchCount == len(b.All) {
+			// Changed: Return the sum of scores
+			return true, totalScore
+		}
 	}
 
-	// 2. ONE (OR logic)
+	// 2. ONE (Logical OR)
 	if len(b.One) > 0 {
+		maxScore := 0.0
+		matchFound := false
+		
 		for _, c := range b.One {
-			if c.Evaluate(data, ctx, client, indexInput) {
-				return true
+			// Changed: Capture score from Case.Evaluate
+			matched, score := c.Evaluate(data, ctx, client, indexInput)
+			
+			if matched {
+				matchFound = true
+				// Score aggregation: MAX score for the whole OR group
+				if score > maxScore {
+					maxScore = score
+				}
 			}
 		}
-		return false
+		
+		if matchFound {
+			// Changed: Return the maximum score found
+			return true, maxScore
+		}
+		return false, 0.0 // Changed: Return 0.0 score
 	}
 
-	// 3. NONE (NOT OR logic)
+	// 3. NONE (Logical NOT OR)
 	if len(b.None) > 0 {
 		for _, c := range b.None {
-			if c.Evaluate(data, ctx, client, indexInput) {
-				return false
+			// Changed: Capture the bool and discard the score
+			matched, _ := c.Evaluate(data, ctx, client, indexInput) 
+			
+			if matched {
+				return false, 0.0 // Single match in NONE fails the whole Bool
 			}
 		}
-		return true
+		// If nothing matched, the NONE condition passes with a neutral score
+		return true, 0.0 // Changed: Return 0.0 score
 	}
 
 	// 4. NOT (Negation logic)
@@ -828,84 +899,105 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 		if len(b.Not) > 1 {
 			log.Print("Bool.Evaluate: Warning, 'not' array has more than one element; only the first is evaluated.")
 		}
-		return !b.Not[0].Evaluate(data, ctx, client, indexInput)
+		
+		// Changed: Capture the bool and discard the score
+		matched, _ := b.Not[0].Evaluate(data, ctx, client, indexInput)
+		
+		if !matched {
+			// If the inner condition did NOT match, the NOT condition passes with neutral score
+			return true, 0.0 // Changed: Return 0.0 score
+		}
+		return false, 0.0 // Changed: Return 0.0 score
 	}
 
-	return true // Empty Bool matches
+	// Empty Bool matches
+	return true, 0.0 // Changed: Return 0.0 score
 }
 
-func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
+// Evaluate evaluates the condition represented by the Case, returning whether it matches (bool)
+// and the associated score (float64). Filter conditions return 0.0 score.
+func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
+	var match bool
+	var score float64
+
 	// A) Handle nested Boolean logic
 	if c.Bool != nil {
+		// Delegates score accumulation/maxing to Bool.Evaluate
 		return c.Bool.Evaluate(data, ctx, client, indexInput)
 	}
 
-	// B) Handle Range logic
+	// B) Handle Range logic (Filter, Score 0.0)
 	if c.Range != nil {
-		return EvaluateRange(data, c.Range.Field, c.Range)
+		// Changed: EvaluateRange now returns bool and float64 (0.0)
+		match, score = EvaluateRange(data, c.Range.Field, c.Range)
+		return match, score
 	}
 
-	// C) Handle Geospatial logic (NEW)
+	// C) Handle Geospatial logic (Filter, Score 0.0)
 	if c.GeoDistance != nil {
-		return EvaluateGeoDistance(data, c.GeoDistance)
+		// Changed: EvaluateGeoDistance now returns bool and float64 (0.0)
+		match, score = EvaluateGeoDistance(data, c.GeoDistance)
+		return match, score
 	}
 
-	// D) Handle Nested Document logic (NEW)
-    if c.NestedDoc != nil {
-        return EvaluateNestedDoc(data, c.NestedDoc, ctx, client, indexInput) // <-- ADD THIS BLOCK
-    }
+	// D) Handle Nested Document logic
+	if c.NestedDoc != nil {
+		// Delegates score maxing to EvaluateNestedDoc
+		// Changed: EvaluateNestedDoc now returns bool and float64 (max score)
+		return EvaluateNestedDoc(data, c.NestedDoc, ctx, client, indexInput) 
+	}
 
-    // E) Handle Exists logic (NEW)
-    if c.Exists != nil {
-        // We use resolveRawDotNotation.
-        // It returns (value, true) if the path exists, even if value is nil.
-        // We consider it EXISTS if the path traversal succeeds AND the final value is NOT nil.
-        val, exists := resolveRawDotNotation(data, c.Exists.Field)
-        log.Printf("Evaluate: Checking EXISTS for field '%s'. Exists: %t, Value is nil: %t", c.Exists.Field, exists, val == nil)
-        
-        // A field exists if the path traversal succeeded (exists=true) AND the value is not nil.
-        return exists && val != nil
-    }
+	// E) Handle Exists logic (Filter, Score 0.0)
+	if c.Exists != nil {
+		val, exists := resolveRawDotNotation(data, c.Exists.Field)
+		log.Printf("Evaluate: Checking EXISTS for field '%s'. Exists: %t, Value is nil: %t", c.Exists.Field, exists, val == nil)
+		
+		// Changed: Return score 0.0
+		return exists && val != nil, 0.0
+	}
 
-    // F) Handle Missing logic (NEW)
-    if c.Missing != nil {
-        // The opposite of Exists.
-        val, exists := resolveRawDotNotation(data, c.Missing.Field)
-        log.Printf("Evaluate: Checking MISSING for field '%s'. Exists: %t, Value is nil: %t", c.Missing.Field, exists, val == nil)
-        
-        // A field is missing if the path failed (exists=false) OR the value is nil.
-        return !exists || val == nil
-    }
+	// F) Handle Missing logic (Filter, Score 0.0)
+	if c.Missing != nil {
+		val, exists := resolveRawDotNotation(data, c.Missing.Field)
+		log.Printf("Evaluate: Checking MISSING for field '%s'. Exists: %t, Value is nil: %t", c.Missing.Field, exists, val == nil)
+		
+		// Changed: Return score 0.0
+		return !exists || val == nil, 0.0
+	}
 
-    // G) Handle Template logic (NEW)
-    if c.Template != nil {
-        return EvaluateTemplate(data, c.Template)
-    }
+	// G) Handle Template logic (Filter, Score 0.0)
+	if c.Template != nil {
+		// Changed: EvaluateTemplate now returns bool and float64 (0.0)
+		match, score = EvaluateTemplate(data, c.Template)
+		return match, score
+	}
 
-    // H) Handle Match logic (UPDATED)
-    if c.Match != nil {
-        return EvaluateMatch(data, c.Match) // <-- Call the new specific function
-    }
+	// H) Handle Match logic (Relevancy, Score > 0.0 possible)
+	if c.Match != nil {
+		// Delegates score calculation to EvaluateMatch
+		// Changed: EvaluateMatch now returns bool and float64 (calculated score)
+		return EvaluateMatch(data, c.Match) 
+	}
 
-	// I) Extract Condition and default Operation (for Term/Filter/Match)
+	// I) Extract Condition and default Operation (for Term/Filter)
 	var condition Condition
 	var defaultOp Operation = Equal
 
 	if c.Term != nil {
+		// Term condition: Treated as a filter (Score 0.0)
 		condition = *c.Term
 	} else if c.Filter != nil {
+		// Filter condition: Treated as a filter (Score 0.0)
 		condition = *c.Filter
-	} else if c.Match != nil {
-		condition = *c.Match
 	} else {
-		return true // Empty case matches (excluding Range/Geo, which are handled above)
+		return true, 0.0 // Changed: Empty case matches, score 0.0
 	}
 
 	if condition.GetModifiers() != nil {
 		defaultOp = condition.GetModifiers().Operation
 	}
 
-	// --- 1. Handle SubQuery for IN/NOT IN ---
+	// --- 1. Handle SubQuery for IN/NOT IN (Filter, Score 0.0) ---
 	if condition.GetSubQuery() != nil && (defaultOp == In || defaultOp == NotIn) {
 		subQuery := condition.GetSubQuery()
 
@@ -914,7 +1006,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 
 		if resultField == "" {
 			log.Printf("Case.Evaluate: Subquery must specify 'resultField' for IN/NOT IN operation.")
-			return false
+			return false, 0.0 // Changed: Return 0.0 score
 		}
 
 		log.Printf("Case.Evaluate: Executing recursive subquery. Target index: %s, Result field: %s", subQuery.Index, resultField)
@@ -922,7 +1014,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		subResultData, err := ExecuteSubQuery(ctx, client, indexInput, subQuery, resultField)
 		if err != nil {
 			log.Printf("Case.Evaluate: Error executing subquery: %v", err)
-			return false
+			return false, 0.0 // Changed: Return 0.0 score
 		}
 
 		subResultSet := make(map[string]struct{})
@@ -933,46 +1025,58 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		localValue, exists := resolveDotNotation(data, localCheckField)
 		if !exists {
 			log.Printf("Case.Evaluate: Local check field '%s' not found in document.", localCheckField)
-			return false
+			return false, 0.0 // Changed: Return 0.0 score
 		}
 
 		_, localValueIsInSet := subResultSet[localValue]
 
 		if defaultOp == In {
-			return localValueIsInSet
+			return localValueIsInSet, 0.0 // Changed: Return 0.0 score
 		}
 		if defaultOp == NotIn {
-			return !localValueIsInSet
+			return !localValueIsInSet, 0.0 // Changed: Return 0.0 score
 		}
 	}
 
-	// --- 2. Standard Value Evaluation (Dot notation) ---
+	// --- 2. Standard Value Evaluation (Dot notation) (Filter, Score 0.0) ---
 
 	targetValue, exists := resolveDotNotation(data, condition.GetField())
 	if !exists {
-		return false
+		return false, 0.0 // Changed: Return 0.0 score
 	}
 
-	return EvaluateBool(condition, targetValue, defaultOp)
+	// EvaluateBool is assumed to return a simple bool for Term/Filter/Match conditions
+    // when called outside of EvaluateMatch. Since we are here, it's a Term/Filter.
+	match = EvaluateBool(condition, targetValue, defaultOp)
+    
+    // Changed: Term and Filter conditions contribute 0.0 to the score.
+    return match, 0.0
 }
 
 // EvaluateNestedDoc applies a Boolean query to every object within a target array path.
 // The parent document matches if the nested Bool evaluates to true for AT LEAST ONE
 // object in the array.
-func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) bool {
+// EvaluateNestedDoc applies a Boolean query to every object within a target array path.
+// The parent document matches if the nested Bool evaluates to true for AT LEAST ONE
+// object in the array.
+// Returns match status (bool) and the MAX score of any matching nested document.
+func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
     // 1. Resolve the path to the array using the raw dot notation helper.
     arrayValue, exists := resolveRawDotNotation(data, nested.Path)
     if !exists {
         log.Printf("EvaluateNestedDoc: Array path '%s' not found.", nested.Path)
-        return false
+        return false, 0.0 // Changed: Return 0.0 score
     }
 
     // 2. Ensure the resolved value is indeed an array (slice of interface{}).
     array, ok := arrayValue.([]interface{})
     if !ok {
         log.Printf("EvaluateNestedDoc: Field '%s' is not an array (found type %T).", nested.Path, arrayValue)
-        return false
+        return false, 0.0 // Changed: Return 0.0 score
     }
+
+    maxScore := 0.0 // Initialize the maximum score found
+    matchFound := false
 
     // 3. Iterate through the array elements and apply the nested Bool logic.
     for i, item := range array {
@@ -984,14 +1088,25 @@ func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx conte
         }
 
         // Recursively evaluate the nested Bool logic on the current itemMap.
-        if nested.Bool.Evaluate(itemMap, ctx, client, indexInput) {
-            // Found one nested document that satisfies the entire Bool criteria.
-            return true
+        // Changed: Capture the score from the recursive call.
+        matched, score := nested.Bool.Evaluate(itemMap, ctx, client, indexInput) 
+        
+        if matched {
+            matchFound = true
+            // The score for the nested document match is the max score of its children
+            if score > maxScore {
+                maxScore = score
+            }
         }
     }
 
+    // Changed: Return the match status and the accumulated maximum score.
+    if matchFound {
+        return true, maxScore
+    }
+    
     // If the loop finishes, no nested document satisfied the condition.
-    return false
+    return false, 0.0
 }
 
 // ----------------------------------------------------
@@ -1251,77 +1366,136 @@ func CalculateMetrics(groupDocs []map[string]interface{}, metrics []MetricReques
 // ----------------------------------------------------
 
 // ProjectFields returns a new slice of documents containing only the fields specified in the Source slice.
+// ProjectFields returns a new slice of documents containing only the fields specified in the Source slice,
+// ensuring that the special field "_score" is always preserved if it exists.
 func ProjectFields(docs []map[string]interface{}, source []string) []map[string]interface{} {
-	if len(source) == 0 {
-		return docs
-	}
+    // If source is empty, return all documents, including existing _score
+    if len(source) == 0 {
+        return docs
+    }
 
-	projectedDocs := make([]map[string]interface{}, 0, len(docs))
-	for _, doc := range docs {
-		newDoc := make(map[string]interface{})
-		for _, field := range source {
-			// Simplified Projection: Assumes users only project top-level or fully nested keys.
-			// A truly robust solution would recursively build the structure.
-			val, exists := resolveDotNotation(doc, field) 
-			if exists {
-				// If the key is top-level (no dots), add the actual value type back
-				if !strings.Contains(field, ".") {
-					if originalVal, ok := doc[field]; ok {
-						newDoc[field] = originalVal
-						continue
-					}
-				}
-				// Fallback for nested/missing: use the string value from resolveDotNotation
-				newDoc[field] = val 
-			}
-		}
-		projectedDocs = append(projectedDocs, newDoc)
-	}
-	log.Printf("ProjectFields: Reduced documents to %d fields.", len(source))
-	return projectedDocs
+    projectedDocs := make([]map[string]interface{}, 0, len(docs))
+    for _, doc := range docs {
+        newDoc := make(map[string]interface{})
+        for _, field := range source {
+            // Simplified Projection: Assumes users only project top-level or fully nested keys.
+            // A truly robust solution would recursively build the structure.
+            val, exists := resolveDotNotation(doc, field) 
+            if exists {
+                // If the key is top-level (no dots), add the actual value type back
+                if !strings.Contains(field, ".") {
+                    if originalVal, ok := doc[field]; ok {
+                        newDoc[field] = originalVal
+                        continue
+                    }
+                }
+                // Fallback for nested/missing: use the string value from resolveDotNotation
+                newDoc[field] = val 
+            }
+        }
+        
+        // CRITICAL CHANGE: Preserve the "_score" field regardless of the source request
+        if score, ok := doc["_score"]; ok {
+            newDoc["_score"] = score
+        }
+        
+        projectedDocs = append(projectedDocs, newDoc)
+    }
+    log.Printf("ProjectFields: Reduced documents to %d fields (plus _score if present).", len(source))
+    return projectedDocs
 }
 
 // ApplySort sorts the documents based on the list of SortField definitions.
 func ApplySort(docs []map[string]interface{}, sortFields []SortField) {
-	if len(sortFields) == 0 || len(docs) < 2 {
-		return
-	}
+    if len(sortFields) == 0 || len(docs) < 2 {
+        return
+    }
 
-	log.Printf("ApplySort: Sorting %d documents.", len(docs))
+    log.Printf("ApplySort: Sorting %d documents.", len(docs))
 
-	// Sort uses a closure to implement the less function based on multiple fields
-	sort.Slice(docs, func(i, j int) bool {
-		for _, sf := range sortFields {
-			valI, existsI := resolveDotNotation(docs[i], sf.Field)
-			valJ, existsJ := resolveDotNotation(docs[j], sf.Field)
+    sort.Slice(docs, func(i, j int) bool {
+        for _, sf := range sortFields {
+            var valI interface{}
+            var valJ interface{}
+            var existsI bool
+            var existsJ bool
 
-			// Missing values are treated as smaller than existing values
-			if !existsI && existsJ { return sf.Order == SortAsc }
-			if existsI && !existsJ { return sf.Order == SortDesc }
-			if !existsI && !existsJ { continue } // Both missing, check next field
+            // --- SPECIAL CASE: _score ---
+            if sf.Field == "_score" {
+                // Use assignment (=) for the variables declared above
+                valI, existsI = docs[i]["_score"]
+                valJ, existsJ = docs[j]["_score"]
+                
+                // Ensure the score exists and is a float64 for reliable comparison
+                if existsI {
+                    if _, ok := valI.(float64); !ok { existsI = false }
+                }
+                if existsJ {
+                    if _, ok := valJ.(float64); !ok { existsJ = false }
+                }
+            } else {
+                // --- STANDARD CASE: Other Fields ---
+                var valIStr, valJStr string
+                
+                // IMPORTANT FIX: Use assignment (=), not short declaration (:=)
+                valIStr, existsI = resolveDotNotation(docs[i], sf.Field)
+                valJStr, existsJ = resolveDotNotation(docs[j], sf.Field)
+                
+                // Assign the string values to the outer interface{} variables
+                valI = valIStr
+                valJ = valJStr
+            }
 
-			// Try Numeric Comparison
-			numI, errI := strconv.ParseFloat(valI, 64)
-			numJ, errJ := strconv.ParseFloat(valJ, 64)
+            // 1. Missing values logic (UNMODIFIED)
+            // Missing values are treated as smaller than existing values (moved to the end in Desc, start in Asc)
+            if !existsI && existsJ {
+                return sf.Order == SortAsc // i is smaller (missing), return true if sorting ascending
+            }
+            if existsI && !existsJ {
+                return sf.Order == SortDesc // j is smaller (missing), return true if sorting descending
+            }
+            if !existsI && !existsJ {
+                continue // Both missing, check next field
+            }
 
-			var less bool
-			if errI == nil && errJ == nil {
-				// Numeric comparison
-				if numI != numJ {
-					less = numI < numJ
-					return (sf.Order == SortAsc && less) || (sf.Order == SortDesc && !less)
-				}
-			} else {
-				// String comparison (includes dates)
-				if valI != valJ {
-					less = valI < valJ
-					return (sf.Order == SortAsc && less) || (sf.Order == SortDesc && !less)
-				}
-			}
-			// Values are equal, move to the next sort field
-		}
-		return false // Considered equal based on all sort fields
-	})
+            // 2. Value Comparison (UNMODIFIED)
+            var less bool
+            
+            if sf.Field == "_score" {
+                // Numeric comparison for _score (already float64)
+                numI := valI.(float64)
+                numJ := valJ.(float64)
+                
+                if numI != numJ {
+                    less = numI < numJ
+                    return (sf.Order == SortAsc && less) || (sf.Order == SortDesc && !less)
+                }
+            } else {
+                // Standard field comparison (Try Numeric then String)
+                valIStr := valI.(string)
+                valJStr := valJ.(string)
+                
+                numI, errI := strconv.ParseFloat(valIStr, 64)
+                numJ, errJ := strconv.ParseFloat(valJStr, 64)
+
+                if errI == nil && errJ == nil {
+                    // Numeric comparison
+                    if numI != numJ {
+                        less = numI < numJ
+                        return (sf.Order == SortAsc && less) || (sf.Order == SortDesc && !less)
+                    }
+                } else {
+                    // String comparison (includes dates)
+                    if valIStr != valJStr {
+                        less = valIStr < valJStr
+                        return (sf.Order == SortAsc && less) || (sf.Order == SortDesc && !less)
+                    }
+                }
+            }
+            // Values are equal, move to the next sort field
+        }
+        return false // Considered equal based on all sort fields
+    })
 }
 
 // ApplyPaging applies the Limit and Offset constraints to the document list.
@@ -1350,102 +1524,101 @@ func ApplyPaging(docs []map[string]interface{}, limit, offset int) []map[string]
 // ----------------------------------------------------
 
 func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetIndexConfigurationInput, subQuery *Query, resultField string) ([]string, error) {
-	// ... (Existing logic for fetching index config, building path, fetching contents, filtering, and extracting results) ...
-	log.Printf("ExecuteSubQuery: Starting recursive search for index '%s' and composite keys: %+v", subQuery.Index, subQuery.Composite)
+    log.Printf("ExecuteSubQuery: Starting recursive search for index '%s' and composite keys: %+v", subQuery.Index, subQuery.Composite)
 
-	// 1. Get the Index Config for the subQuery's index
-	subInput := *baseInput
-	subInput.Id = subQuery.Index
-	subInput.GithubClient = client
+    // 1. Get the Index Config for the subQuery's index
+    subInput := *baseInput
+    subInput.Id = subQuery.Index
+    subInput.GithubClient = client
 
-	// NOTE: GetIndexById is assumed to exist in another file (e.g., repo/index.go)
-	// We'll simulate fetching a map here for completeness.
-	// You must replace this with your actual Index fetching logic.
-	subIndexObject, err := func(input *GetIndexConfigurationInput) (map[string]interface{}, error) {
-		// DUMMY IMPLEMENTATION: REPLACE WITH ACTUAL GITHUB FETCH LOGIC
-		return map[string]interface{}{
-			"fields": []interface{}{"region", "category"},
-			"repoName": "dummy/repo",
-			"searchRootPath": "data/search",
-		}, nil
-	}(&subInput)
-	// End DUMMY IMPLEMENTATION
+    // NOTE: GetIndexById is assumed to exist in another file (e.g., repo/index.go)
+    // We'll simulate fetching a map here for completeness.
+    // You must replace this with your actual Index fetching logic.
+    subIndexObject, err := func(input *GetIndexConfigurationInput) (map[string]interface{}, error) {
+        // DUMMY IMPLEMENTATION: REPLACE WITH ACTUAL GITHUB FETCH LOGIC
+        return map[string]interface{}{
+            "fields": []interface{}{"region", "category"},
+            "repoName": "dummy/repo",
+            "searchRootPath": "data/search",
+        }, nil
+    }(&subInput)
+    // End DUMMY IMPLEMENTATION
 
-	if err != nil || subIndexObject == nil {
-		return nil, fmt.Errorf("failed to load configuration for subquery index '%s': %w", subQuery.Index, err)
-	}
+    if err != nil || subIndexObject == nil {
+        return nil, fmt.Errorf("failed to load configuration for subquery index '%s': %w", subQuery.Index, err)
+    }
 
-	// 2. Build the content path using the subQuery's Composite map (Scoped Search)
-	fields, ok := subIndexObject["fields"].([]interface{})
-	if !ok {
-		return nil, errors.New("subquery index configuration missing 'fields'")
-	}
+    // 2. Build the content path using the subQuery's Composite map (Scoped Search)
+    fields, ok := subIndexObject["fields"].([]interface{})
+    if !ok {
+        return nil, errors.New("subquery index configuration missing 'fields'")
+    }
 
-	contentPath := ""
-	if len(subQuery.Composite) > 0 {
-		for idx, f := range fields {
-			fStr := f.(string)
-			compositeVal, found := subQuery.Composite[fStr]
-			if found {
-				contentPath += fmt.Sprintf("%v", compositeVal)
-			}
-			if idx < (len(fields) - 1) {
-				contentPath += ":"
-			}
-		}
-		log.Printf("ExecuteSubQuery: Using composite path: %s", contentPath)
-	} else {
-		searchRootPath, ok := subIndexObject["searchRootPath"].(string)
-		if ok {
-			contentPath = searchRootPath
-			log.Printf("ExecuteSubQuery: Using searchRootPath: %s", contentPath)
-		} else {
-			return nil, errors.New("subquery must specify Composite keys or index must have searchRootPath")
-		}
-	}
+    contentPath := ""
+    if len(subQuery.Composite) > 0 {
+        for idx, f := range fields {
+            fStr := f.(string)
+            compositeVal, found := subQuery.Composite[fStr]
+            if found {
+                contentPath += fmt.Sprintf("%v", compositeVal)
+            }
+            if idx < (len(fields) - 1) {
+                contentPath += ":"
+            }
+        }
+        log.Printf("ExecuteSubQuery: Using composite path: %s", contentPath)
+    } else {
+        searchRootPath, ok := subIndexObject["searchRootPath"].(string)
+        if ok {
+            contentPath = searchRootPath
+            log.Printf("ExecuteSubQuery: Using searchRootPath: %s", contentPath)
+        } else {
+            return nil, errors.New("subquery must specify Composite keys or index must have searchRootPath")
+        }
+    }
 
-	// 3. Fetch directory contents
-	repoToFetch := subIndexObject["repoName"].(string)
-	// DUMMY: Replace with actual client.Repositories.GetContents
-	var dirContents []*github.RepositoryContent
-	if repoToFetch == "dummy/repo" {
-		log.Print("ExecuteSubQuery: [DUMMY] Simulating content fetch.")
-		// We can't actually fetch content in this dummy function, so this will likely be empty
-	}
-	// End DUMMY
+    // 3. Fetch directory contents
+    repoToFetch := subIndexObject["repoName"].(string)
+    // DUMMY: Replace with actual client.Repositories.GetContents
+    var dirContents []*github.RepositoryContent
+    if repoToFetch == "dummy/repo" {
+        log.Print("ExecuteSubQuery: [DUMMY] Simulating content fetch.")
+        // We can't actually fetch content in this dummy function, so this will likely be empty
+    }
+    // End DUMMY
 
-	if err != nil || dirContents == nil {
-		log.Printf("ExecuteSubQuery: Failed to fetch contents from path '%s': %v", contentPath, err)
-		// For the sake of not crashing the dummy code, we'll return an empty list on failure
-		return nil, nil
-	}
+    if err != nil || dirContents == nil {
+        log.Printf("ExecuteSubQuery: Failed to fetch contents from path '%s': %v", contentPath, err)
+        // For the sake of not crashing the dummy code, we'll return an empty list on failure
+        return nil, nil
+    }
 
-	// 4. Filter contents using the subQuery's Bool logic and extract the target field
-	results := make([]string, 0)
-	for _, content := range dirContents {
-		if content.GetType() != "file" {
-			continue
-		}
+    // 4. Filter contents using the subQuery's Bool logic and extract the target field
+    results := make([]string, 0)
+    for _, content := range dirContents {
+        if content.GetType() != "file" {
+            continue
+        }
 
-		decodedBytes, _ := base64.StdEncoding.DecodeString(content.GetName())
-		itemBody := string(decodedBytes)
+        decodedBytes, _ := base64.StdEncoding.DecodeString(content.GetName())
+        itemBody := string(decodedBytes)
 
-		var itemData map[string]interface{}
-		if json.Unmarshal([]byte(itemBody), &itemData) == nil {
+        var itemData map[string]interface{}
+        if json.Unmarshal([]byte(itemBody), &itemData) == nil {
 
-			match := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput)
+            // Changed: Use new signature and discard the score
+            match, _ := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput) 
 
-			if match {
-				if val, exists := resolveDotNotation(itemData, resultField); exists {
-					results = append(results, val)
-				}
-			}
-		}
-	}
-	log.Printf("ExecuteSubQuery: Completed. Found %d matching results to return.", len(results))
-	return results, nil
+            if match {
+                if val, exists := resolveDotNotation(itemData, resultField); exists {
+                    results = append(results, val)
+                }
+            }
+        }
+    }
+    log.Printf("ExecuteSubQuery: Completed. Found %d matching results to return.", len(results))
+    return results, nil
 }
-
 
 // ----------------------------------------------------
 // Recursive Aggregation Logic (UPDATED for Range Buckets)

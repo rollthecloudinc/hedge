@@ -67,6 +67,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     var limit int
     var offset int
     var sourceFields []string
+    var scoreModifiersRequest *search.FunctionScore // NEW: Score modifiers variable
 
     if len(queriesToExecute) > 0 {
         firstQuery := queriesToExecute[0]
@@ -75,6 +76,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         limit = firstQuery.Limit
         offset = firstQuery.Offset
         sourceFields = firstQuery.Source
+        scoreModifiersRequest = firstQuery.ScoreModifiers // NEW: Extract score modifiers (assuming the field is named ScoreModifiers)
 
         if aggregationRequest != nil {
             log.Printf("Aggregation requested: %s", aggregationRequest.Name)
@@ -84,6 +86,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         }
         if limit > 0 || offset > 0 {
             log.Printf("Paging requested: Limit=%d, Offset=%d.", limit, offset)
+        }
+        if scoreModifiersRequest != nil { // NEW: Log if score modification is requested
+            log.Printf("Score modification requested with %d function(s).", len(scoreModifiersRequest.Functions))
         }
     }
 
@@ -239,6 +244,18 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         }
 
         log.Printf("Query %d finished. Found %d matching results (total documents for processing: %d).", i+1, len(allDocuments))
+    }
+
+    // --- NEW STEP: Apply Custom Score Modifiers (Function Score) ---
+    // This must run after all base scores are calculated, but before sorting or aggregation.
+    if scoreModifiersRequest != nil && len(allDocuments) > 0 {
+        log.Printf("--- Applying %d custom score function(s) to %d documents. ---", 
+            len(scoreModifiersRequest.Functions), len(allDocuments))
+        
+        // This function must be implemented in lib/search/search.go
+        search.ApplyScoreModifiers(allDocuments, scoreModifiersRequest)
+        
+        log.Print("--- Custom score function application complete. ---")
     }
 
     // --- 4. Final Response (Aggregation vs. Standard) ---

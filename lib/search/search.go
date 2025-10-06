@@ -113,6 +113,25 @@ type Template struct {
     Code string `json:"code"` // The Go template string to execute (must resolve to "true")
 }
 
+// ScoreFunction defines a single custom score modifier.
+type ScoreFunction struct {
+    Type    string `json:"type"`          // "factor" or "decay"
+    // The Go Template code to execute. Must resolve to a numeric value (float64).
+    Code    string `json:"code"`
+    // Optional weight to apply to the result of this function. Default 1.0.
+    Weight  *float64 `json:"weight,omitempty"` 
+    // Field to use for the decay function (e.g., date, geo)
+    Field   string `json:"field,omitempty"` 
+}
+
+// FunctionScore wraps the custom scoring logic for a query.
+type FunctionScore struct {
+    // Defines how the score is combined: "multiply", "sum", "replace". Default: "multiply"
+    Combine string `json:"combine,omitempty"` 
+    // List of functions to execute
+    Functions []ScoreFunction `json:"functions"` 
+}
+
 // Case wraps one condition type (Term, Bool, Filter, Match, Range, GeoDistance).
 type Case struct {
 	Term        *Term        `json:"term,omitempty"`
@@ -204,7 +223,11 @@ type Query struct {
 	Offset    int                    `json:"offset,omitempty"`    // For paging: starting index
 	Source    []string               `json:"source,omitempty"`    // For field projection (subset of fields to return)
 
-	Aggs *Aggregation `json:"aggs,omitempty"` // Top-level aggregation definition
+	Aggs *Aggregation `json:"aggs,omitempty"`
+	// Top-level aggregation definition
+
+    // NEW FIELD
+    ScoreModifiers *FunctionScore      `json:"scoreModifiers,omitempty"` 
 }
 
 // UnionQuery combines the results of multiple standard Queries.
@@ -596,114 +619,122 @@ func EvaluateBool(c Condition, targetValue string, op Operation) bool {
 }
 
 
-// EvaluateMatch handles the logic for the Match condition, supporting fuzzy search
-// via Levenshtein distance or standard text-based operations.
-// It returns match status (bool) and the calculated relevance score (float64).
+// EvaluateMatch determines if a document matches the provided Match condition.
+// It prioritizes Fuzziness over analyzed matching, and falls back to analyzed 
+// token matching for general relevance scoring. The old Modifiers (Contains/StartsWith)
+// are removed as the Analyzed Match is a far superior relevance indicator.
 func EvaluateMatch(data map[string]interface{}, m *Match) (bool, float64) {
-	// Initialize boost. If not set in JSON, default to 1.0.
-	boost := 1.0
-    // 2. Check if the *float64 pointer (m.Boost) is set
+    if m == nil || m.Field == "" || m.Value == "" {
+        return false, 0.0
+    }
+
+    // 1. Handle Boost
+    boost := 1.0
     if m.Boost != nil {
-        // 3. If it is set, dereference the pointer to get the float64 value
         boost = *m.Boost
     }
 
-	// 1. Resolve the target value from the document
-	targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
-	if !exists || targetValueRaw == nil {
-		return false, 0.0 // Changed: Return 0.0 score
-	}
+    // 2. Resolve the target value from the document
+    targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
+    if !exists || targetValueRaw == nil {
+        return false, 0.0
+    }
+    documentText := fmt.Sprintf("%v", targetValueRaw)
+    conditionValue := m.Value
 
-	// Ensure the document value is a clean string
-	documentText := fmt.Sprintf("%v", targetValueRaw)
-	conditionValue := m.Value
+    // --- A. Fuzzy Match Check (Prioritized, operates on raw tokens) ---
+    if m.Fuzziness != nil {
+        maxDistance := *m.Fuzziness
+        
+        // Tokenize the document text based on non-letter/non-number delimiters (basic tokenizer)
+        tokens := strings.FieldsFunc(documentText, func(r rune) bool {
+            return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+        })
 
-	// 2. Check for Fuzziness (Highest Priority)
-	if m.Fuzziness != nil {
-		maxDistance := *m.Fuzziness
-		
-		// Tokenize the document text. We split by any character that is not a letter or number.
-		tokens := strings.FieldsFunc(documentText, func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-		})
+        maxScore := 0.0
+        matchFound := false
+        conditionValueLower := strings.ToLower(conditionValue)
 
-		maxScore := 0.0
-		matchFound := false
+        // Check distance against the lowercased document tokens
+        for _, token := range tokens {
+            if token == "" {
+                continue
+            }
+            
+            distance := LevenshteinDistance(strings.ToLower(token), conditionValueLower)
 
-		// Iterate through each token and check distance
-		for _, token := range tokens {
-			if token == "" {
-				continue // Skip empty tokens
-			}
-			
-			// Perform distance check against the lowercased token and condition value
-			distance := LevenshteinDistance(strings.ToLower(token), strings.ToLower(conditionValue))
-
-			if distance <= maxDistance {
-				matchFound = true
+            if distance <= maxDistance {
+                matchFound = true
                 
-                // Calculate base score: 1.0 + (1.0 * proximity/match quality)
-                // Score bonus reduces as distance increases: (maxDistance - distance) / maxDistance
-				baseScore := 1.0 + ((float64(maxDistance) - float64(distance)) / float64(maxDistance))
-				score := baseScore * boost
-				if score > maxScore {
-					maxScore = score // Track the highest score from any matching token
-				}
-			}
-		}
-		
-		if matchFound {
-			log.Printf("EvaluateMatch: Fuzzy MATCH. Max Score: %.2f", maxScore)
-			return true, maxScore // Changed: Return calculated score
-		}
-		// No fuzzy match found
-		return false, 0.0 // Changed: Return 0.0 score
-	}
-
-	// 3. Fallback to Modifier Operations (Standard Text Search)
-	
-	// Lowercase both values for case-insensitive comparison
-	targetValue := strings.ToLower(documentText)
-	conditionValueLower := strings.ToLower(conditionValue)
-
-	// Determine the operation. Default to Contains (0) if modifiers are missing.
-	op := Contains
-	if m.Modifiers != nil {
-		op = m.Modifiers.Operation
-	}
-
-	matchFound := false
-	baseScore := 1.0 // Default score for simple text matches (used for Contains, StartsWith, EndsWith)
-
-	switch op {
-	case Contains: 
-		matchFound = strings.Contains(targetValue, conditionValueLower)
-        if matchFound && targetValue == conditionValueLower {
-            baseScore = 1.1 // Small bonus for an exact field match
+                // Calculate score: 1.0 + (score bonus based on proximity)
+                baseScore := 1.0 + ((float64(maxDistance) - float64(distance)) / float64(maxDistance))
+                score := baseScore * boost
+                if score > maxScore {
+                    maxScore = score // Keep the best matching token's score
+                }
+            }
         }
-		
-	case StartsWith: 
-		matchFound = strings.HasPrefix(targetValue, conditionValueLower)
-		
-	case EndsWith: 
-		matchFound = strings.HasSuffix(targetValue, conditionValueLower)
-		
-	case Equal: 
-		matchFound = targetValue == conditionValueLower
-		baseScore = 1.2 // Higher score for strict equality
+        
+        if matchFound {
+            log.Printf("EvaluateMatch: Fuzzy MATCH. Max Score: %.4f", maxScore)
+            return true, maxScore
+        }
+    }
+    
+    // --- B. Analyzed Token Overlap Check (Relevance Fallback) ---
 
-	default:
-		// Fallback to Contains for any unrecognized operation
-		matchFound = strings.Contains(targetValue, conditionValueLower)
-	}
+    // Get the document value as a string for analysis
+    rawDocValueStr, _ := resolveDotNotation(data, m.Field) 
+    
+    // docTokens: Contains the processed, stemmed, and lowercased words from the document field.
+    docTokens := Analyze(rawDocValueStr) 
 
-	if matchFound {
-		score := baseScore * boost
-		log.Printf("EvaluateMatch: Standard MATCH. Op: %v, Final Score: %.2f", op, score)
-		return true, score // Changed: Return calculated score
-	}
+    // queryTokens: Contains the processed, stemmed, and lowercased words from the user's query.
+    queryTokens := Analyze(m.Value) 
 
-	return false, 0.0 // Changed: Return 0.0 score
+    if len(queryTokens) == 0 {
+        // If query analyzes to nothing, return false (unless a fuzzy match already occurred).
+        return false, 0.0
+    }
+    
+    // 3. Compare analyzed tokens to find overlap.
+    matchCount := 0
+    docTokenSet := make(map[string]struct{}, len(docTokens))
+    for _, dToken := range docTokens {
+        docTokenSet[dToken] = struct{}{}
+    }
+
+    for _, qToken := range queryTokens {
+        if _, found := docTokenSet[qToken]; found {
+            matchCount++
+        }
+    }
+    
+    // 4. Determine Match and Calculate Score.
+    
+    if matchCount == 0 {
+        return false, 0.0
+    }
+
+    // Simple Relevance Score Calculation (Term Frequency x Document Length Normalization)
+    tf := float64(matchCount) 
+
+    // Document Length Normalization: Penalize matches in very long documents.
+    docLengthFactor := 1.0
+    if len(docTokens) > 10 {
+        docLengthFactor = 1.0 / math.Log(float64(len(docTokens) + 1))
+    }
+    
+    // Final Score: Apply relevance calculation and boost.
+    score := (tf * docLengthFactor) * boost
+
+    log.Printf("EvaluateMatch: Analyzed MATCH. Score=%.4f (Matches: %d)", score, matchCount)
+    
+    return true, score
+    
+    // NOTE: The legacy Modifiers (Contains, StartsWith, EndsWith, Equal) are omitted here 
+    // because they are superseded by the tokenized, stemmed match logic which 
+    // provides a scored relevance result, not just a boolean filter.
 }
 
 // EvaluateRange performs range checks (numeric or date).
@@ -1518,6 +1549,73 @@ func ApplyPaging(docs []map[string]interface{}, limit, offset int) []map[string]
 	return docs[start:end]
 }
 
+func ApplyScoreModifiers(docs []map[string]interface{}, fs *FunctionScore) {
+    if fs == nil || len(fs.Functions) == 0 {
+        return
+    }
+
+    combineMethod := fs.Combine
+    if combineMethod == "" {
+        combineMethod = "multiply" // Default to multiply
+    }
+
+    for _, doc := range docs {
+        currentScore, ok := doc["_score"].(float64)
+        if !ok {
+            currentScore = 0.0 // Ensure a starting score if _score is missing or wrong type
+        }
+        
+        // Calculate the combined function score for this document
+        functionScore := 1.0 // Start at 1.0 for multiplication, 0.0 for summing/replacing
+
+        for _, f := range fs.Functions {
+            // Execute the template to get the raw function value
+            rawScore, err := executeScoreTemplate(doc, f.Code)
+            if err != nil {
+                log.Printf("Error executing score function: %v", err)
+                continue // Skip this function but continue with others
+            }
+            
+            // Apply weight
+            weight := 1.0
+            if f.Weight != nil {
+                weight = *f.Weight
+            }
+            weightedScore := rawScore * weight
+
+            // Combine the result of this specific function
+            if functionScore == 1.0 && combineMethod == "multiply" {
+                functionScore = 0.0 // Reset if we started at 1.0 but found a function
+            }
+            
+            // Simplified combination logic:
+            switch combineMethod {
+            case "multiply":
+                if functionScore == 0.0 { // Initial application
+                    functionScore = weightedScore
+                } else {
+                    functionScore *= weightedScore
+                }
+            case "sum":
+                functionScore += weightedScore
+            case "replace":
+                functionScore = weightedScore
+            default:
+                functionScore *= weightedScore // Fallback
+            }
+        }
+        
+        // Apply the final functionScore to the currentScore
+        switch combineMethod {
+        case "replace":
+            doc["_score"] = functionScore
+        case "sum":
+            doc["_score"] = currentScore + functionScore
+        default: // "multiply" (default)
+            doc["_score"] = currentScore * functionScore
+        }
+    }
+}
 
 // ----------------------------------------------------
 // Recursive Subquery Execution Logic (UNCHANGED)
@@ -1767,6 +1865,44 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
     return []Bucket{} 
 }
 
+func executeScoreTemplate(data map[string]interface{}, code string) (float64, error) {
+    // 1. Setup a custom function map for scoring (math functions are crucial)
+    funcMap := template.FuncMap{
+        "log":    math.Log,
+        "sqrt":   math.Sqrt,
+        "pow":    math.Pow,
+        "now":    time.Now, 
+		"toFloat64": toFloat64,
+		"levenshtein": LevenshteinDistance, // Custom function for string distance
+		"toTime": toTime, // Convert string to time.Time
+		// --- NEW ARITHMETIC HELPERS ---
+        "div":       div, // For division (a / b)
+        "add":       add, // For addition (a + b)
+        // "sub":    sub,
+        // "mul":    mul,
+		// Add more functions as needed
+    }
+
+    t, err := template.New("score_func").Funcs(funcMap).Parse(code)
+    if err != nil {
+        return 0, fmt.Errorf("failed to parse score template: %w", err)
+    }
+
+    var buf bytes.Buffer
+    if err := t.Execute(&buf, data); err != nil {
+        return 0, fmt.Errorf("failed to execute score template: %w", err)
+    }
+
+    // 2. Convert string output to float64
+    resultStr := strings.TrimSpace(buf.String())
+    result, err := strconv.ParseFloat(resultStr, 64)
+    if err != nil {
+        return 0, fmt.Errorf("template result '%s' is not a number: %w", resultStr, err)
+    }
+
+    return result, nil
+}
+
 // processGroup handles metric calculation and recursion for a single group of documents.
 func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface{}) Bucket {
     newBucket := Bucket{
@@ -1863,6 +1999,68 @@ func min(a, b int) int {
 }
 func min3(a, b, c int) int {
     return min(min(a, b), c)
+}
+// Add these helper functions (you may need to implement similar ones for 'add', 'sub', 'mul')
+func div(a, b interface{}) float64 {
+    valA := toFloat64(a)
+    valB := toFloat64(b)
+    if valB == 0 {
+        return 0.0 // Avoid division by zero
+    }
+    return valA / valB
+}
+
+func add(a, b interface{}) float64 {
+    return toFloat64(a) + toFloat64(b)
+}
+
+func toFloat64(i interface{}) float64 {
+    switch v := i.(type) {
+    case int:
+        return float64(v)
+    case int64:
+        return float64(v)
+    case float64:
+        return v
+    case string:
+        // Attempt to parse string to float
+        f, err := strconv.ParseFloat(v, 64)
+        if err == nil {
+            return f
+        }
+    }
+    // Return 0.0 for nil or unsupported/unparseable types
+    return 0.0
+}
+
+// toTime safely converts an interface value (usually a string) into a time.Time object.
+// It prioritizes standard, unambiguous formats like RFC3339.
+func toTime(i interface{}) time.Time {
+    var s string
+    
+    // 1. Convert interface{} to string
+    switch v := i.(type) {
+    case string:
+        s = v
+    case time.Time:
+        return v // Already a time.Time object, return it directly
+    default:
+        // Handle nil or non-string/non-time types by returning the zero time value
+        return time.Time{}
+    }
+
+    // 2. Parse the string using common formats
+    // RFC3339 is the standard for your data: "2024-09-01T10:00:00Z"
+    t, err := time.Parse(time.RFC3339, s)
+    if err == nil {
+        return t
+    }
+
+    // You can add other common formats here if your data is inconsistent.
+    // Example: time.Parse("2006-01-02", s) // YYYY-MM-DD
+
+    // 3. Return zero time if parsing failed
+    return time.Time{}
 }
 
 // ----------------------------------------------------

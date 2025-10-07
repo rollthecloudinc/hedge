@@ -48,6 +48,33 @@ func Analyze(text string) []string {
     return tokens
 }
 
+// AnalyzeForPhrase takes raw text and applies all filtering and stemming 
+// but DOES NOT generate N-Grams, as the result is intended for sequential
+// word-by-word comparison (phrase matching).
+func AnalyzeForPhrase(text string) []string {
+    // 1. Pre-Tokenization Normalization
+    text = normalizeText(text)
+    
+    // 2. Tokenization: Split the text into individual words
+    tokens := simpleTokenizer(text) 
+
+    // 3. Token Filtering: Apply initial transformations
+    tokens = lowercaseFilter(tokens)
+    tokens = removeStopwords(tokens)
+    
+    // 4. Stemming: Reduce words to their root form
+    tokens = stemTokens(tokens) 
+
+    // 5. Post-Stemming Cleanup
+    // We intentionally keep tokens here even if they are short (like "t" from "lt")
+    // but the filterShortAndNumericTokens function seems generally safe to keep
+    tokens = filterShortAndNumericTokens(tokens)
+
+    // *** IMPORTANT: NO tokenNGramFilter CALL HERE ***
+
+    return tokens
+}
+
 // --------------------------------------------------------------------------
 // 2. NORMALIZATION, TOKENIZATION AND FILTERS
 // --------------------------------------------------------------------------

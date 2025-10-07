@@ -115,6 +115,15 @@ type Match struct {
 	Boost	  *float64   `json:"boost,omitempty"`     // NEW: Relevance boost factor (default 1.0)
 }
 
+// MatchPhrase represents a phrase match condition, optionally allowing
+// a number of intervening tokens (slop).
+type MatchPhrase struct {
+    Field string  `json:"field"`
+    Value string  `json:"value"`
+    Slop  *int    `json:"slop"`   // NEW: Max intervening tokens allowed
+    Boost *float64 `json:"boost"`
+}
+
 // NestedDoc defines a filter that must be applied to individual objects within a document array. (NEW)
 type NestedDoc struct {
     Path string `json:"path"` // The field path to the array (e.g., "seller.reviews")
@@ -163,6 +172,7 @@ type Case struct {
 	Bool        *Bool        `json:"bool,omitempty"`
 	Filter      *Filter      `json:"filter,omitempty"`
 	Match       *Match       `json:"match,omitempty"`
+    MatchPhrase *MatchPhrase `json:"matchPhrase,omitempty"`
 	Range       *Range       `json:"range,omitempty"`      // NEW: Range query
 	GeoDistance *GeoDistance `json:"geoDistance,omitempty"` // NEW: Geospatial query
     GeoPolygon  *GeoPolygon  `json:"geo_polygon,omitempty"` 
@@ -888,6 +898,128 @@ func EvaluateMatch(data map[string]interface{}, m *Match) (bool, float64) {
     // provides a scored relevance result, not just a boolean filter.
 }
 
+// EvaluateMatchPhrase determines if the query tokens appear in the document
+// in the same sequential order, allowing for a defined number of intervening tokens (slop).
+// It returns the score based on the tightest (minimum slop) match found.
+func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, float64) {
+    if mp == nil || mp.Field == "" || mp.Value == "" {
+        return false, 0.0
+    }
+
+    // 1. Setup Slop and Boost
+    boost := 1.0
+    if mp.Boost != nil {
+        boost = *mp.Boost
+    }
+    slop := 0
+    if mp.Slop != nil && *mp.Slop > 0 {
+        slop = *mp.Slop
+    }
+
+    // 2. Resolve Tokens
+    rawDocValueStr, _ := resolveDotNotation(data, mp.Field) 
+    docTokens := AnalyzeForPhrase(rawDocValueStr)
+    queryTokens := AnalyzeForPhrase(mp.Value)
+
+    queryLen := len(queryTokens)
+    docLen := len(docTokens)
+
+    if queryLen == 0 || docLen == 0 || queryLen > docLen {
+        return false, 0.0
+    }
+
+    // --- 3. Sequence Matching to Find Minimum Slop ---
+    bestScore := 0.0
+    matchFound := false
+    minSlopUsed := slop + 1 // Initialize to a value higher than max allowed slop
+
+    // Outer loop: Iterate through the document to find all possible start positions
+    for docStartPos := 0; docStartPos <= docLen - queryLen; docStartPos++ {
+        
+        if docTokens[docStartPos] != queryTokens[0] {
+            continue
+        }
+        
+        // This is a potential start. Track the slop for this sequence.
+        currentSlop := 0
+        currentDocPos := docStartPos
+        
+        // Inner loop: Check the remaining query tokens
+        for queryTokenIndex := 1; queryTokenIndex < queryLen; queryTokenIndex++ {
+            
+            targetToken := queryTokens[queryTokenIndex]
+            foundNextToken := false
+            
+            for nextDocPos := currentDocPos + 1; nextDocPos < docLen; nextDocPos++ {
+                
+                newSlopNeeded := (nextDocPos - currentDocPos - 1)
+                
+                if docTokens[nextDocPos] == targetToken {
+                    
+                    if currentSlop + newSlopNeeded <= slop {
+                        currentSlop += newSlopNeeded
+                        currentDocPos = nextDocPos
+                        foundNextToken = true
+                        break 
+                    } else {
+                        // Slop exceeded for this path, abandon it
+                        break
+                    }
+                }
+            }
+
+            if !foundNextToken {
+                // Sequence broken or exceeded slop, abandon this start position
+                goto nextStartPos 
+            }
+        }
+        
+        // If we reach here, the full phrase was matched successfully within the slop limit.
+        matchFound = true
+        
+        // Update the minimum slop found across all sequences
+        if currentSlop < minSlopUsed {
+            minSlopUsed = currentSlop
+        }
+
+    nextStartPos:
+        continue
+    }
+    
+    // --- 4. Final Score Calculation based on Minimum Slop ---
+    if matchFound {
+        
+        // Proximity Factor: The tighter the match, the closer the factor is to 1.0.
+        // If max slop is 3, and min slop used is 1, the factor is 1 - (1/4) = 0.75.
+        // If min slop is 0, factor is 1 - 0 = 1.0.
+        proximityFactor := 1.0
+        if slop > 0 {
+            proximityFactor = 1.0 - (float64(minSlopUsed) / float64(slop + 1)) 
+        }
+        
+        // **ADVANCED:** Penalty to Term Frequency (TF) for slop used.
+        // This reduces the score of the match even before the ProximityFactor.
+        // Example: If minSlopUsed is 2, the effective TF is reduced by 2.
+        effectiveTF := float64(queryLen) - float64(minSlopUsed) 
+        if effectiveTF < 1.0 { // Ensure positive score
+            effectiveTF = 1.0 
+        }
+
+        docLengthFactor := 1.0
+        if docLen > 10 {
+            docLengthFactor = 1.0 / math.Log(float64(docLen + 1))
+        }
+        
+        // Final Score = (Effective TF * Doc Norm) * High Multiplier * Proximity Factor * Boost
+        bestScore = (effectiveTF * docLengthFactor) * 2.5 * proximityFactor * boost
+        
+        log.Printf("EvaluateMatchPhrase: Phrase MATCH (Min Slop Used: %d). Best Score=%.4f (Phrase: %s)", minSlopUsed, bestScore, mp.Value)
+        return true, bestScore
+    }
+    
+    return false, 0.0
+}
+
 // EvaluateRange performs range checks (numeric or date).
 func EvaluateRange(data map[string]interface{}, field string, r *Range) (bool, float64) {
 	targetValue, exists := resolveDotNotation(data, field)
@@ -1192,6 +1324,12 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		// Changed: EvaluateMatch now returns bool and float64 (calculated score)
 		return EvaluateMatch(data, c.Match) 
 	}
+
+    // --- NEW: I) Handle MatchPhrase logic (Highest Relevancy, Score > 0.0) ---
+    if c.MatchPhrase != nil {
+        // Delegates score calculation to EvaluateMatchPhrase
+        return EvaluateMatchPhrase(data, c.MatchPhrase) 
+    }
 
 	// I) Extract Condition and default Operation (for Term/Filter)
 	var condition Condition

@@ -197,6 +197,7 @@ type MetricRequest struct {
 	Type        string            `json:"type"`          // e.g., "sum", "avg", "median", "percentile", "std_dev"
 	Percentile  float64           `json:"percentile,omitempty"` // NEW: Specific percentile value (e.g., 95.0)
 	// A map where Key=Source Field (e.g., "total_price"), Value=Result Name (e.g., "total_sales")
+    Path string `json:"path,omitempty"` // Path to the nested array (e.g., "reviews")
 	Fields map[string]string `json:"fields"`
         // NEW FIELD: Used only for scripted metrics
     Scripted *ScriptedMetricDefinition `json:"scripted,omitempty"` 
@@ -1824,6 +1825,55 @@ func CalculateScriptedMetric(docs []map[string]interface{}, sm *ScriptedMetricDe
     }
 }
 
+// calculateNestedMetric extracts the array at 'nestedPath' from parent documents, 
+// flattens the relevant field, and computes the metric across all nested items.
+func calculateNestedMetric(docs []map[string]interface{}, metricType, nestedPath, sourceField string) interface{} {
+    unnestedValues := make([]float64, 0)
+
+    for _, doc := range docs {
+        // Resolve the raw array (slice of interfaces)
+        rawVal, exists := resolveRawDotNotation(doc, nestedPath)
+        if !exists {
+            continue
+        }
+
+        if array, isArray := rawVal.([]interface{}); isArray {
+            for _, item := range array {
+                if innerDoc, isMap := item.(map[string]interface{}); isMap {
+                    // Resolve the specific source field (e.g., "rating") within the inner document
+                    // NOTE: Assumes resolveDotNotation returns a string
+                    valStr, exists := resolveDotNotation(innerDoc, sourceField)
+                    if exists {
+                        if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+                            unnestedValues = append(unnestedValues, val)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if len(unnestedValues) == 0 {
+        return 0.0
+    }
+
+    // Compute the final metric (e.g., avg)
+    switch strings.ToLower(metricType) {
+    case "sum":
+        var sum float64
+        for _, v := range unnestedValues { sum += v }
+        return sum
+    case "avg", "mean":
+        var sum float64
+        for _, v := range unnestedValues { sum += v }
+        return sum / float64(len(unnestedValues))
+    // ... [Include min/max/etc. logic here if needed] ...
+    default:
+        log.Printf("WARN: Unsupported nested metric type '%s'.", metricType)
+        return nil
+    }
+}
+
 // ----------------------------------------------------
 // Result Control Helpers
 // ----------------------------------------------------
@@ -2419,33 +2469,63 @@ func executeScoreTemplate(data map[string]interface{}, code string) (float64, er
 }
 
 // processGroup handles metric calculation and recursion for a single group of documents.
+// This is where the FUSED LOGIC is implemented.
 func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface{}) Bucket {
     newBucket := Bucket{
         Key:   key,
         Count: len(groupDocs),
     }
 
-    // 2. Calculate Metrics for this group
+    // 0. Initialize metrics map
     if len(agg.Metrics) > 0 {
-        newBucket.Metrics = CalculateMetrics(groupDocs, agg.Metrics)
+        newBucket.Metrics = make(map[string]interface{})
     }
 
-    // NEW: Handle Top Hits
+    // 1. Calculate Nested Aggregation Metrics (FUSED LOGIC)
+    standardMetrics := make([]MetricRequest, 0, len(agg.Metrics))
+
+    for _, req := range agg.Metrics {
+        if req.Path != "" { // <-- If Path is present, this is a NESTED METRIC
+            calcType := strings.ToLower(req.Type)
+            
+            // req.Fields is a map of {sourceField: resultName}
+            for sourceField, resultName := range req.Fields {
+                if resultName == "" {
+                    continue
+                }
+                
+                calculatedValue := calculateNestedMetric(groupDocs, calcType, req.Path, sourceField)
+                if calculatedValue != nil {
+                    // Place the nested metric result directly into the parent bucket's Metrics map
+                    newBucket.Metrics[resultName] = calculatedValue
+                }
+            }
+        } else {
+            // If no Path is present, queue it for standard metric calculation
+            standardMetrics = append(standardMetrics, req)
+        }
+    }
+
+    // 2. Calculate Standard Metrics (Non-Nested Fields)
+    if len(standardMetrics) > 0 {
+        standardResults := CalculateMetrics(groupDocs, standardMetrics)
+        // Merge standard metrics results into the map already containing nested metrics
+        for k, v := range standardResults {
+            newBucket.Metrics[k] = v
+        }
+    }
+
+    // 3. Handle Top Hits (Existing Logic)
+    // ... (Top Hits logic remains here, operating on groupDocs) ...
     if agg.TopHits != nil && agg.TopHits.Size > 0 {
-        hitsDocs := groupDocs // Start with all documents in the group
+        hitsDocs := groupDocs 
         
-        // 1. Apply Top Hits Sorting
         if len(agg.TopHits.Sort) > 0 {
-            // NOTE: We must clone hitsDocs before sorting if we need the original order for other ops,
-            // but for aggregation context, mutating the slice is acceptable since we only use it here.
             ApplySort(hitsDocs, agg.TopHits.Sort)
         }
         
-        // 2. Apply Top Hits Paging (Limit/Size)
-        // Use ApplyPaging logic: offset=0, limit=TopHits.Size
         hitsDocs = ApplyPaging(hitsDocs, agg.TopHits.Size, 0) 
         
-        // 3. Apply Top Hits Projection
         if len(agg.TopHits.Source) > 0 {
             hitsDocs = ProjectFields(hitsDocs, agg.TopHits.Source)
         }
@@ -2453,10 +2533,13 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
         newBucket.TopHits = hitsDocs
     }
 
-    // 3. Handle Nested Aggregations
+
+    // 4. Handle Nested Aggregations / Sub-Aggs (Recursive Grouping Logic)
     if agg.Aggs != nil {
+        // Recursive call for standard sub-aggregations (e.g., groupBy state)
         newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
-    }
+    } 
+    
     return newBucket
 }
 

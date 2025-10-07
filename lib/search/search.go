@@ -1640,34 +1640,68 @@ func calculatePercentile(docs []map[string]interface{}, field string, percentile
 
 // In search/package.go
 
-// calculateCardinality counts the number of unique string values for a field.
+// calculateCardinality counts the number of unique values for a field, 
+// supporting both single values and arrays of values.
 func calculateCardinality(docs []map[string]interface{}, field string) int {
-    uniqueValues := make(map[string]struct{})
-    
-    // Log the start of the calculation
-    log.Printf("CalculateCardinality: Starting calculation for field '%s' on %d documents.", field, len(docs))
-    
-    for i, doc := range docs {
-        // Use resolveDotNotation to get the string value for comparison
-        valStr, exists := resolveDotNotation(doc, field)
-        
-        if exists {
-            // Log successful retrieval and the value found
-            log.Printf("CalculateCardinality DEBUG: Doc %d: Found value '%s'", i, valStr)
-            
-            // Add the value to the set of unique strings
-            uniqueValues[valStr] = struct{}{}
-        } else {
-            // Log when a field is missing or the traversal failed
-            log.Printf("CalculateCardinality DEBUG: Doc %d: Field '%s' not found or failed traversal.", i, field)
-        }
-    }
-    
-    // Log the final count
-    finalCount := len(uniqueValues)
-    log.Printf("CalculateCardinality: Completed. Found %d unique values for field '%s'.", finalCount, field)
-    
-    return finalCount
+	// Use a map to store unique values. struct{} is used as the value for minimal memory usage.
+	uniqueValues := make(map[string]struct{})
+
+	log.Printf("CalculateCardinality: Starting calculation for field '%s' on %d documents.", field, len(docs))
+
+	for i, doc := range docs {
+		// Use a raw resolver to get the value, which could be any type (string, float, []interface{}, etc.)
+		val, exists := resolveRawDotNotation(doc, field)
+
+		if !exists {
+			log.Printf("CalculateCardinality DEBUG: Doc %d: Field '%s' not found.", i, field)
+			continue
+		}
+
+		// Helper closure to process and add a single value to the unique set
+		processAndAdd := func(item interface{}) {
+			var valStr string
+			var isString bool
+
+			// 1. Check for string
+			if valStr, isString = item.(string); isString {
+				// Use the string directly
+			} else if fVal, isFloat := item.(float64); isFloat {
+				// 2. Check for float (common for JSON numbers) and convert to string
+				valStr = strconv.FormatFloat(fVal, 'f', -1, 64)
+				isString = true
+			} else if iVal, isInt := item.(int); isInt {
+				// 3. Check for integer and convert to string
+				valStr = strconv.Itoa(iVal)
+				isString = true
+			} else {
+				// 4. Handle other types (bool, complex objects, etc.) by using fmt.Sprintf
+				// NOTE: This can lead to unexpected cardinality for complex objects.
+				valStr = fmt.Sprintf("%v", item)
+				isString = true 
+			}
+
+			if isString {
+				uniqueValues[valStr] = struct{}{}
+				log.Printf("CalculateCardinality DEBUG: Doc %d: Found value '%s'", i, valStr)
+			}
+		}
+
+		// --- Check if the resolved value is an array (multi-value field) ---
+		if valArray, isArray := val.([]interface{}); isArray {
+			// If it's an array, iterate through all elements
+			for _, item := range valArray {
+				processAndAdd(item)
+			}
+		} else {
+			// --- Handle single value field ---
+			processAndAdd(val)
+		}
+	}
+
+	finalCount := len(uniqueValues)
+	log.Printf("CalculateCardinality: Completed. Found %d unique values for field '%s'.", finalCount, field)
+
+	return finalCount
 }
 
 // CalculateMetrics iterates through the Aggregation's requested metrics and computes them. (UPDATED)

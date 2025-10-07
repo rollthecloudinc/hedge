@@ -189,6 +189,10 @@ type Aggregation struct {
 
 	// Recursive definition for the next level of aggregation
 	Aggs *Aggregation `json:"aggs,omitempty"`
+
+	// Path for the nested aggregation type
+	Path string `json:"path,omitempty"`
+	SubAggs map[string]*Aggregation `json:"subAggs,omitempty"` // Used for standard multi-level aggregations
 }
 
 // NEW STRUCT
@@ -1618,30 +1622,21 @@ func ApplyScoreModifiers(docs []map[string]interface{}, fs *FunctionScore) {
 }
 
 // ----------------------------------------------------
-// Recursive Subquery Execution Logic (UNCHANGED)
+// Recursive Subquery Execution Logic
 // ----------------------------------------------------
 
+// ExecuteSubQuery fetches a list of values (e.g., IDs) by executing a full, nested search.
+// This is the core function for recursive subquery execution.
 func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetIndexConfigurationInput, subQuery *Query, resultField string) ([]string, error) {
+    
     log.Printf("ExecuteSubQuery: Starting recursive search for index '%s' and composite keys: %+v", subQuery.Index, subQuery.Composite)
-
+    
     // 1. Get the Index Config for the subQuery's index
-    subInput := *baseInput
+    subInput := *baseInput 
     subInput.Id = subQuery.Index
-    subInput.GithubClient = client
-
-    // NOTE: GetIndexById is assumed to exist in another file (e.g., repo/index.go)
-    // We'll simulate fetching a map here for completeness.
-    // You must replace this with your actual Index fetching logic.
-    subIndexObject, err := func(input *GetIndexConfigurationInput) (map[string]interface{}, error) {
-        // DUMMY IMPLEMENTATION: REPLACE WITH ACTUAL GITHUB FETCH LOGIC
-        return map[string]interface{}{
-            "fields": []interface{}{"region", "category"},
-            "repoName": "dummy/repo",
-            "searchRootPath": "data/search",
-        }, nil
-    }(&subInput)
-    // End DUMMY IMPLEMENTATION
-
+    subInput.GithubClient = client 
+    
+    subIndexObject, err := GetIndexById(&subInput)
     if err != nil || subIndexObject == nil {
         return nil, fmt.Errorf("failed to load configuration for subquery index '%s': %w", subQuery.Index, err)
     }
@@ -1651,9 +1646,10 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
     if !ok {
         return nil, errors.New("subquery index configuration missing 'fields'")
     }
-
+    
     contentPath := ""
     if len(subQuery.Composite) > 0 {
+        // Build the path using composite keys provided in the subquery
         for idx, f := range fields {
             fStr := f.(string)
             compositeVal, found := subQuery.Composite[fStr]
@@ -1666,48 +1662,43 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
         }
         log.Printf("ExecuteSubQuery: Using composite path: %s", contentPath)
     } else {
+        // Fall back to searchRootPath if no composite keys are provided
         searchRootPath, ok := subIndexObject["searchRootPath"].(string)
         if ok {
             contentPath = searchRootPath
             log.Printf("ExecuteSubQuery: Using searchRootPath: %s", contentPath)
         } else {
-            return nil, errors.New("subquery must specify Composite keys or index must have searchRootPath")
+             return nil, errors.New("subquery must specify Composite keys or index must have searchRootPath")
         }
     }
 
-    // 3. Fetch directory contents
+    // 3. Fetch directory contents 
     repoToFetch := subIndexObject["repoName"].(string)
-    // DUMMY: Replace with actual client.Repositories.GetContents
-    var dirContents []*github.RepositoryContent
-    if repoToFetch == "dummy/repo" {
-        log.Print("ExecuteSubQuery: [DUMMY] Simulating content fetch.")
-        // We can't actually fetch content in this dummy function, so this will likely be empty
-    }
-    // End DUMMY
-
+    _, dirContents, _, err := client.Repositories.GetContents(
+        ctx, subInput.Owner, repoToFetch, contentPath, 
+        &github.RepositoryContentGetOptions{Ref: subInput.Branch},
+    )
     if err != nil || dirContents == nil {
         log.Printf("ExecuteSubQuery: Failed to fetch contents from path '%s': %v", contentPath, err)
-        // For the sake of not crashing the dummy code, we'll return an empty list on failure
-        return nil, nil
+        return nil, nil // Return empty results rather than an error if path is just missing
     }
 
     // 4. Filter contents using the subQuery's Bool logic and extract the target field
     results := make([]string, 0)
     for _, content := range dirContents {
-        if content.GetType() != "file" {
-            continue
-        }
+        if content.GetType() != "file" { continue }
 
         decodedBytes, _ := base64.StdEncoding.DecodeString(content.GetName())
         itemBody := string(decodedBytes)
-
+        
         var itemData map[string]interface{}
         if json.Unmarshal([]byte(itemBody), &itemData) == nil {
-
-            // Changed: Use new signature and discard the score
-            match, _ := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput) 
-
+            
+            // Execute the subQuery's BOOL evaluation recursively
+            match, _ := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput)
+            
             if match {
+                // Extract the value of the target field (resultField) from the matching document
                 if val, exists := resolveDotNotation(itemData, resultField); exists {
                     results = append(results, val)
                 }
@@ -1724,10 +1715,13 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
 
 // In search/package.go
 
+// goclassifieds/lib/search/aggregation.go
+
 // ExecuteAggregation recursively groups and calculates metrics on a list of documents.
 func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucket {
     // Check for valid request and determine if any grouping mechanism is active.
-    hasGrouping := len(agg.GroupBy) > 0 || len(agg.RangeBuckets) > 0 || agg.DateHistogram != nil
+    // NOTE: agg.Path is a new grouping mechanism.
+    hasGrouping := len(agg.GroupBy) > 0 || len(agg.RangeBuckets) > 0 || agg.DateHistogram != nil || agg.Path != "" 
     hasMetrics := agg != nil && len(agg.Metrics) > 0
 
     if !hasGrouping {
@@ -1743,6 +1737,12 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
         // Final exit if neither grouping nor metrics are defined.
         log.Print("ExecuteAggregation: No grouping or metrics defined. Returning empty buckets.")
         return []Bucket{}
+    }
+
+    // --- NEW: 0. Nested Aggregation (Highest Priority) ---
+    if agg.Path != "" {
+        log.Printf("ExecuteAggregation: Detected Nested Aggregation on path '%s'.", agg.Path)
+        return executeNestedAggregation(docs, agg)
     }
 
     // --- 1. Standard GroupBy (Field Value Grouping) ---
@@ -1863,6 +1863,93 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
     }
 
     return []Bucket{} 
+}
+
+// goclassifieds/lib/search/aggregation.go (Modified for Nested Logic)
+
+// goclassifieds/lib/search/aggregation.go (with debugging logs)
+
+// executeNestedAggregation processes documents by flattening a nested array field 
+// and recursively running the sub-aggregations on the new set of documents.
+func executeNestedAggregation(documents []map[string]interface{}, agg *Aggregation) []Bucket {
+    if agg.Path == "" || agg.SubAggs == nil || len(agg.SubAggs) == 0 {
+        log.Printf("ERROR: Nested aggregation '%s' failed. Missing 'path' or inner 'subAggs' definition.", agg.Name)
+        return []Bucket{}
+    }
+
+    log.Printf("DEBUG: Starting nested aggregation for path: '%s'. Total parent documents: %d", agg.Path, len(documents))
+    
+    // 1. Unnest: Collect all inner objects into a single flat list
+    unnestedDocuments := make([]map[string]interface{}, 0)
+
+    for docIndex, doc := range documents {
+        // Attempt to retrieve the array field defined by agg.Path
+        nestedField, exists := doc[agg.Path]
+        
+        if !exists {
+            log.Printf("DEBUG: Document %d is missing the nested path field '%s'. Skipping.", docIndex, agg.Path)
+            continue
+        }
+
+        // --- ASSERTION 1: Check if the retrieved field is an array ---
+        if array, isArray := nestedField.([]interface{}); isArray {
+            log.Printf("DEBUG: Document %d - Path '%s' successfully asserted as an array with %d items.", docIndex, agg.Path, len(array))
+            
+            for itemIndex, item := range array {
+                // --- ASSERTION 2: Check if the array item is a map (JSON object) ---
+                if innerDoc, isMap := item.(map[string]interface{}); isMap {
+                    // Success: Merge and append
+                    mergedDoc := make(map[string]interface{})
+                    
+                    // Pass down essential fields from the parent document
+                    for k, v := range doc {
+                        if k == "_score" || k == "_id" { 
+                            mergedDoc[k] = v
+                        }
+                    }
+                    // Overwrite with the nested fields
+                    for k, v := range innerDoc {
+                        mergedDoc[k] = v
+                    }
+                    unnestedDocuments = append(unnestedDocuments, mergedDoc)
+                } else {
+                    log.Printf("WARN: Document %d, Item %d in array is NOT map[string]interface{}. Actual type: %T. Skipping item.", docIndex, itemIndex, item)
+                }
+            }
+        } else {
+            log.Printf("WARN: Document %d - Field '%s' found, but is NOT a slice/array. Actual type: %T. Skipping document.", docIndex, agg.Path, nestedField)
+        }
+    }
+
+    // Check if any documents were successfully unnested
+    if len(unnestedDocuments) == 0 {
+        log.Printf("RESULT: Nested aggregation path '%s' returned 0 unnested documents.", agg.Path)
+        return []Bucket{}
+    }
+    
+    log.Printf("DEBUG: Unnesting complete. Total unnested documents: %d", len(unnestedDocuments))
+
+    // 2. Recursive Call: Execute the inner aggregation(s) on the flat list
+    finalBuckets := make([]Bucket, 0, len(agg.SubAggs))
+
+    // Run all sub-aggregations defined under the nested path.
+    for subAggName, innerAgg := range agg.SubAggs {
+        log.Printf("DEBUG: Executing inner aggregation '%s' (Type: %v) on the unnested set.", subAggName)
+        
+        // RECURSIVE CALL: The innerAgg is processed by the main router function.
+        innerBuckets := ExecuteAggregation(unnestedDocuments, innerAgg)
+
+        // The result of a nested aggregation is represented as a single bucket 
+        // per inner aggregation, containing the results of that inner agg.
+        finalBuckets = append(finalBuckets, Bucket{
+            Key:      subAggName,
+            Count: len(unnestedDocuments), // Total number of unnseted items
+            Buckets:  innerBuckets, // The actual aggregation results
+        })
+    }
+    
+    log.Printf("DEBUG: Nested aggregation completed successfully for %d sub-aggregations.", len(finalBuckets))
+    return finalBuckets
 }
 
 func executeScoreTemplate(data map[string]interface{}, code string) (float64, error) {

@@ -198,6 +198,20 @@ type MetricRequest struct {
 	Percentile  float64           `json:"percentile,omitempty"` // NEW: Specific percentile value (e.g., 95.0)
 	// A map where Key=Source Field (e.g., "total_price"), Value=Result Name (e.g., "total_sales")
 	Fields map[string]string `json:"fields"`
+        // NEW FIELD: Used only for scripted metrics
+    Scripted *ScriptedMetricDefinition `json:"scripted,omitempty"` 
+}
+
+// NEW STRUCTURE: Defines the actual script and reduction logic
+type ScriptedMetricDefinition struct {
+    Name        string `json:"name"`
+    // The script/template code to run on EACH document in the bucket.
+    Script      string `json:"script"` 
+    // The final aggregation type to perform on the results of the script:
+    // "sum", "avg", "min", "max", or "count"
+    ReduceType  string `json:"reduceType"` 
+    // Initial value for the reduction accumulator
+    InitialValue float64 `json:"initialValue"` 
 }
 
 // RangeBucket defines a single numeric bucket for histogram aggregation
@@ -1659,58 +1673,155 @@ func calculateCardinality(docs []map[string]interface{}, field string) int {
 func CalculateMetrics(groupDocs []map[string]interface{}, metrics []MetricRequest) map[string]interface{} {
 	results := make(map[string]interface{})
 
+    // Check if the documents are present
+    if len(groupDocs) == 0 {
+        return results
+    }
+
 	for _, req := range metrics {
-		calcType := strings.ToLower(req.Type)
+        if req.Scripted != nil {
 
-		if len(req.Fields) == 0 {
-			continue
-		}
+            // --- NEW: Handle Scripted Metric ---
+            sm := req.Scripted
+            if sm.Name == "" {
+                sm.Name = "scriptMetric" // Default name if missing
+            }
+            
+            // Call the new function
+            results[sm.Name] = CalculateScriptedMetric(groupDocs, sm) 
 
-		for sourceField, resultName := range req.Fields {
-			if resultName == "" {
-				continue
-			}
+        } else {
 
-			var calculatedValue interface{}
+            calcType := strings.ToLower(req.Type)
 
-			switch calcType {
-			case "sum":
-				calculatedValue = calculateSum(groupDocs, sourceField)
-			case "avg", "mean":
-				calculatedValue = calculateAvg(groupDocs, sourceField)
-			case "median":
-				calculatedValue = calculateMedian(groupDocs, sourceField)
-			case "mode":
-				calculatedValue = calculateMode(groupDocs, sourceField)
-			case "min":
-				calculatedValue = calculateMin(groupDocs, sourceField)
-			case "max":
-				calculatedValue = calculateMax(groupDocs, sourceField)
-			case "std_dev": // NEW
-				calculatedValue = calculateStdDev(groupDocs, sourceField)
-			case "percentile": // NEW
-				p := req.Percentile // Use the percentile specified in the request
-				if p <= 0 || p > 100 {
-					p = 50.0 // Default to median if invalid
-					log.Printf("CalculateMetrics: Invalid percentile value in request, defaulting to 50th.")
-				}
-				calculatedValue = calculatePercentile(groupDocs, sourceField, p)
-            case "cardinality", "unique_count": // NEW
-				// Ensure the value is calculated and cast it to float64 for result consistency
-				count := calculateCardinality(groupDocs, sourceField)
-				calculatedValue = float64(count) // Cast int to float64
-			case "count":
-				// Count is implicit in the aggregation logic, but supported here for field-level count
-				values := extractNumericValues(groupDocs, sourceField)
-				calculatedValue = len(values)
-			default:
-				log.Printf("CalculateMetrics: Unknown metric type '%s'. Skipping field '%s'.", req.Type, sourceField)
-				continue
-			}
-			results[resultName] = calculatedValue
-		}
+            if len(req.Fields) == 0 {
+                continue
+            }
+
+            for sourceField, resultName := range req.Fields {
+                if resultName == "" {
+                    continue
+                }
+
+                var calculatedValue interface{}
+
+                switch calcType {
+                case "sum":
+                    calculatedValue = calculateSum(groupDocs, sourceField)
+                case "avg", "mean":
+                    calculatedValue = calculateAvg(groupDocs, sourceField)
+                case "median":
+                    calculatedValue = calculateMedian(groupDocs, sourceField)
+                case "mode":
+                    calculatedValue = calculateMode(groupDocs, sourceField)
+                case "min":
+                    calculatedValue = calculateMin(groupDocs, sourceField)
+                case "max":
+                    calculatedValue = calculateMax(groupDocs, sourceField)
+                case "std_dev": // NEW
+                    calculatedValue = calculateStdDev(groupDocs, sourceField)
+                case "percentile": // NEW
+                    p := req.Percentile // Use the percentile specified in the request
+                    if p <= 0 || p > 100 {
+                        p = 50.0 // Default to median if invalid
+                        log.Printf("CalculateMetrics: Invalid percentile value in request, defaulting to 50th.")
+                    }
+                    calculatedValue = calculatePercentile(groupDocs, sourceField, p)
+                case "cardinality", "unique_count": // NEW
+                    // Ensure the value is calculated and cast it to float64 for result consistency
+                    count := calculateCardinality(groupDocs, sourceField)
+                    calculatedValue = float64(count) // Cast int to float64
+                case "count":
+                    // Count is implicit in the aggregation logic, but supported here for field-level count
+                    values := extractNumericValues(groupDocs, sourceField)
+                    calculatedValue = len(values)
+                default:
+                    log.Printf("CalculateMetrics: Unknown metric type '%s'. Skipping field '%s'.", req.Type, sourceField)
+                    continue
+                }
+                results[resultName] = calculatedValue
+            }
+
+        }
 	}
 	return results
+}
+
+// CalculateScriptedMetric executes a script on every document in the group and then reduces the results.
+func CalculateScriptedMetric(docs []map[string]interface{}, sm *ScriptedMetricDefinition) float64 {
+    scriptResults := make([]float64, 0, len(docs))
+
+    // Phase 1: Map (Execute Script on Each Document)
+    for _, doc := range docs {
+        // Reuse the existing template execution function (assumed to be in scope)
+        result, err := executeScoreTemplate(doc, sm.Script) 
+        if err != nil {
+            // Log the error but treat the result for this document as 0.0 or skip
+            log.Printf("WARN: Scripted metric '%s' failed for a document: %v", sm.Name, err)
+            // For robustness, skip the document's contribution or use 0.0
+            continue 
+        }
+        scriptResults = append(scriptResults, result)
+    }
+    
+    // Phase 2: Reduce (Aggregate the Script Results)
+    if len(scriptResults) == 0 {
+        return sm.InitialValue // Return the default if no documents processed
+    }
+
+    // Accumulator starts with the initial value
+    accumulator := sm.InitialValue 
+    count := len(scriptResults)
+
+    // Handle reduction logic
+    switch strings.ToLower(sm.ReduceType) {
+    case "sum":
+        for _, val := range scriptResults {
+            accumulator += val
+        }
+        return accumulator
+        
+    case "avg":
+        for _, val := range scriptResults {
+            accumulator += val
+        }
+        // If InitialValue was 0, this is a standard average
+        return accumulator / float64(count) 
+
+    case "min":
+        // Start min/max with the first element, ignoring initialValue
+        if count > 0 {
+            minVal := scriptResults[0]
+            for _, val := range scriptResults[1:] {
+                if val < minVal {
+                    minVal = val
+                }
+            }
+            return minVal
+        }
+        return sm.InitialValue
+
+    case "max":
+        // Start min/max with the first element
+        if count > 0 {
+            maxVal := scriptResults[0]
+            for _, val := range scriptResults[1:] {
+                if val > maxVal {
+                    maxVal = val
+                }
+            }
+            return maxVal
+        }
+        return sm.InitialValue
+
+    case "count":
+        // Count the number of successful script executions (already done implicitly by len(scriptResults))
+        return float64(count)
+        
+    default:
+        log.Printf("ERROR: Scripted metric '%s' has unknown reduce type '%s'.", sm.Name, sm.ReduceType)
+        return sm.InitialValue
+    }
 }
 
 // ----------------------------------------------------
@@ -2283,7 +2394,7 @@ func executeScoreTemplate(data map[string]interface{}, code string) (float64, er
         "div":       div, // For division (a / b)
         "add":       add, // For addition (a + b)
         // "sub":    sub,
-        // "mul":    mul,
+        "mul":    mul,
 		// Add more functions as needed
     }
 
@@ -2484,6 +2595,11 @@ func div(a, b interface{}) float64 {
 
 func add(a, b interface{}) float64 {
     return toFloat64(a) + toFloat64(b)
+}
+
+// Add these helper functions (you may need to implement similar ones for 'add', 'sub', 'mul')
+func mul(a, b interface{}) float64 {
+    return toFloat64(a) * toFloat64(b)
 }
 
 func toFloat64(i interface{}) float64 {

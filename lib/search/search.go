@@ -66,6 +66,31 @@ type GeoDistance struct {
 	Unit      string  `json:"unit"`         // Unit of distance (e.g., "km", "mi")
 }
 
+// GeoPolygon defines a condition where the document's location field 
+// must fall within the boundaries of the specified polygon.
+type GeoPolygon struct {
+    Field  string    `json:"field"`  // The name of the geographic field (e.g., "location")
+    Points []Point   `json:"points"` // The vertices of the polygon
+}
+
+type GeoMultiPolygon struct {
+    Field   string      `json:"field"` // Field containing coordinates
+    Polygons [][]Point  `json:"polygons"` // Array of polygons
+}
+
+type GeoLine struct {
+    Field    string    `json:"field"`   // Field with coordinates in the document
+    Line     []Point   `json:"line"`    // Array of points defining the line
+    Distance float64   `json:"distance"`// Matching threshold (max distance from line)
+    Unit     string    `json:"unit"`    // Units (e.g., km, mi)
+}
+
+// Point represents a single coordinate pair.
+type Point struct {
+    Lat float64 `json:"lat"` // Latitude
+    Lon float64 `json:"lon"` // Longitude
+}
+
 // Term, Filter, and Match structs now embed a full Query object for subqueries.
 type Term struct {
 	Field     string     `json:"field"`
@@ -140,6 +165,9 @@ type Case struct {
 	Match       *Match       `json:"match,omitempty"`
 	Range       *Range       `json:"range,omitempty"`      // NEW: Range query
 	GeoDistance *GeoDistance `json:"geoDistance,omitempty"` // NEW: Geospatial query
+    GeoPolygon  *GeoPolygon  `json:"geo_polygon,omitempty"` 
+	GeoLine 	*GeoLine 	 `json:"geoLine,omitempty"`
+	GeoMultiPolygon *GeoMultiPolygon `json:"geoMultiPolygon,omitempty"`
 	NestedDoc   *NestedDoc 	 `json:"nested,omitempty"` // NEW: Geospatial query
 	Missing     *Missing 	 `json:"missing,omitempty"`
 	Exists      *Exists 	 `json:"exists,omitempty"`
@@ -518,6 +546,87 @@ func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) (boo
     return targetDistance <= geo.Distance, 0.0
 }
 
+// EvaluateGeoLine determines if a document's geo field is within a specified distance from a polyline.
+// It takes the item's data, the GeoLine condition, and computes the proximity.
+func EvaluateGeoLine(data map[string]interface{}, geoLine *GeoLine) (bool, float64) {
+    if geoLine == nil || len(geoLine.Line) < 2 {
+        log.Printf("EvaluateGeoLine: Invalid GeoLine definition. Line requires at least 2 points.")
+        return false, 0.0
+    }
+
+    // 1. Resolve the document's geographic field value
+    docLat, docLon, exists := resolvePointFromDoc(data, geoLine.Field)
+    if !exists {
+        log.Printf("EvaluateGeoLine: Field '%s' not found in document.", geoLine.Field)
+        return false, 0.0
+    }
+
+    // 2. Calculate the shortest distance from the document location to the polyline segments
+    minDistance := math.MaxFloat64
+    for i := 0; i < len(geoLine.Line)-1; i++ {
+        // Extract start and end points of the current line segment
+        start := geoLine.Line[i]
+        end := geoLine.Line[i+1]
+
+        // Compute the distance from the document's location to the line segment
+        segmentDistance := distanceToLineSegment(docLat, docLon, start.Lat, start.Lon, end.Lat, end.Lon)
+        if segmentDistance < minDistance {
+            minDistance = segmentDistance
+        }
+    }
+
+    // Log distance calculation for understanding
+    log.Printf("EvaluateGeoLine: Document location (%.4f, %.4f). Closest distance to line: %.2f %s.",
+        docLat, docLon, minDistance, geoLine.Unit)
+
+    // 3. Convert distance to the specified unit
+    var convertedDistance float64
+    searchUnit := strings.ToLower(geoLine.Unit)
+    if searchUnit == "mi" || searchUnit == "miles" {
+        convertedDistance = minDistance / (EARTH_RADIUS_KM / EARTH_RADIUS_MI)
+    } else { // Default to kilometers
+        convertedDistance = minDistance
+    }
+
+    // 4. Return whether the distance is within the specified threshold and the computed score
+    isWithinThreshold := convertedDistance <= geoLine.Distance
+    log.Printf("EvaluateGeoLine: Required distance: %.2f %s. Result: %t", geoLine.Distance, geoLine.Unit, isWithinThreshold)
+    return isWithinThreshold, 0.0 // Score remains neutral (0.0) for filter-based conditions
+}
+
+// EvaluateGeoMultiPolygon determines if a document's geo field value falls within any of the defined polygons.
+func EvaluateGeoMultiPolygon(data map[string]interface{}, geoMultiPolygon *GeoMultiPolygon) (bool, float64) {
+    // Ensure that the GeoMultiPolygon has valid polygons defined
+    if geoMultiPolygon == nil || len(geoMultiPolygon.Polygons) == 0 {
+        log.Printf("EvaluateGeoMultiPolygon: Invalid GeoMultiPolygon definition or no polygons provided.")
+        return false, 0.0
+    }
+
+    // 1. Resolve the document's geographic field value
+    docLat, docLon, exists := resolvePointFromDoc(data, geoMultiPolygon.Field)
+    if !exists {
+        log.Printf("EvaluateGeoMultiPolygon: Field '%s' not found in document.", geoMultiPolygon.Field)
+        return false, 0.0
+    }
+
+    // 2. Iterate through the polygons and check if the point lies within any of them
+    for i, polygon := range geoMultiPolygon.Polygons {
+        if len(polygon) < 3 {
+            log.Printf("EvaluateGeoMultiPolygon: Skipping invalid polygon at index %d (less than 3 points).", i)
+            continue
+        }
+
+        if isPointInPolygon(docLat, docLon, polygon) {
+            log.Printf("EvaluateGeoMultiPolygon: Match found. Document point (%.4f, %.4f) is inside polygon %d.", docLat, docLon, i)
+            return true, 0.0 // Return true if the point is inside any polygon
+        }
+    }
+
+    // 3. Return false if the point is not in any of the polygons
+    log.Printf("EvaluateGeoMultiPolygon: No match found. Document point (%.4f, %.4f) does not fall inside any polygons.", docLat, docLon)
+    return false, 0.0
+}
+
 // parseCoordinate is a helper to convert various types to float64.
 func parseCoordinate(v interface{}) (float64, error) {
     switch val := v.(type) {
@@ -530,6 +639,44 @@ func parseCoordinate(v interface{}) (float64, error) {
     default:
         return 0, fmt.Errorf("unsupported coordinate type: %T", val)
     }
+}
+
+// distanceToLineSegment calculates the shortest distance between a point (lat/lon) and a line segment defined by two points.
+func distanceToLineSegment(lat, lon, startLat, startLon, endLat, endLon float64) float64 {
+    // Convert coordinates to radians
+    latRad := degreesToRadians(lat)
+    lonRad := degreesToRadians(lon)
+    startLatRad := degreesToRadians(startLat)
+    startLonRad := degreesToRadians(startLon)
+    endLatRad := degreesToRadians(endLat)
+    endLonRad := degreesToRadians(endLon)
+
+    // Compute the distance between start and end points of the segment
+    segmentLength := Haversine(startLat, startLon, endLat, endLon)
+
+    if segmentLength == 0.0 {
+        // Degenerate case: The line segment is a single point
+        return Haversine(lat, lon, startLat, startLon)
+    }
+
+    // Projection formula: Find where the perpendicular intersects the line segment
+    u := ((latRad - startLatRad) * (endLatRad - startLatRad) + (lonRad - startLonRad) * (endLonRad - startLonRad)) /
+         math.Pow(segmentLength, 2)
+
+    // Clamp to bounds [0, 1] (projection falls within segment)
+    u = math.Max(0, math.Min(1, u))
+
+    // Compute the closest point along the segment
+    closestLat := startLatRad + u*(endLatRad - startLatRad)
+    closestLon := startLonRad + u*(endLonRad - startLonRad)
+
+    // Return the distance between the original point and the closest point on the line segment
+    return Haversine(lat, lon, radiansToDegrees(closestLat), radiansToDegrees(closestLon))
+}
+
+// radiansToDegrees converts radians to degrees.
+func radiansToDegrees(radians float64) float64 {
+    return radians * (180 / math.Pi)
 }
 
 
@@ -973,6 +1120,38 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 		// Changed: EvaluateGeoDistance now returns bool and float64 (0.0)
 		match, score = EvaluateGeoDistance(data, c.GeoDistance)
 		return match, score
+	}
+
+    // --- NEW: GeoPolygon Check ---
+    if c.GeoPolygon != nil {
+        poly := c.GeoPolygon
+        
+        // 1. Resolve the target location from the document
+        targetLat, targetLon, found := resolvePointFromDoc(data, poly.Field)
+        if !found {
+            return false, 0.0 // Document missing location field
+        }
+
+        // 2. Perform the geometric check
+        isInside := isPointInPolygon(targetLat, targetLon, poly.Points)
+
+        // Geo filters are typically non-scoring (like Term or Range filters)
+        if isInside {
+            // Returns a match with a non-zero score for inclusion in the result set
+            // The score is usually 1.0 or the base scoreMultiplier for a filter.
+            return true, 0.0
+        } else {
+            return false, 0.0
+        }
+    }
+
+	// Case.Evaluate updates:
+	if c.GeoLine != nil {
+    	return EvaluateGeoLine(data, c.GeoLine)
+	}
+
+	if c.GeoMultiPolygon != nil {
+    	return EvaluateGeoMultiPolygon(data, c.GeoMultiPolygon)
 	}
 
 	// D) Handle Nested Document logic
@@ -2030,6 +2209,74 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
         newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
     }
     return newBucket
+}
+
+// In goclassifieds/lib/search/geo.go (New File or within search/search.go helpers)
+
+// isPointInPolygon checks if a target point is inside the given polygon using the 
+// Ray Casting Algorithm. The polygon points must be ordered (clockwise or counter-clockwise).
+// It returns true if the point is strictly inside, and false otherwise.
+func isPointInPolygon(targetLat, targetLon float64, polygon []Point) bool {
+    n := len(polygon)
+    if n < 3 {
+        return false // Not a valid polygon
+    }
+
+    inside := false
+    
+    // Iterate over each edge of the polygon
+    for i, j := 0, n-1; i < n; j, i = i, i+1 {
+        // p1 and p2 are the endpoints of the current edge
+        p1 := polygon[i]
+        p2 := polygon[j]
+
+        // 1. Check if the ray from targetLat crosses the edge vertically
+        // The condition (p1.Lat > targetLat) != (p2.Lat > targetLat) checks if the
+        // edge crosses the horizontal line y = targetLat.
+        if (p1.Lat > targetLat) != (p2.Lat > targetLat) {
+            
+            // 2. Calculate the intersection point's longitude (x-coordinate)
+            // lon_intersection = (targetLat - p1.Lat) * (p2.Lon - p1.Lon) / (p2.Lat - p1.Lat) + p1.Lon
+            // This is the x-coordinate (longitude) of the intersection point.
+            intersectLon := (p2.Lon-p1.Lon)*(targetLat-p1.Lat)/(p2.Lat-p1.Lat) + p1.Lon
+
+            // 3. If the ray crosses the edge to the right of the target point, 
+            // the inside status toggles.
+            if targetLon < intersectLon {
+                inside = !inside
+            }
+        }
+    }
+
+    return inside
+}
+
+// In goclassifieds/lib/search/geo.go (Corrected resolvePointFromDoc)
+
+// resolvePointFromDoc attempts to extract a Point{Lat, Lon} from a document field.
+func resolvePointFromDoc(doc map[string]interface{}, field string) (float64, float64, bool) {
+    // FIX: Use resolveRawDotNotation to get the raw map or slice value.
+    rawVal, exists := resolveRawDotNotation(doc, field) 
+    if !exists {
+        return 0, 0, false
+    }
+
+    // Case 1: Value is a map {"lat": 40.0, "lon": -70.0}
+    if pointMap, ok := rawVal.(map[string]interface{}); ok { 
+        lat := toFloat64(pointMap["lat"])
+        lon := toFloat64(pointMap["lon"])
+        return lat, lon, true
+    }
+    
+    // Case 2: Value is a slice/array [lon, lat] (common GeoJSON format)
+    if pointArr, ok := rawVal.([]interface{}); ok && len(pointArr) >= 2 {
+        lon := toFloat64(pointArr[0])
+        lat := toFloat64(pointArr[1])
+        return lat, lon, true
+    }
+
+    // The field was found but was not a recognizable map or array format for geo points.
+    return 0, 0, false
 }
 
 // search/package.go (Helper Functions)

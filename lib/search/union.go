@@ -8,9 +8,6 @@ import (
 	"strings"
 	"sync"
 	"fmt"
-	
-	"github.com/google/go-github/v46/github" 
-	// Removed unused imports from the old monolithic function
 )
 
 // UnionQueryInput encapsulates all parameters required to execute a union query.
@@ -19,7 +16,6 @@ type UnionQueryInput struct {
 	Owner                 string
 	RepoName              string
 	Branch                string
-	GitHubRestClient      *github.Client
 	QueriesToExecute      []Query
 	AggregationMap        map[string]Aggregation
 	SortRequest           []SortField

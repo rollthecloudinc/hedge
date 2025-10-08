@@ -102,7 +102,6 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 		Owner:                 owner,
 		RepoName:              repoName,
 		Branch:                branch,
-		GitHubRestClient:      githubRestClient,
 		QueriesToExecute:      queriesToExecute,
 		AggregationMap:        firstQuery.Aggs,
 		SortRequest:           firstQuery.Sort,

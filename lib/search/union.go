@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"fmt"
 	
 	"github.com/google/go-github/v46/github" 
 	// Removed unused imports from the old monolithic function
@@ -35,6 +37,14 @@ type SearchResultPayload struct {
 	IsAggregation bool
 }
 
+// QueryResult holds the results from a single parallel query execution.
+type QueryResult struct {
+	Documents       []map[string]interface{}
+	Error           error
+	IndexName       string
+	DocumentsCount  int
+}
+
 // NOTE: UnionQueryInput and SearchResultPayload are assumed to be defined 
 // in this package, either in this file or another file like 'types.go'.
 
@@ -56,69 +66,120 @@ type SearchResultPayload struct {
 
 // ExecuteUnionQuery is the source-agnostic main entry point for running a union search.
 // It orchestrates data loading via the injected Loader and then applies all post-processing.
+// Define the maximum number of Go routines that can run concurrently.
+// This acts as the worker pool limit (Max Fan-Out).
+const MaxFanOutLimit = 8 
+
+// NOTE: This file assumes the necessary structs (SearchEngine, QueryResult, UnionQueryInput, etc.) 
+// and helper functions (ApplySort, ExecuteAggregation, etc.) are defined in 'search/types.go' 
+// or other files within the 'search' package.
+
+// ExecuteUnionQuery orchestrates the parallel loading and sequential post-processing.
+// It uses a worker pool (MaxFanOutLimit) to prevent resource exhaustion during the I/O phase.
 func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultPayload, error) {
 
-    // --- 1. Initial Setup and Metrics Start ---
-	// startTime := time.Now()
-	totalDocumentsProcessed := 0
-	allDocuments := make([]map[string]interface{}, 0)
+	//startTime := time.Now()
+    
+    // Set up concurrency controls
+	var wg sync.WaitGroup
 	
-	// --- 2. Main Execution Loop for Union Queries (Loading/Filtering/Scoring) ---
+    // Worker Pool Semaphore: controls the number of simultaneous Load/Filter routines.
+	workerPool := make(chan struct{}, MaxFanOutLimit) 
+    
+    // Channel to collect results from all Go routines
+	resultsChan := make(chan QueryResult, len(input.QueriesToExecute))
+    
+    // --- 1. Fan-Out: Launch a Worker Pool for Queries ---
 	for i, currentQuery := range input.QueriesToExecute {
-		log.Printf("--- STARTING QUERY %d/%d (Index: %s) ---", i+1, len(input.QueriesToExecute), currentQuery.Index)
-		
-		// 2a. Build the necessary configuration for the current index
-		getIndexInput := &GetIndexConfigurationInput{
-			GithubClient: input.GitHubRestClient,
-			Owner:        input.Owner,
-			Stage:        os.Getenv("STAGE"),
-			Repo:         input.Owner + "/" + input.RepoName,
-			Branch:       input.Branch,
-			Id:           currentQuery.Index,
-		}
-		
-		// 2b. Load documents using the injected, dynamic loader.
-		iterator, err := e.Loader.Load(
-			input.Ctx, 
-			input.GitHubRestClient, 
-			getIndexInput, 
-			currentQuery.Composite, // Composite path data passed to the Loader
-		)
-		if err != nil {
-			log.Printf("ERROR: Failed to load documents for index %s: %v. Continuing union.", currentQuery.Index, err)
+        
+        // Use local variable copies for the goroutine to prevent capture issues
+        query := currentQuery 
+        queryIndex := i
+        
+		wg.Add(1)
+
+		go func() {
+            // ACQUIRE TOKEN: Blocks if MaxFanOutLimit routines are already running.
+            workerPool <- struct{}{} 
+            
+            // RELEASE TOKEN & WaitGroup on exit.
+            defer func() {
+                <-workerPool 
+                wg.Done()
+            }()
 			
-			// Return a 500 if the error is due to a required input (like missing 'Composite')
-			if strings.Contains(err.Error(), "missing 'Composite'") || strings.Contains(err.Error(), "configuration missing") {
-				return &SearchResultPayload{
-					StatusCode: http.StatusInternalServerError,
-					ErrorMessage: err.Error(),
-				}, nil
-			}
+			res := QueryResult{
+                IndexName: query.Index,
+                Documents: make([]map[string]interface{}, 0),
+            }
 
-			continue
-		}
-		defer iterator.Close()
-
-		// 2c. Process documents from the iterator, applying filters and scoring.
-		for doc, ok := iterator.Next(); ok; doc, ok = iterator.Next() {
-			totalDocumentsProcessed++ 
+			log.Printf("--- STARTING PARALLEL QUERY %d/%d (Index: %s) ---", queryIndex+1, len(input.QueriesToExecute), query.Index)
 			
-			// EXECUTE BOOL EVALUATION
-			matched, score := currentQuery.Bool.Evaluate(doc, input.Ctx, input.GitHubRestClient, getIndexInput)
-
-			if matched {
-				doc["_score"] = score
-				allDocuments = append(allDocuments, doc)
+			// Build configuration
+			getIndexInput := &GetIndexConfigurationInput{
+				GithubClient: input.GitHubRestClient,
+				Owner:        input.Owner,
+				Stage:        os.Getenv("STAGE"),
+				Repo:         input.Owner + "/" + input.RepoName,
+				Branch:       input.Branch,
+				Id:           query.Index,
 			}
-		}
+			
+			// Load documents using the injected, dynamic loader
+			iterator, err := e.Loader.Load(input.Ctx, input.GitHubRestClient, getIndexInput, query.Composite)
+			if err != nil {
+				res.Error = fmt.Errorf("failed to load documents for index %s: %v", query.Index, err)
+				resultsChan <- res
+                return 
+			}
+			defer iterator.Close()
 
-		if err := iterator.Error(); err != nil {
-			log.Printf("WARN: Iterator for index %s finished with non-fatal error: %v.", currentQuery.Index, err)
-		}
+			// Process documents (filtering/scoring)
+			count := 0
+			for doc, ok := iterator.Next(); ok; doc, ok = iterator.Next() {
+				matched, score := query.Bool.Evaluate(doc, input.Ctx, input.GitHubRestClient, getIndexInput)
+				if matched {
+					doc["_score"] = score
+					res.Documents = append(res.Documents, doc)
+                    count++
+				}
+			}
+            res.DocumentsCount = count
+			
+			if err := iterator.Error(); err != nil {
+				log.Printf("WARN: Iterator for index %s finished with non-fatal error: %v.", query.Index, err)
+			}
+			resultsChan <- res
+		}()
 	}
     
-	// --- 3. Final Processing (Score Modifiers, Aggregation, Sort, Paging) ---
+    // --- 2. Fan-In: Collect and Merge Results ---
+	// Wait for all routines to complete, then close channels.
+	wg.Wait() 
+	close(resultsChan)
+    close(workerPool)
 
+    totalDocumentsProcessed := 0
+	allDocuments := make([]map[string]interface{}, 0)
+    
+	for res := range resultsChan {
+		if res.Error != nil {
+			log.Printf("FATAL ERROR in parallel query for index %s: %v. Skipping results.", res.IndexName, res.Error)
+			// Return a 500 if the error is due to a required input (e.g., config error)
+			if strings.Contains(res.Error.Error(), "configuration missing") {
+				return &SearchResultPayload{
+					StatusCode: http.StatusInternalServerError,
+					ErrorMessage: res.Error.Error(),
+				}, nil
+			}
+			continue 
+		}
+		allDocuments = append(allDocuments, res.Documents...)
+        totalDocumentsProcessed += res.DocumentsCount
+	}
+    
+	// --- 3. Sequential Post-Processing (Aggregation, Sort, Paging) ---
+	
 	// Apply Custom Score Modifiers
 	if input.ScoreModifiersRequest != nil && len(allDocuments) > 0 {
 		ApplyScoreModifiers(allDocuments, input.ScoreModifiersRequest)
@@ -127,12 +188,13 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 	// 3a. Aggregation Mode Handling (Restored Pipeline Metrics Logic)
 	if len(input.AggregationMap) > 0 { 
         
-		// 1. Separate Bucket Aggregations (executed first) from Pipeline Aggregations (executed second)
+		// 1. Separate Bucket Aggregations from Pipeline Aggregations
 		bucketAggregations := make(map[string]Aggregation)
 		pipelineAggregations := make(map[string]Aggregation)
         
 		for aggName, agg := range input.AggregationMap {
 			aggType := strings.ToLower(agg.Type)
+            // pipeline aggs (like stats_bucket) operate on the results of other aggs
 			if aggType == "stats_bucket" || aggType == "bucket_script" { 
 				pipelineAggregations[aggName] = agg
 			} else {
@@ -143,30 +205,24 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 		// 2. Execute Primary Bucket Aggregations (e.g., group_by_category)
 		allAggResults := make(map[string]AggregationResult)
 		primaryAggName := "" 
-        
 		for name, agg := range bucketAggregations {
-            // ExecuteAggregation handles both basic metrics and bucket_script
+            // ExecuteAggregation must handle nested bucket_script calculation
 			result := ExecuteAggregation(allDocuments, &agg) 
 			allAggResults[name] = result
-			
-			if primaryAggName == "" {
-				primaryAggName = name
-			}
+			if primaryAggName == "" { primaryAggName = name }
 		}
 
 		// 3. Execute Top-Level Pipeline Aggregations (e.g., category_efficiency_stats)
 		finalPipelineMetrics := make(map[string]interface{})
-        
 		for pipeName, pipeAgg := range pipelineAggregations {
 			if pipeAgg.Path == "" { continue }
 
-			// Path: "group_by_category>views_per_dollar_ratio"
+			// Parse path: "group_by_category>views_per_dollar_ratio"
 			pathParts := strings.Split(pipeAgg.Path, ">") 
 			targetAggName := pathParts[0] 
 
 			if targetResult, found := allAggResults[targetAggName]; found {
-				// ExecuteTopLevelPipeline runs the stats_bucket logic on the target bucket's metrics.
-                // pathParts[1:] is the inner path (e.g., "views_per_dollar_ratio")
+				// ExecuteTopLevelPipeline runs the stats_bucket logic
 				pipeResult := ExecuteTopLevelPipeline(targetResult.Buckets, pipeAgg, pathParts[1:])
 				finalPipelineMetrics[pipeName] = pipeResult
 			}
@@ -178,47 +234,29 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 			finalAggResult = allAggResults[primaryAggName]
 		}
         
-        if finalAggResult.PipelineMetrics == nil {
-            finalAggResult.PipelineMetrics = make(map[string]interface{})
-        }
-		for k, v := range finalPipelineMetrics {
-			finalAggResult.PipelineMetrics[k] = v
-		}
+        // Merge top-level pipeline metrics into the final result
+        if finalAggResult.PipelineMetrics == nil { finalAggResult.PipelineMetrics = make(map[string]interface{}) }
+		for k, v := range finalPipelineMetrics { finalAggResult.PipelineMetrics[k] = v }
         
-        // Record final aggregation metric
         //e.Metrics.MeasureDuration("search.query.total_duration", time.Since(startTime), map[string]string{"type": "aggregation"})
 
 		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: finalAggResult,
-			IsAggregation: true,
+			StatusCode: http.StatusOK, BodyData: finalAggResult, IsAggregation: true,
 		}, nil
 
 	} else {
 		// 3b. Standard Search/Union Query: Apply result controls
 		
-		// Apply Sorting 
-		if len(input.SortRequest) == 0 {
-			input.SortRequest = []SortField{{Field: "_score", Order: SortDesc}}
-		}
+		if len(input.SortRequest) == 0 { input.SortRequest = []SortField{{Field: "_score", Order: SortDesc}} }
 		ApplySort(allDocuments, input.SortRequest)
-
-		// Apply Field Projection (Source)
-		if len(input.SourceFields) > 0 {
-			allDocuments = ProjectFields(allDocuments, input.SourceFields)
-		}
-
-		// Apply Paging (Limit/Offset)
+		if len(input.SourceFields) > 0 { allDocuments = ProjectFields(allDocuments, input.SourceFields) }
 		pagedDocuments := ApplyPaging(allDocuments, input.Limit, input.Offset)
         
-        // Record final standard search metrics
         //e.Metrics.MeasureDuration("search.query.total_duration", time.Since(startTime), map[string]string{"type": "standard_search"})
         //e.Metrics.Increment("search.documents.processed.total", map[string]string{"count": fmt.Sprintf("%d", totalDocumentsProcessed)})
 
 		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: pagedDocuments,
-			IsAggregation: false,
+			StatusCode: http.StatusOK, BodyData: pagedDocuments, IsAggregation: false,
 		}, nil
 	}
 }

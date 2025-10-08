@@ -21,10 +21,22 @@ type GitHubLoader struct {
 	GitHubClient *github.Client // <-- NEW: Injected here
 }
 
+// StaticLoader implements the DocumentLoader interface to provide a fixed dataset.
+type StaticLoader struct {
+	StaticData []map[string]interface{}
+}
+
 // NewGitHubLoader creates a GitHub-specific document loader.
 func NewGitHubLoader(client *github.Client) *GitHubLoader {
 	return &GitHubLoader{
 		GitHubClient: client, // <-- Client is stored here
+	}
+}
+
+// NewStaticLoader creates a loader instance pre-populated with data.
+func NewStaticLoader(data []map[string]interface{}) *StaticLoader {
+	return &StaticLoader{
+		StaticData: data,
 	}
 }
 
@@ -124,6 +136,12 @@ type GitHubFileIterator struct {
 	lastErr  error
 }
 
+// StaticIterator implements the DocumentIterator interface for in-memory data.
+type StaticIterator struct {
+	data  []map[string]interface{}
+	index int
+}
+
 // NewGitHubFileIterator creates a new iterator from the fetched GitHub directory contents.
 func NewGitHubFileIterator(contents []*github.RepositoryContent) *GitHubFileIterator {
 	files := make([]*github.RepositoryContent, 0, len(contents))
@@ -134,6 +152,13 @@ func NewGitHubFileIterator(contents []*github.RepositoryContent) *GitHubFileIter
 		}
 	}
 	return &GitHubFileIterator{contents: files}
+}
+
+// NewStaticIterator creates a new iterator instance.
+func NewStaticIterator(data []map[string]interface{}) *StaticIterator {
+	return &StaticIterator{
+		data: data,
+	}
 }
 
 // Next fetches, decodes, and unmarshals the next document file content.
@@ -161,5 +186,46 @@ func (i *GitHubFileIterator) Next() (map[string]interface{}, bool) {
 	return itemData, true
 }
 
+// Next returns the next document from the static dataset.
+func (i *StaticIterator) Next() (map[string]interface{}, bool) {
+	if i.index >= len(i.data) {
+		return nil, false // No more documents
+	}
+
+	doc := i.data[i.index]
+	i.index++
+
+	return doc, true
+}
+
+// Load satisfies the DocumentLoader interface. It ignores the config/composite
+// and returns an iterator over the pre-loaded static data.
+func (l *StaticLoader) Load(
+	ctx context.Context,
+	config *GetIndexConfigurationInput,
+	queryComposite map[string]interface{},
+) (DocumentIterator, error) {
+
+	// In a static loader, we often ignore the config and composite, 
+	// but you could add logic here to filter the StaticData based on the config ID if needed.
+	
+	if len(l.StaticData) == 0 {
+		return nil, errors.New("static loader initialized with no data")
+	}
+
+	// Return an instance of the StaticIterator over the data.
+	return NewStaticIterator(l.StaticData), nil
+}
+
 func (i *GitHubFileIterator) Error() error { return i.lastErr }
 func (i *GitHubFileIterator) Close()       {}
+
+// Error returns nil, as there are no I/O or decoding errors with static data.
+func (i *StaticIterator) Error() error { 
+    return nil 
+}
+
+// Close is a no-op for a static iterator.
+func (i *StaticIterator) Close() { 
+    // No resources to release
+}

@@ -6,236 +6,18 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"encoding/base64"
 	"encoding/json"
-	"strings" 
+	
+	// Internal Dependencies
 	"goclassifieds/lib/repo"
-	"goclassifieds/lib/search" 
+	"goclassifieds/lib/search" // Now contains UnionQueryInput, SearchResultPayload, and executeUnionQueries
+	
+	// External Dependencies
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/go-github/v46/github"
 	"golang.org/x/oauth2"
 )
-
-// ====================================================================
-// === CORE LOGIC STRUCTS =============================================
-// ====================================================================
-
-// UnionQueryInput encapsulates all parameters required to execute a union query
-// and apply the final result controls.
-type UnionQueryInput struct {
-	Ctx                   context.Context
-	Owner                 string
-	RepoName              string
-	Branch                string
-	GitHubRestClient      *github.Client
-	QueriesToExecute      []search.Query
-	AggregationMap        map[string]search.Aggregation
-	SortRequest           []search.SortField
-	Limit                 int
-	Offset                int
-	SourceFields          []string
-	ScoreModifiersRequest *search.FunctionScore
-}
-
-// SearchResultPayload is the vendor-agnostic return structure for the search core logic.
-type SearchResultPayload struct {
-	StatusCode    int
-	BodyData      interface{} // Will hold []map[string]interface{} (documents) or search.AggregationResult
-	ErrorMessage  string
-	IsAggregation bool
-}
-
-// ====================================================================
-// === CORE EXECUTION LOGIC: executeUnionQueries (Decoupled) ==========
-// ====================================================================
-
-// executeUnionQueries performs all data retrieval, filtering, scoring, and post-processing,
-// returning a standardized payload and an error.
-func executeUnionQueries(input *UnionQueryInput) (*SearchResultPayload, error) {
-
-	allDocuments := make([]map[string]interface{}, 0)
-	stage := os.Getenv("STAGE")
-
-	// --- 3. Main Execution Loop for Union Queries (Loading/Filtering/Scoring) ---
-	for i, currentQuery := range input.QueriesToExecute {
-		log.Printf("--- STARTING QUERY %d/%d (Index: %s) ---", i+1, len(input.QueriesToExecute), currentQuery.Index)
-		index := currentQuery.Index
-
-		// [BLOCK A: Index Config and Path Determination] 
-		getIndexInput := &search.GetIndexConfigurationInput{
-			GithubClient: input.GitHubRestClient,
-			Owner:        input.Owner,
-			Stage:        stage,
-			Repo:         input.Owner + "/" + input.RepoName,
-			Branch:       input.Branch,
-			Id:           index,
-		}
-
-		indexObject, err := search.GetIndexById(getIndexInput)
-		if err != nil || indexObject == nil {
-			log.Printf("Query %d skipped: Error retrieving index config for ID '%s'.", i+1, index)
-			continue
-		}
-
-		var contentPath string
-		fieldsInterface, fieldsOk := indexObject["fields"].([]interface{})
-		if !fieldsOk {
-			log.Printf("Query %d skipped: Index configuration missing 'fields'.", i+1)
-			continue
-		}
-
-		if len(currentQuery.Composite) > 0 {
-			compositePath := ""
-			for idx, f := range fieldsInterface {
-				fStr := f.(string)
-				compositeVal, found := currentQuery.Composite[fStr]
-				if found {
-					compositePath += fmt.Sprintf("%v", compositeVal)
-				}
-				if idx < (len(fieldsInterface) - 1) {
-					compositePath += ":"
-				}
-			}
-			contentPath = compositePath
-		} else {
-			// Return a payload indicating an error
-			return &SearchResultPayload{
-				StatusCode: http.StatusInternalServerError,
-				ErrorMessage: "Query configuration missing 'Composite'",
-			}, nil
-		}
-
-		repoToFetch, ok := indexObject["repoName"].(string)
-		if !ok || repoToFetch == "" {
-			log.Printf("Query %d skipped: Index configuration missing 'repoName'.", i+1)
-			continue
-		}
-		// [END BLOCK A]
-
-		// Fetch Directory Contents
-		_, dirContents, _, err := input.GitHubRestClient.Repositories.GetContents(
-			input.Ctx, input.Owner, repoToFetch, contentPath,
-			&github.RepositoryContentGetOptions{Ref: input.Branch},
-		)
-
-		if err != nil || dirContents == nil {
-			log.Printf("Query %d: Failed to list contents at path %s: %v. Continuing union.", i+1, contentPath, err)
-			continue
-		}
-
-		// Filter and Accumulate Results
-		for _, content := range dirContents {
-			if content.GetType() != "file" || content.GetName() == "" {
-				continue
-			}
-
-			decodedBytes, err := base64.StdEncoding.DecodeString(content.GetName())
-			if err != nil {
-				continue
-			}
-			itemBody := string(decodedBytes)
-
-			var itemData map[string]interface{}
-			if err := json.Unmarshal([]byte(itemBody), &itemData); err != nil {
-				continue
-			}
-
-			// EXECUTE BOOL EVALUATION to capture the score
-			matched, score := currentQuery.Bool.Evaluate(itemData, input.Ctx, input.GitHubRestClient, getIndexInput)
-
-			if matched {
-				itemData["_score"] = score
-				allDocuments = append(allDocuments, itemData)
-			}
-		}
-	}
-
-	// --- 3e. Apply Custom Score Modifiers (Function Score) ---
-	if input.ScoreModifiersRequest != nil && len(allDocuments) > 0 {
-		search.ApplyScoreModifiers(allDocuments, input.ScoreModifiersRequest)
-	}
-
-	// --- 4. Final Processing (Aggregation vs. Standard) ---
-
-	if len(input.AggregationMap) > 0 { // Aggregation Mode
-		// 1. Separate Top-Level Aggregations
-		bucketAggregations := make(map[string]search.Aggregation)
-		pipelineAggregations := make(map[string]search.Aggregation)
-		for aggName, agg := range input.AggregationMap {
-			aggType := strings.ToLower(agg.Type)
-			if aggType == "stats_bucket" || aggType == "bucket_script" { 
-				pipelineAggregations[aggName] = agg
-			} else {
-				bucketAggregations[aggName] = agg
-			}
-		}
-
-		// 2. Execute Primary Bucket Aggregations
-		allAggResults := make(map[string]search.AggregationResult)
-		primaryAggName := "" 
-		for name, agg := range bucketAggregations {
-			result := search.ExecuteAggregation(allDocuments, &agg)
-			allAggResults[name] = result
-			if primaryAggName == "" {
-				primaryAggName = name
-			}
-		}
-
-		// 3. Execute Top-Level Pipeline Aggregations
-		finalPipelineMetrics := make(map[string]interface{})
-		for pipeName, pipeAgg := range pipelineAggregations {
-			if pipeAgg.Path == "" { continue }
-			pathParts := strings.Split(pipeAgg.Path, ">") 
-			targetAggName := pathParts[0]
-
-			if targetResult, found := allAggResults[targetAggName]; found {
-				pipeResult := search.ExecuteTopLevelPipeline(targetResult.Buckets, pipeAgg, pathParts[1:])
-				finalPipelineMetrics[pipeName] = pipeResult
-			}
-		}
-		
-		// 4. Construct Final Aggregation Result
-		var finalAggResult search.AggregationResult
-		if primaryAggName != "" {
-			finalAggResult = allAggResults[primaryAggName]
-		}
-		for k, v := range finalPipelineMetrics {
-			finalAggResult.PipelineMetrics[k] = v
-		}
-
-		// Return a successful payload with the aggregation result
-		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: finalAggResult,
-			IsAggregation: true,
-		}, nil
-
-	} else {
-		// Standard Search or Union Query: Apply result controls
-		
-		// Apply Sorting 
-		if len(input.SortRequest) == 0 {
-			input.SortRequest = []search.SortField{{Field: "_score", Order: search.SortDesc}}
-		}
-		search.ApplySort(allDocuments, input.SortRequest)
-
-		// Apply Field Projection (Source)
-		if len(input.SourceFields) > 0 {
-			allDocuments = search.ProjectFields(allDocuments, input.SourceFields)
-		}
-
-		// Apply Paging (Limit/Offset)
-		pagedDocuments := search.ApplyPaging(allDocuments, input.Limit, input.Offset)
-
-		// Return a successful payload with the paged documents
-		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: pagedDocuments,
-			IsAggregation: false,
-		}, nil
-	}
-}
 
 // ====================================================================
 // === SERVICE LAYER: executeSearchRequest (Handles Setup & Response) =
@@ -304,8 +86,8 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 	httpClient := oauth2.NewClient(ctx, srcToken)
 	githubRestClient := github.NewClient(httpClient)
 
-	// 3. Create the single input struct
-	input := &UnionQueryInput{
+	// 3. Create the single input struct (search.UnionQueryInput)
+	input := &search.UnionQueryInput{
 		Ctx:                   ctx,
 		Owner:                 owner,
 		RepoName:              repoName,
@@ -320,8 +102,8 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 		ScoreModifiersRequest: firstQuery.ScoreModifiers,
 	}
 
-	// 4. Delegate to the core execution logic
-	payload, err := executeUnionQueries(input)
+	// 4. Delegate to the core execution logic (from the search package)
+	payload, err := search.ExecuteUnionQueries(input)
 	if err != nil {
 		log.Printf("Internal error in executeUnionQueries: %v", err)
 		return events.APIGatewayProxyResponse{
@@ -330,9 +112,9 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 		}, nil
 	}
 
-	// 5. Transform the vendor-agnostic payload into the AWS response
+	// 5. Transform the vendor-agnostic payload (search.SearchResultPayload) into the AWS response
 	if payload.StatusCode != http.StatusOK {
-		// Handle documented errors (e.g., missing 'Composite' path)
+		// Handle documented errors (e.g., query structure errors caught in the core logic)
 		return events.APIGatewayProxyResponse{
 			StatusCode: payload.StatusCode,
 			Body:       payload.ErrorMessage,

@@ -201,6 +201,9 @@ type MetricRequest struct {
 	Fields map[string]string `json:"fields"`
         // NEW FIELD: Used only for scripted metrics
     Scripted *ScriptedMetricDefinition `json:"scripted,omitempty"` 
+    Script          string            `json:"script,omitempty"`
+    BucketsPath     map[string]string `json:"bucketsPath,omitempty"`
+    ResultName string `json:"resultName,omitempty"`
 }
 
 // NEW STRUCTURE: Defines the actual script and reduction logic
@@ -1158,6 +1161,51 @@ func EvaluateTemplate(data map[string]interface{}, tmpl *Template) (bool, float6
     return isTrue, 0.0
 }
 
+// evaluateBucketScript executes the pipeline script using the existing template
+// execution framework (executeScoreTemplate).
+func evaluateBucketScript(script string, paths map[string]string, currentMetrics map[string]interface{}) (float64, error) {
+    // 1. Prepare data (metrics) for the template context
+    // The context map must contain variables named according to the BucketsPath.
+    templateContext := make(map[string]interface{})
+    
+    for varName, metricName := range paths {
+        val, exists := currentMetrics[metricName]
+        if !exists {
+            // Treat missing prerequisite metrics as 0.0 for calculation safety
+            templateContext[varName] = 0.0 
+            continue
+        }
+        
+        // Ensure values are transformed to float64, which is required by the
+        // math helpers (add, div, mul) in the executeScoreTemplate's FuncMap.
+        var fVal float64
+        var ok bool
+        
+        if fVal, ok = val.(float64); !ok {
+            if iVal, isInt := val.(int); isInt {
+                fVal = float64(iVal)
+            } else {
+                // For non-numeric or nil, treat as 0.0
+                fVal = 0.0 
+            }
+        }
+        
+        templateContext[varName] = fVal
+    }
+    
+    // 2. Execute the script using the reusable template engine
+    // NOTE: This assumes executeScoreTemplate is accessible here.
+    result, err := executeScoreTemplate(templateContext, script)
+    
+    if err != nil {
+        log.Printf("ERROR: Bucket script execution failed for script '%s': %v", script, err)
+        // Return 0.0 and the error on failure
+        return 0.0, err
+    }
+
+    return result, nil
+}
+
 func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
 	totalScore := 0.0
 
@@ -1953,9 +2001,9 @@ func ProjectFields(docs []map[string]interface{}, source []string) []map[string]
 }
 
 // ApplySort sorts the documents based on the list of SortField definitions.
-func ApplySort(docs []map[string]interface{}, sortFields []SortField) {
+func ApplySort(docs []map[string]interface{}, sortFields []SortField) []map[string]interface{} {
     if len(sortFields) == 0 || len(docs) < 2 {
-        return
+        return docs
     }
 
     log.Printf("ApplySort: Sorting %d documents.", len(docs))
@@ -2043,6 +2091,7 @@ func ApplySort(docs []map[string]interface{}, sortFields []SortField) {
         }
         return false // Considered equal based on all sort fields
     })
+    return docs
 }
 
 // ApplyPaging applies the Limit and Offset constraints to the document list.
@@ -2508,69 +2557,88 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
     newBucket := Bucket{
         Key:   key,
         Count: len(groupDocs),
+        Metrics: make(map[string]interface{}), // Will hold all metric results
     }
-
-    // 0. Initialize metrics map
-    if len(agg.Metrics) > 0 {
-        newBucket.Metrics = make(map[string]interface{})
-    }
-
-    // 1. Calculate Nested Aggregation Metrics (FUSED LOGIC)
-    standardMetrics := make([]MetricRequest, 0, len(agg.Metrics))
-
+    
+    // --- Metric Filtering (Separation of Concerns for Two-Pass System) ---
+    simpleMetrics := make([]MetricRequest, 0)
+    pipelineMetrics := make([]MetricRequest, 0)
+    
     for _, req := range agg.Metrics {
-        if req.Path != "" { // <-- If Path is present, this is a NESTED METRIC
-            calcType := strings.ToLower(req.Type)
-            
-            // req.Fields is a map of {sourceField: resultName}
-            for sourceField, resultName := range req.Fields {
-                if resultName == "" {
-                    continue
-                }
-                
-                calculatedValue := calculateNestedMetric(groupDocs, calcType, req.Path, sourceField)
-                if calculatedValue != nil {
-                    // Place the nested metric result directly into the parent bucket's Metrics map
-                    newBucket.Metrics[resultName] = calculatedValue
-                }
-            }
+        if strings.ToLower(req.Type) == "bucket_script" {
+            pipelineMetrics = append(pipelineMetrics, req)
         } else {
-            // If no Path is present, queue it for standard metric calculation
-            standardMetrics = append(standardMetrics, req)
+            simpleMetrics = append(simpleMetrics, req)
         }
     }
 
-    // 2. Calculate Standard Metrics (Non-Nested Fields)
-    if len(standardMetrics) > 0 {
-        standardResults := CalculateMetrics(groupDocs, standardMetrics)
-        // Merge standard metrics results into the map already containing nested metrics
+    // --------------------------------------------------------
+    // --- PASS 1: Calculate Simple and Nested Metrics ---
+    // Calculates all document-level metrics (sum, avg, percentile, cardinality, and nested rollups).
+    // --------------------------------------------------------
+    if len(simpleMetrics) > 0 {
+        standardResults := CalculateMetrics(groupDocs, simpleMetrics) 
+        
+        // Merge results into the bucket's Metrics map
         for k, v := range standardResults {
-            newBucket.Metrics[k] = v
+            newBucket.Metrics[k] = v 
+        }
+    }
+    
+    // --------------------------------------------------------
+    // --- PASS 2: Calculate Pipeline Metrics (Bucket Script) ---
+    // Runs scripts against the results of PASS 1.
+    // --------------------------------------------------------
+    if len(pipelineMetrics) > 0 {
+        for _, req := range pipelineMetrics {
+            if req.Script == "" || req.BucketsPath == nil || req.ResultName == "" {
+                log.Printf("ERROR: Bucket script request is incomplete (missing script, path, or resultName).")
+                continue 
+            }
+            
+            calculatedValue, err := evaluateBucketScript(req.Script, req.BucketsPath, newBucket.Metrics)
+            
+            if err == nil {
+                newBucket.Metrics[req.ResultName] = calculatedValue 
+            } else {
+                log.Printf("ERROR: Bucket script failed for '%s': %v", req.ResultName, err)
+                newBucket.Metrics[req.ResultName] = 0.0
+            }
         }
     }
 
-    // 3. Handle Top Hits (Existing Logic)
-    // ... (Top Hits logic remains here, operating on groupDocs) ...
+    // --------------------------------------------------------
+    // --- Top Hits (Restored Functionality) ---
+    // Executes sorting, paging, and field projection on the documents belonging to this bucket.
+    // --------------------------------------------------------
     if agg.TopHits != nil && agg.TopHits.Size > 0 {
-        hitsDocs := groupDocs 
+        hitsDocs := groupDocs // Start with the full document set for this bucket
         
+        // 1. Apply Sorting (if requested)
         if len(agg.TopHits.Sort) > 0 {
-            ApplySort(hitsDocs, agg.TopHits.Sort)
+            // NOTE: ApplySort must be a function that modifies hitsDocs in place or returns a sorted slice.
+            hitsDocs = ApplySort(hitsDocs, agg.TopHits.Sort) 
         }
         
-        hitsDocs = ApplyPaging(hitsDocs, agg.TopHits.Size, 0) 
+        // 2. Apply Paging (Size and From/Offset)
+        // NOTE: Assumes ApplyPaging takes a Size and From parameter (defaulting 'from' to 0 if not specified in TopHits struct)
+        from := 0 // Use agg.TopHits.From if you support it
+        hitsDocs = ApplyPaging(hitsDocs, agg.TopHits.Size, from) 
         
+        // 3. Apply Field Projection (Source filtering)
         if len(agg.TopHits.Source) > 0 {
+            // NOTE: ProjectFields must reduce the documents to only include requested fields.
             hitsDocs = ProjectFields(hitsDocs, agg.TopHits.Source)
         }
         
         newBucket.TopHits = hitsDocs
     }
 
-
-    // 4. Handle Nested Aggregations / Sub-Aggs (Recursive Grouping Logic)
+    // --------------------------------------------------------
+    // --- Sub-Aggregations (Restored Recursive Grouping) ---
+    // --------------------------------------------------------
     if agg.Aggs != nil {
-        // Recursive call for standard sub-aggregations (e.g., groupBy state)
+        // Recursively call ExecuteAggregation on the documents in this group/bucket.
         newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
     } 
     

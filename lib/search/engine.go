@@ -3,234 +3,160 @@ package search
 import (
 	"context"
 	"fmt"
-	"log"
-	"net/http"
-	"os"
 	"encoding/base64"
 	"encoding/json"
-	"strings" 
 	
-	// External Dependencies
 	"github.com/google/go-github/v46/github" 
-	
-	// Note: We assume 'repo' is defined elsewhere, but its types aren't needed here.
-	// GetIndexConfigurationInput is defined within the 'search' package.
+	// Assume other structs like GetIndexConfigurationInput, Query, etc. are defined here or imported.
 )
 
 // ====================================================================
-// === CORE LOGIC STRUCTS (Defined in the 'search' package) ===========
+// === CORE INTERFACES & ENGINE STRUCT (For Dynamic Data Sources) =====
 // ====================================================================
 
-// UnionQueryInput encapsulates all parameters required to execute a union query
-// and apply the final result controls.
-type UnionQueryInput struct {
-	Ctx                   context.Context
-	Owner                 string
-	RepoName              string
-	Branch                string
-	GitHubRestClient      *github.Client
-	QueriesToExecute      []Query // Type is now local
-	AggregationMap        map[string]Aggregation // Type is now local
-	SortRequest           []SortField // Type is now local
-	Limit                 int
-	Offset                int
-	SourceFields          []string
-	ScoreModifiersRequest *FunctionScore // Type is now local
+// DocumentIterator defines the contract for streaming documents from any source.
+type DocumentIterator interface {
+	Next() (map[string]interface{}, bool)
+	Error() error
+	Close()
 }
 
-// SearchResultPayload is the vendor-agnostic return structure for the search core logic.
-type SearchResultPayload struct {
-	StatusCode    int
-	BodyData      interface{} // Will hold []map[string]interface{} (documents) or AggregationResult
-	ErrorMessage  string
-	IsAggregation bool
+// DocumentLoader defines the contract for initiating the loading process.
+type DocumentLoader interface {
+	// Load starts the process of fetching documents based on the index configuration.
+	// We still pass the client as the loader needs it for the GitHub API calls.
+	Load(ctx context.Context, client *github.Client, config *GetIndexConfigurationInput, queryComposite map[string]interface{}) (DocumentIterator, error)
+}
+
+// SearchEngine holds the single, swappable loader dependency.
+type SearchEngine struct {
+	Loader DocumentLoader 
+}
+
+// NewSearchEngine requires the concrete loader instance to be injected.
+func NewSearchEngine(loader DocumentLoader) *SearchEngine {
+	return &SearchEngine{
+		Loader: loader,
+	}
 }
 
 // ====================================================================
-// === CORE EXECUTION FUNCTION (executeUnionQueries) ==================
+// === CONCRETE GITHUB LOADER IMPLEMENTATION ==========================
 // ====================================================================
 
-// executeUnionQueries performs all data retrieval, filtering, scoring, and post-processing,
-// returning a standardized payload and an error.
-func ExecuteUnionQueries(input *UnionQueryInput) (*SearchResultPayload, error) {
+// GitHubLoader implements the DocumentLoader interface using the GitHub API.
+type GitHubLoader struct {}
 
-	allDocuments := make([]map[string]interface{}, 0)
-	stage := os.Getenv("STAGE")
+// NewGitHubLoader creates a GitHub-specific document loader.
+func NewGitHubLoader() *GitHubLoader {
+	return &GitHubLoader{}
+}
 
-	// --- 3. Main Execution Loop for Union Queries (Loading/Filtering/Scoring) ---
-	for i, currentQuery := range input.QueriesToExecute {
-		log.Printf("--- STARTING QUERY %d/%d (Index: %s) ---", i+1, len(input.QueriesToExecute), currentQuery.Index)
-		index := currentQuery.Index
+// Load initiates the process of fetching documents from the GitHub repository.
+// This function contains the logic previously in the inner loop of executeUnionQueries.
+func (l *GitHubLoader) Load(
+	ctx context.Context, 
+	client *github.Client, 
+	config *GetIndexConfigurationInput,
+	queryComposite map[string]interface{},
+) (DocumentIterator, error) {
 
-		// [BLOCK A: Index Config and Path Determination] 
-		getIndexInput := &GetIndexConfigurationInput{ // Type is now local
-			GithubClient: input.GitHubRestClient,
-			Owner:        input.Owner,
-			Stage:        stage,
-			Repo:         input.Owner + "/" + input.RepoName,
-			Branch:       input.Branch,
-			Id:           index,
-		}
-
-		indexObject, err := GetIndexById(getIndexInput) // Function is now local
-		if err != nil || indexObject == nil {
-			log.Printf("Query %d skipped: Error retrieving index config for ID '%s'.", i+1, index)
-			continue
-		}
-
-		var contentPath string
-		fieldsInterface, fieldsOk := indexObject["fields"].([]interface{})
-		if !fieldsOk {
-			log.Printf("Query %d skipped: Index configuration missing 'fields'.", i+1)
-			continue
-		}
-
-		if len(currentQuery.Composite) > 0 {
-			compositePath := ""
-			for idx, f := range fieldsInterface {
-				fStr := f.(string)
-				compositeVal, found := currentQuery.Composite[fStr]
-				if found {
-					compositePath += fmt.Sprintf("%v", compositeVal)
-				}
-				if idx < (len(fieldsInterface) - 1) {
-					compositePath += ":"
-				}
-			}
-			contentPath = compositePath
-		} else {
-			return &SearchResultPayload{
-				StatusCode: http.StatusInternalServerError,
-				ErrorMessage: "Query configuration missing 'Composite'",
-			}, nil
-		}
-
-		repoToFetch, ok := indexObject["repoName"].(string)
-		if !ok || repoToFetch == "" {
-			log.Printf("Query %d skipped: Index configuration missing 'repoName'.", i+1)
-			continue
-		}
-		// [END BLOCK A]
-
-		// Fetch Directory Contents
-		_, dirContents, _, err := input.GitHubRestClient.Repositories.GetContents(
-			input.Ctx, input.Owner, repoToFetch, contentPath,
-			&github.RepositoryContentGetOptions{Ref: input.Branch},
-		)
-
-		if err != nil || dirContents == nil {
-			log.Printf("Query %d: Failed to list contents at path %s: %v. Continuing union.", i+1, contentPath, err)
-			continue
-		}
-
-		// Filter and Accumulate Results
-		for _, content := range dirContents {
-			if content.GetType() != "file" || content.GetName() == "" {
-				continue
-			}
-
-			decodedBytes, err := base64.StdEncoding.DecodeString(content.GetName())
-			if err != nil {
-				continue
-			}
-			itemBody := string(decodedBytes)
-
-			var itemData map[string]interface{}
-			if err := json.Unmarshal([]byte(itemBody), &itemData); err != nil {
-				continue
-			}
-
-			// EXECUTE BOOL EVALUATION to capture the score
-			// currentQuery.Bool is a struct/interface within the 'search' package
-			matched, score := currentQuery.Bool.Evaluate(itemData, input.Ctx, input.GitHubRestClient, getIndexInput)
-
-			if matched {
-				itemData["_score"] = score
-				allDocuments = append(allDocuments, itemData)
-			}
-		}
+	// 1. Get Index Configuration
+	indexObject, err := GetIndexById(config)
+	if err != nil || indexObject == nil {
+		return nil, fmt.Errorf("failed to retrieve index config for ID '%s'", config.Id)
 	}
 
-	// --- 3e. Apply Custom Score Modifiers (Function Score) ---
-	if input.ScoreModifiersRequest != nil && len(allDocuments) > 0 {
-		ApplyScoreModifiers(allDocuments, input.ScoreModifiersRequest) // Function is now local
+	var contentPath string
+	fieldsInterface, fieldsOk := indexObject["fields"].([]interface{})
+	if !fieldsOk {
+		return nil, fmt.Errorf("index configuration missing 'fields'")
 	}
 
-	// --- 4. Final Processing (Aggregation vs. Standard) ---
-
-	if len(input.AggregationMap) > 0 { // Aggregation Mode
-		// 1. Separate Top-Level Aggregations
-		bucketAggregations := make(map[string]Aggregation)
-		pipelineAggregations := make(map[string]Aggregation)
-		for aggName, agg := range input.AggregationMap {
-			aggType := strings.ToLower(agg.Type)
-			if aggType == "stats_bucket" || aggType == "bucket_script" { 
-				pipelineAggregations[aggName] = agg
-			} else {
-				bucketAggregations[aggName] = agg
+	// 2. Build Composite Path (using the composite data from the query)
+	if len(queryComposite) > 0 {
+		compositePath := ""
+		for idx, f := range fieldsInterface {
+			fStr := f.(string)
+			compositeVal, found := queryComposite[fStr]
+			if found {
+				compositePath += fmt.Sprintf("%v", compositeVal)
+			}
+			if idx < (len(fieldsInterface) - 1) {
+				compositePath += ":"
 			}
 		}
-
-		// 2. Execute Primary Bucket Aggregations
-		allAggResults := make(map[string]AggregationResult)
-		primaryAggName := "" 
-		for name, agg := range bucketAggregations {
-			result := ExecuteAggregation(allDocuments, &agg) // Function is now local
-			allAggResults[name] = result
-			if primaryAggName == "" {
-				primaryAggName = name
-			}
-		}
-
-		// 3. Execute Top-Level Pipeline Aggregations
-		finalPipelineMetrics := make(map[string]interface{})
-		for pipeName, pipeAgg := range pipelineAggregations {
-			if pipeAgg.Path == "" { continue }
-			pathParts := strings.Split(pipeAgg.Path, ">") 
-			targetAggName := pathParts[0]
-
-			if targetResult, found := allAggResults[targetAggName]; found {
-				pipeResult := ExecuteTopLevelPipeline(targetResult.Buckets, pipeAgg, pathParts[1:]) // Function is now local
-				finalPipelineMetrics[pipeName] = pipeResult
-			}
-		}
-		
-		// 4. Construct Final Aggregation Result
-		var finalAggResult AggregationResult // Type is now local
-		if primaryAggName != "" {
-			finalAggResult = allAggResults[primaryAggName]
-		}
-		for k, v := range finalPipelineMetrics {
-			finalAggResult.PipelineMetrics[k] = v
-		}
-
-		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: finalAggResult,
-			IsAggregation: true,
-		}, nil
-
+		contentPath = compositePath
 	} else {
-		// Standard Search or Union Query: Apply result controls
-		
-		// Apply Sorting 
-		if len(input.SortRequest) == 0 {
-			input.SortRequest = []SortField{{Field: "_score", Order: SortDesc}} // Type and const are local
-		}
-		ApplySort(allDocuments, input.SortRequest) // Function is now local
-
-		// Apply Field Projection (Source)
-		if len(input.SourceFields) > 0 {
-			allDocuments = ProjectFields(allDocuments, input.SourceFields) // Function is now local
-		}
-
-		// Apply Paging (Limit/Offset)
-		pagedDocuments := ApplyPaging(allDocuments, input.Limit, input.Offset) // Function is now local
-
-		return &SearchResultPayload{
-			StatusCode: http.StatusOK,
-			BodyData: pagedDocuments,
-			IsAggregation: false,
-		}, nil
+		return nil, fmt.Errorf("query configuration missing 'Composite'")
 	}
+
+	repoToFetch, ok := indexObject["repoName"].(string)
+	if !ok || repoToFetch == "" {
+		return nil, fmt.Errorf("index configuration missing 'repoName'")
+	}
+
+	// 3. Fetch Directory Contents
+	_, dirContents, _, err := client.Repositories.GetContents(
+		ctx, config.Owner, repoToFetch, contentPath,
+		&github.RepositoryContentGetOptions{Ref: config.Branch},
+	)
+
+	if err != nil || dirContents == nil {
+		return nil, fmt.Errorf("failed to list contents at path %s: %v", contentPath, err)
+	}
+
+	// 4. Return the concrete iterator implementation
+	return NewGitHubFileIterator(dirContents), nil
 }
+
+// ====================================================================
+// === CONCRETE GITHUB ITERATOR IMPLEMENTATION ========================
+// ====================================================================
+
+// GitHubFileIterator implements the DocumentIterator interface.
+type GitHubFileIterator struct {
+	contents []*github.RepositoryContent
+	index    int
+	lastErr  error
+}
+
+// NewGitHubFileIterator creates a new iterator from the fetched GitHub directory contents.
+func NewGitHubFileIterator(contents []*github.RepositoryContent) *GitHubFileIterator {
+	files := make([]*github.RepositoryContent, 0, len(contents))
+	for _, content := range contents {
+		// Filter non-file items, assuming file name is base64 encoded JSON document
+		if content.GetType() == "file" && content.GetName() != "" {
+			files = append(files, content)
+		}
+	}
+	return &GitHubFileIterator{contents: files}
+}
+
+// Next fetches, decodes, and unmarshals the next document file content.
+func (i *GitHubFileIterator) Next() (map[string]interface{}, bool) {
+	if i.index >= len(i.contents) {
+		return nil, false
+	}
+
+	content := i.contents[i.index]
+	i.index++
+
+	decodedBytes, err := base64.StdEncoding.DecodeString(content.GetName())
+	if err != nil {
+		i.lastErr = fmt.Errorf("iterator failed to decode content '%s': %v", content.GetName(), err)
+		return nil, true // Continue to next item
+	}
+	itemBody := string(decodedBytes)
+
+	var itemData map[string]interface{}
+	if err := json.Unmarshal([]byte(itemBody), &itemData); err != nil {
+		i.lastErr = fmt.Errorf("iterator failed to unmarshal JSON from '%s': %v", content.GetName(), err)
+		return nil, true // Continue to next item
+	}
+	
+	return itemData, true
+}
+
+func (i *GitHubFileIterator) Error() error { return i.lastErr }
+func (i *GitHubFileIterator) Close()       {}

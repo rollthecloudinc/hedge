@@ -2,7 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "search",
-    srcs = ["search.go", "analyzers.go","engine.go","union.go"],
+    srcs = ["dialect.go", "analyzers.go","engine.go","loader.go"],
     importpath = "goclassifieds/lib/search",
     visibility = ["//visibility:public"],
     deps = [

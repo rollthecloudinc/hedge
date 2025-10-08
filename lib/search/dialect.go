@@ -118,6 +118,7 @@ type MatchPhrase struct {
     Value string  `json:"value"`
     Slop  *int    `json:"slop"`   // NEW: Max intervening tokens allowed
     Boost *float64 `json:"boost"`
+    Fuzziness *int       `json:"fuzziness,omitempty"` // NEW: Max edit distance for fuzzy matching
 }
 
 // NestedDoc defines a filter that must be applied to individual objects within a document array. (NEW)
@@ -931,7 +932,7 @@ func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, fl
         return false, 0.0
     }
 
-    // 1. Setup Slop and Boost
+    // 1. Setup Slop, Boost, and Fuzziness
     boost := 1.0
     if mp.Boost != nil {
         boost = *mp.Boost
@@ -940,7 +941,12 @@ func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, fl
     if mp.Slop != nil && *mp.Slop > 0 {
         slop = *mp.Slop
     }
-
+    
+    fuzzinessLimit := 0
+    if mp.Fuzziness != nil && *mp.Fuzziness > 0 {
+        fuzzinessLimit = *mp.Fuzziness
+    }
+    
     // 2. Resolve Tokens
     rawDocValueStr, _ := resolveDotNotation(data, mp.Field) 
     docTokens := AnalyzeForPhrase(rawDocValueStr)
@@ -953,20 +959,24 @@ func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, fl
         return false, 0.0
     }
 
-    // --- 3. Sequence Matching to Find Minimum Slop ---
-    bestScore := 0.0
+    // --- 3. Sequence Matching to Find Minimum Slop and Fuzziness ---
     matchFound := false
-    minSlopUsed := slop + 1 // Initialize to a value higher than max allowed slop
-
+    minSlopUsed := slop + 1 
+    // NEW: Track the total fuzziness for the sequence that achieved minSlopUsed
+    bestFuzziness := 0 
+    
     // Outer loop: Iterate through the document to find all possible start positions
     for docStartPos := 0; docStartPos <= docLen - queryLen; docStartPos++ {
         
-        if docTokens[docStartPos] != queryTokens[0] {
-            continue
+        // CHECK 1: Fuzzy match for the FIRST query token
+        initialDistance := LevenshteinDistance(docTokens[docStartPos], queryTokens[0])
+        if initialDistance > fuzzinessLimit {
+            continue 
         }
         
-        // This is a potential start. Track the slop for this sequence.
+        // Initialize sequence-specific tracking variables
         currentSlop := 0
+        currentFuzziness := initialDistance // Initialize with the fuzziness of the first token
         currentDocPos := docStartPos
         
         // Inner loop: Check the remaining query tokens
@@ -975,14 +985,19 @@ func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, fl
             targetToken := queryTokens[queryTokenIndex]
             foundNextToken := false
             
+            // Look ahead for the next matching token
             for nextDocPos := currentDocPos + 1; nextDocPos < docLen; nextDocPos++ {
                 
                 newSlopNeeded := (nextDocPos - currentDocPos - 1)
                 
-                if docTokens[nextDocPos] == targetToken {
-                    
+                // CHECK 2: Fuzzy match for subsequent query tokens
+                distance := LevenshteinDistance(docTokens[nextDocPos], targetToken)
+                
+                if distance <= fuzzinessLimit {
+                    // Check if the total slop is still acceptable
                     if currentSlop + newSlopNeeded <= slop {
                         currentSlop += newSlopNeeded
+                        currentFuzziness += distance // Accumulate fuzziness
                         currentDocPos = nextDocPos
                         foundNextToken = true
                         break 
@@ -999,46 +1014,46 @@ func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, fl
             }
         }
         
-        // If we reach here, the full phrase was matched successfully within the slop limit.
+        // If we reach here, the full phrase was matched successfully.
         matchFound = true
         
         // Update the minimum slop found across all sequences
         if currentSlop < minSlopUsed {
             minSlopUsed = currentSlop
+            // Track the total fuzziness associated with this best sequence
+            bestFuzziness = currentFuzziness // <-- FIXED: Capture the fuzziness of the best match
         }
 
     nextStartPos:
         continue
     }
     
-    // --- 4. Final Score Calculation based on Minimum Slop ---
+    // --- 4. Final Score Calculation based on Minimum Slop and Fuzziness ---
     if matchFound {
         
-        // Proximity Factor: The tighter the match, the closer the factor is to 1.0.
-        // If max slop is 3, and min slop used is 1, the factor is 1 - (1/4) = 0.75.
-        // If min slop is 0, factor is 1 - 0 = 1.0.
+        // Proximity Factor: Rewards tighter matches (less slop).
         proximityFactor := 1.0
         if slop > 0 {
             proximityFactor = 1.0 - (float64(minSlopUsed) / float64(slop + 1)) 
         }
         
-        // **ADVANCED:** Penalty to Term Frequency (TF) for slop used.
-        // This reduces the score of the match even before the ProximityFactor.
-        // Example: If minSlopUsed is 2, the effective TF is reduced by 2.
-        effectiveTF := float64(queryLen) - float64(minSlopUsed) 
-        if effectiveTF < 1.0 { // Ensure positive score
+        // Fuzziness Penalty: Penalize the score based on how much slop and fuzziness was used.
+        // NOTE: bestFuzziness is now defined and holds the correct accumulated value.
+        effectiveTF := float64(queryLen) - float64(minSlopUsed) - float64(bestFuzziness) 
+        if effectiveTF < 1.0 { 
             effectiveTF = 1.0 
         }
 
+        // Standard Document Length Normalization
         docLengthFactor := 1.0
         if docLen > 10 {
             docLengthFactor = 1.0 / math.Log(float64(docLen + 1))
         }
         
-        // Final Score = (Effective TF * Doc Norm) * High Multiplier * Proximity Factor * Boost
-        bestScore = (effectiveTF * docLengthFactor) * 2.5 * proximityFactor * boost
+        // Final Score calculation
+        bestScore := (effectiveTF * docLengthFactor) * 2.5 * proximityFactor * boost
         
-        log.Printf("EvaluateMatchPhrase: Phrase MATCH (Min Slop Used: %d). Best Score=%.4f (Phrase: %s)", minSlopUsed, bestScore, mp.Value)
+        log.Printf("EvaluateMatchPhrase: Phrase MATCH (Min Slop: %d, Fuzziness: %d). Best Score=%.4f (Phrase: %s)", minSlopUsed, bestFuzziness, bestScore, mp.Value)
         return true, bestScore
     }
     

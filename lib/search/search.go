@@ -255,7 +255,6 @@ type Aggregation struct {
 
 	// Path for the nested aggregation type
 	Path string `json:"path,omitempty"`
-	SubAggs map[string]*Aggregation `json:"subAggs,omitempty"` // Used for standard multi-level aggregations
 
     // NEW: Pipeline Aggregations that operate on the results of the primary buckets
     PipelineAggs map[string]PipelineRequest `json:"pipelineAggs,omitempty"` 

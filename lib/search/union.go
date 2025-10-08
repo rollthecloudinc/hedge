@@ -117,7 +117,6 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 			
 			// Build configuration
 			getIndexInput := &GetIndexConfigurationInput{
-				GithubClient: input.GitHubRestClient,
 				Owner:        input.Owner,
 				Stage:        os.Getenv("STAGE"),
 				Repo:         input.Owner + "/" + input.RepoName,
@@ -126,7 +125,7 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 			}
 			
 			// Load documents using the injected, dynamic loader
-			iterator, err := e.Loader.Load(input.Ctx, input.GitHubRestClient, getIndexInput, query.Composite)
+			iterator, err := e.Loader.Load(input.Ctx, getIndexInput, query.Composite)
 			if err != nil {
 				res.Error = fmt.Errorf("failed to load documents for index %s: %v", query.Index, err)
 				resultsChan <- res
@@ -137,7 +136,7 @@ func (e *SearchEngine) ExecuteUnionQuery(input *UnionQueryInput) (*SearchResultP
 			// Process documents (filtering/scoring)
 			count := 0
 			for doc, ok := iterator.Next(); ok; doc, ok = iterator.Next() {
-				matched, score := query.Bool.Evaluate(doc, input.Ctx, input.GitHubRestClient, getIndexInput)
+				matched, score := query.Bool.Evaluate(doc, input.Ctx, e.Loader, getIndexInput)
 				if matched {
 					doc["_score"] = score
 					res.Documents = append(res.Documents, doc)

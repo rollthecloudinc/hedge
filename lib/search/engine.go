@@ -3,6 +3,9 @@ package search
 import (
 	"context"
 	"fmt"
+	"log"
+	"strings"
+	"errors"
 	"encoding/base64"
 	"encoding/json"
 	
@@ -25,7 +28,7 @@ type DocumentIterator interface {
 type DocumentLoader interface {
 	// Load starts the process of fetching documents based on the index configuration.
 	// We still pass the client as the loader needs it for the GitHub API calls.
-	Load(ctx context.Context, client *github.Client, config *GetIndexConfigurationInput, queryComposite map[string]interface{}) (DocumentIterator, error)
+	Load(ctx context.Context, config *GetIndexConfigurationInput, queryComposite map[string]interface{}) (DocumentIterator, error)
 }
 
 // SearchEngine holds the single, swappable loader dependency.
@@ -45,24 +48,27 @@ func NewSearchEngine(loader DocumentLoader) *SearchEngine {
 // ====================================================================
 
 // GitHubLoader implements the DocumentLoader interface using the GitHub API.
-type GitHubLoader struct {}
+type GitHubLoader struct {
+	GitHubClient *github.Client // <-- NEW: Injected here
+}
 
 // NewGitHubLoader creates a GitHub-specific document loader.
-func NewGitHubLoader() *GitHubLoader {
-	return &GitHubLoader{}
+func NewGitHubLoader(client *github.Client) *GitHubLoader {
+	return &GitHubLoader{
+		GitHubClient: client, // <-- Client is stored here
+	}
 }
 
 // Load initiates the process of fetching documents from the GitHub repository.
 // This function contains the logic previously in the inner loop of executeUnionQueries.
 func (l *GitHubLoader) Load(
-	ctx context.Context, 
-	client *github.Client, 
+	ctx context.Context,
 	config *GetIndexConfigurationInput,
 	queryComposite map[string]interface{},
 ) (DocumentIterator, error) {
 
 	// 1. Get Index Configuration
-	indexObject, err := GetIndexById(config)
+	indexObject, err := l.GetIndexById(config)
 	if err != nil || indexObject == nil {
 		return nil, fmt.Errorf("failed to retrieve index config for ID '%s'", config.Id)
 	}
@@ -97,7 +103,7 @@ func (l *GitHubLoader) Load(
 	}
 
 	// 3. Fetch Directory Contents
-	_, dirContents, _, err := client.Repositories.GetContents(
+	_, dirContents, _, err := l.GitHubClient.Repositories.GetContents(
 		ctx, config.Owner, repoToFetch, contentPath,
 		&github.RepositoryContentGetOptions{Ref: config.Branch},
 	)
@@ -108,6 +114,34 @@ func (l *GitHubLoader) Load(
 
 	// 4. Return the concrete iterator implementation
 	return NewGitHubFileIterator(dirContents), nil
+}
+
+// GetIndexById retrieves the index configuration JSON file from the GitHub repository.
+func (l *GitHubLoader) GetIndexById(c *GetIndexConfigurationInput) (map[string]interface{}, error) {
+	log.Printf("GetIndexById: Attempting to retrieve config for ID: %s", c.Id)
+	var contract map[string]interface{}
+
+	pieces := strings.Split(c.Repo, "/")
+	opts := &github.RepositoryContentGetOptions{
+		Ref: c.Branch,
+	}
+	// File path is assumed to be index/{ID}.json
+	file, _, res, err := l.GitHubClient.Repositories.GetContents(context.Background(), pieces[0], pieces[1], "index/"+c.Id+".json", opts)
+	if err != nil || res.StatusCode != 200 {
+		log.Printf("GetIndexById: Failed to retrieve config for %s: Status %d, Error: %v", c.Id, res.StatusCode, err)
+		return contract, nil
+	}
+	if file != nil && file.Content != nil {
+		content, err := base64.StdEncoding.DecodeString(*file.Content)
+		if err == nil {
+			json.Unmarshal(content, &contract)
+			log.Printf("GetIndexById: Successfully retrieved config for %s.", c.Id)
+		} else {
+			log.Printf("GetIndexById: Invalid index unable to parse content for %s: %v", c.Id, err)
+			return contract, errors.New("Invalid index unable to parse.")
+		}
+	}
+	return contract, nil
 }
 
 // ====================================================================

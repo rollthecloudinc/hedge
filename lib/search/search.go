@@ -2,7 +2,6 @@ package search
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math" // REQUIRED for Standard Deviation, Percentile, and Haversine
@@ -12,10 +11,7 @@ import (
 	"bytes"
 	"unicode"
 	"text/template"
-	"encoding/json"
-	"encoding/base64"
 	"sort" // REQUIRED for Median, Percentile, Min/Max, and general result sorting
-	"github.com/google/go-github/v46/github"
 )
 
 // ----------------------------------------------------
@@ -313,7 +309,6 @@ type TopLevelQuery struct {
 // GetIndexConfigurationInput holds the necessary parameters for fetching the index config.
 // (Needed here for the recursive subquery call signature)
 type GetIndexConfigurationInput struct {
-	GithubClient *github.Client
 	Owner string
 	Stage string
 	Repo string
@@ -1218,7 +1213,7 @@ func evaluateBucketScript(script string, paths map[string]string, currentMetrics
     return result, nil
 }
 
-func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
+func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, loader DocumentLoader, indexInput *GetIndexConfigurationInput) (bool, float64) {
 	totalScore := 0.0
 
 	// 1. ALL (Logical AND)
@@ -1227,7 +1222,7 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 		
 		for _, c := range b.All {
 			// Changed: Capture score from Case.Evaluate
-			matched, score := c.Evaluate(data, ctx, client, indexInput)
+			matched, score := c.Evaluate(data, ctx, loader, indexInput)
 			
 			if !matched {
 				return false, 0.0 // Single failure in ALL fails the whole Bool
@@ -1251,7 +1246,7 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 		
 		for _, c := range b.One {
 			// Changed: Capture score from Case.Evaluate
-			matched, score := c.Evaluate(data, ctx, client, indexInput)
+			matched, score := c.Evaluate(data, ctx, loader, indexInput)
 			
 			if matched {
 				matchFound = true
@@ -1273,7 +1268,7 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 	if len(b.None) > 0 {
 		for _, c := range b.None {
 			// Changed: Capture the bool and discard the score
-			matched, _ := c.Evaluate(data, ctx, client, indexInput) 
+			matched, _ := c.Evaluate(data, ctx, loader, indexInput) 
 			
 			if matched {
 				return false, 0.0 // Single match in NONE fails the whole Bool
@@ -1290,7 +1285,7 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 		}
 		
 		// Changed: Capture the bool and discard the score
-		matched, _ := b.Not[0].Evaluate(data, ctx, client, indexInput)
+		matched, _ := b.Not[0].Evaluate(data, ctx, loader, indexInput)
 		
 		if !matched {
 			// If the inner condition did NOT match, the NOT condition passes with neutral score
@@ -1305,14 +1300,14 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, client
 
 // Evaluate evaluates the condition represented by the Case, returning whether it matches (bool)
 // and the associated score (float64). Filter conditions return 0.0 score.
-func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
+func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, loader DocumentLoader, indexInput *GetIndexConfigurationInput) (bool, float64) {
 	var match bool
 	var score float64
 
 	// A) Handle nested Boolean logic
 	if c.Bool != nil {
 		// Delegates score accumulation/maxing to Bool.Evaluate
-		return c.Bool.Evaluate(data, ctx, client, indexInput)
+		return c.Bool.Evaluate(data, ctx, loader, indexInput)
 	}
 
 	// B) Handle Range logic (Filter, Score 0.0)
@@ -1365,7 +1360,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 	if c.NestedDoc != nil {
 		// Delegates score maxing to EvaluateNestedDoc
 		// Changed: EvaluateNestedDoc now returns bool and float64 (max score)
-		return EvaluateNestedDoc(data, c.NestedDoc, ctx, client, indexInput) 
+		return EvaluateNestedDoc(data, c.NestedDoc, ctx, loader, indexInput) 
 	}
 
 	// E) Handle Exists logic (Filter, Score 0.0)
@@ -1438,7 +1433,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 
 		log.Printf("Case.Evaluate: Executing recursive subquery. Target index: %s, Result field: %s", subQuery.Index, resultField)
 
-		subResultData, err := ExecuteSubQuery(ctx, client, indexInput, subQuery, resultField)
+		subResultData, err := ExecuteSubQuery(ctx, loader, indexInput, subQuery, resultField)
 		if err != nil {
 			log.Printf("Case.Evaluate: Error executing subquery: %v", err)
 			return false, 0.0 // Changed: Return 0.0 score
@@ -1487,7 +1482,7 @@ func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, client
 // The parent document matches if the nested Bool evaluates to true for AT LEAST ONE
 // object in the array.
 // Returns match status (bool) and the MAX score of any matching nested document.
-func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx context.Context, client *github.Client, indexInput *GetIndexConfigurationInput) (bool, float64) {
+func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx context.Context, loader DocumentLoader, indexInput *GetIndexConfigurationInput) (bool, float64) {
     // 1. Resolve the path to the array using the raw dot notation helper.
     arrayValue, exists := resolveRawDotNotation(data, nested.Path)
     if !exists {
@@ -1516,7 +1511,7 @@ func EvaluateNestedDoc(data map[string]interface{}, nested *NestedDoc, ctx conte
 
         // Recursively evaluate the nested Bool logic on the current itemMap.
         // Changed: Capture the score from the recursive call.
-        matched, score := nested.Bool.Evaluate(itemMap, ctx, client, indexInput) 
+        matched, score := nested.Bool.Evaluate(itemMap, ctx, loader, indexInput) 
         
         if matched {
             matchFound = true
@@ -2258,85 +2253,69 @@ func ApplyScoreModifiers(docs []map[string]interface{}, fs *FunctionScore) {
 // ----------------------------------------------------
 
 // ExecuteSubQuery fetches a list of values (e.g., IDs) by executing a full, nested search.
-// This is the core function for recursive subquery execution.
-func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetIndexConfigurationInput, subQuery *Query, resultField string) ([]string, error) {
+// This function is fully decoupled from the *github.Client by using the DocumentLoader interface
+// and includes the fix for the scope/type conflict error.
+func ExecuteSubQuery(
+    ctx context.Context, 
+    loader DocumentLoader, // The abstract mechanism to fetch data
+    baseInput *GetIndexConfigurationInput, 
+    subQuery *Query, 
+    resultField string,
+) ([]string, error) {
     
     log.Printf("ExecuteSubQuery: Starting recursive search for index '%s' and composite keys: %+v", subQuery.Index, subQuery.Composite)
     
-    // 1. Get the Index Config for the subQuery's index
     subInput := *baseInput 
     subInput.Id = subQuery.Index
-    subInput.GithubClient = client 
-    
-    subIndexObject, err := GetIndexById(&subInput)
-    if err != nil || subIndexObject == nil {
-        return nil, fmt.Errorf("failed to load configuration for subquery index '%s': %w", subQuery.Index, err)
-    }
 
-    // 2. Build the content path using the subQuery's Composite map (Scoped Search)
-    fields, ok := subIndexObject["fields"].([]interface{})
-    if !ok {
-        return nil, errors.New("subquery index configuration missing 'fields'")
-    }
-    
-    contentPath := ""
-    if len(subQuery.Composite) > 0 {
-        // Build the path using composite keys provided in the subquery
-        for idx, f := range fields {
-            fStr := f.(string)
-            compositeVal, found := subQuery.Composite[fStr]
-            if found {
-                contentPath += fmt.Sprintf("%v", compositeVal)
-            }
-            if idx < (len(fields) - 1) {
-                contentPath += ":"
-            }
-        }
-        log.Printf("ExecuteSubQuery: Using composite path: %s", contentPath)
-    } else {
-        // Fall back to searchRootPath if no composite keys are provided
-        searchRootPath, ok := subIndexObject["searchRootPath"].(string)
-        if ok {
-            contentPath = searchRootPath
-            log.Printf("ExecuteSubQuery: Using searchRootPath: %s", contentPath)
-        } else {
-             return nil, errors.New("subquery must specify Composite keys or index must have searchRootPath")
-        }
-    }
-
-    // 3. Fetch directory contents 
-    repoToFetch := subIndexObject["repoName"].(string)
-    _, dirContents, _, err := client.Repositories.GetContents(
-        ctx, subInput.Owner, repoToFetch, contentPath, 
-        &github.RepositoryContentGetOptions{Ref: subInput.Branch},
+    // 1. Load documents using the generic DocumentLoader
+    iterator, err := loader.Load(
+        ctx, 
+        &subInput,            // Pass the subquery index config
+        subQuery.Composite,   // Pass the composite keys for scoped search
     )
-    if err != nil || dirContents == nil {
-        log.Printf("ExecuteSubQuery: Failed to fetch contents from path '%s': %v", contentPath, err)
-        return nil, nil // Return empty results rather than an error if path is just missing
+    if err != nil {
+        return nil, fmt.Errorf("failed to load data for subquery index '%s': %w", subQuery.Index, err)
     }
+    defer iterator.Close()
 
-    // 4. Filter contents using the subQuery's Bool logic and extract the target field
+    // 2. Filter contents and extract the target field
     results := make([]string, 0)
-    for _, content := range dirContents {
-        if content.GetType() != "file" { continue }
-
-        decodedBytes, _ := base64.StdEncoding.DecodeString(content.GetName())
-        itemBody := string(decodedBytes)
+    
+    // START OF FIX: Explicitly declare the variables to receive the result from resolveDotNotation.
+    // This forces 'extractedVal' to be of type interface{} and prevents shadowing conflicts.
+    var extractedVal interface{}
+    var exists bool
+    
+    for itemData, ok := iterator.Next(); ok; itemData, ok = iterator.Next() {
         
-        var itemData map[string]interface{}
-        if json.Unmarshal([]byte(itemBody), &itemData) == nil {
-            
-            // Execute the subQuery's BOOL evaluation recursively
-            match, _ := subQuery.Bool.Evaluate(itemData, ctx, client, baseInput)
-            
-            if match {
-                // Extract the value of the target field (resultField) from the matching document
-                if val, exists := resolveDotNotation(itemData, resultField); exists {
-                    results = append(results, val)
-                }
+        if iterator.Error() != nil {
+            log.Printf("ExecuteSubQuery: Non-fatal error during iteration: %v", iterator.Error())
+            continue
+        }
+        
+        // Execute the subQuery's BOOL evaluation recursively
+        // Pass the loader down for potential deeper subqueries.
+        match, _ := subQuery.Bool.Evaluate(itemData, ctx, loader, &subInput)
+        
+        if match {
+            // Use the assignment operator (=) to assign the result to the pre-declared interface{} variables.
+            extractedVal, exists = resolveDotNotation(itemData, resultField)
+
+            if exists {
+                // Now safely assert the interface{} value extractedVal to a string
+                if valStr, isStr := extractedVal.(string); isStr { 
+                    results = append(results, valStr)
+                } 
             }
         }
     }
+    
+    // Check for a fatal error that may have occurred at the end of iteration
+    if err := iterator.Error(); err != nil {
+        return nil, fmt.Errorf("subquery iteration finished with fatal error: %w", err)
+    }
+
     log.Printf("ExecuteSubQuery: Completed. Found %d matching results to return.", len(results))
     return results, nil
 }
@@ -3111,36 +3090,4 @@ func normalizeBucketKey(key string) string {
     // Basic implementation: trim whitespace.
     // Can be extended to handle character escaping or specific format rules if needed.
     return strings.TrimSpace(key)
-}
-
-// ----------------------------------------------------
-// GitHub Index Configuration Retrieval (UNCHANGED)
-// ----------------------------------------------------
-
-// GetIndexById retrieves the index configuration JSON file from the GitHub repository.
-func GetIndexById(c *GetIndexConfigurationInput) (map[string]interface{}, error) {
-	log.Printf("GetIndexById: Attempting to retrieve config for ID: %s", c.Id)
-	var contract map[string]interface{}
-
-	pieces := strings.Split(c.Repo, "/")
-	opts := &github.RepositoryContentGetOptions{
-		Ref: c.Branch,
-	}
-	// File path is assumed to be index/{ID}.json
-	file, _, res, err := c.GithubClient.Repositories.GetContents(context.Background(), pieces[0], pieces[1], "index/"+c.Id+".json", opts)
-	if err != nil || res.StatusCode != 200 {
-		log.Printf("GetIndexById: Failed to retrieve config for %s: Status %d, Error: %v", c.Id, res.StatusCode, err)
-		return contract, nil
-	}
-	if file != nil && file.Content != nil {
-		content, err := base64.StdEncoding.DecodeString(*file.Content)
-		if err == nil {
-			json.Unmarshal(content, &contract)
-			log.Printf("GetIndexById: Successfully retrieved config for %s.", c.Id)
-		} else {
-			log.Printf("GetIndexById: Invalid index unable to parse content for %s: %v", c.Id, err)
-			return contract, errors.New("Invalid index unable to parse.")
-		}
-	}
-	return contract, nil
 }

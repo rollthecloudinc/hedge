@@ -89,7 +89,7 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 	// ===============================================================
 	
 	// Create the concrete loader instance (the dependency)
-	githubLoader := search.NewGitHubLoader()
+	githubLoader := search.NewGitHubLoader(githubRestClient)
 	
 	// Inject the loader into the search engine
 	engine := search.NewSearchEngine(githubLoader) 

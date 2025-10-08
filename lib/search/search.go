@@ -225,8 +225,15 @@ type RangeBucket struct {
 	To   float64 `json:"to"`   // End (exclusive)
 }
 
+// NEW: Pipeline Aggregation Request (for StatsBucket, AvgBucket, etc.)
+type PipelineRequest struct {
+    Type string `json:"type"`   // Must be "stats_bucket" for this feature
+    Path string `json:"path"`   // The path to the metric to be analyzed (e.g., "group_by_state>total_sales")
+}
+
 // Aggregation holds metrics and nested grouping logic.
 type Aggregation struct {
+    Type    string                   `json:"type"` // e.g., "terms"
 	Name string `json:"name"` // Human-readable name for this group level
 	// GroupBy is a slice to support sequential multi-field grouping at this level
 	GroupBy []string `json:"groupBy"`
@@ -249,6 +256,9 @@ type Aggregation struct {
 	// Path for the nested aggregation type
 	Path string `json:"path,omitempty"`
 	SubAggs map[string]*Aggregation `json:"subAggs,omitempty"` // Used for standard multi-level aggregations
+
+    // NEW: Pipeline Aggregations that operate on the results of the primary buckets
+    PipelineAggs map[string]PipelineRequest `json:"pipelineAggs,omitempty"` 
 }
 
 // NEW STRUCT
@@ -283,7 +293,7 @@ type Query struct {
 	Offset    int                    `json:"offset,omitempty"`    // For paging: starting index
 	Source    []string               `json:"source,omitempty"`    // For field projection (subset of fields to return)
 
-	Aggs *Aggregation `json:"aggs,omitempty"`
+	Aggs      map[string]Aggregation `json:"aggs,omitempty"`
 	// Top-level aggregation definition
 
     // NEW FIELD
@@ -360,6 +370,7 @@ type Bucket struct {
 type AggregationResult struct {
 	Name    string   `json:"name"`
 	Buckets []Bucket `json:"buckets"`
+    PipelineMetrics map[string]interface{} // Top-level metrics (e.g., StatsBucket results)
 }
 
 // ----------------------------------------------------
@@ -1956,6 +1967,65 @@ func calculateNestedMetric(docs []map[string]interface{}, metricType, nestedPath
     }
 }
 
+func calculateStatsBucket(buckets []Bucket, path string) map[string]float64 {
+    // Path format expected: AGG_NAME>METRIC_NAME 
+    parts := strings.Split(path, ">")
+    if len(parts) != 2 {
+        log.Printf("ERROR: Invalid stats_bucket path format: %s. Must be AGG_NAME>METRIC_NAME", path)
+        return nil
+    }
+    // For StatsBucket, we are analyzing the final metric results from the SIBLING buckets.
+    metricName := parts[1] 
+
+    values := make([]float64, 0, len(buckets))
+
+    for _, b := range buckets {
+        if val, exists := b.Metrics[metricName]; exists {
+            // Ensure the extracted metric is a float64 for calculation
+            if fVal, ok := val.(float64); ok {
+                values = append(values, fVal)
+            } else if iVal, ok := val.(int); ok {
+                values = append(values, float64(iVal))
+            }
+        }
+    }
+
+    if len(values) == 0 {
+        return nil
+    }
+
+    // --- Calculate the required statistics (min, max, sum, avg, count, std_dev) ---
+    count := float64(len(values))
+    sum := 0.0
+    min := values[0]
+    max := values[0]
+    
+    for _, v := range values {
+        sum += v
+        if v < min { min = v }
+        if v > max { max = v }
+    }
+    
+    avg := sum / count
+    
+    // Calculate Standard Deviation (StdDev)
+    varianceSum := 0.0
+    for _, v := range values {
+        varianceSum += math.Pow(v - avg, 2)
+    }
+    stdDev := math.Sqrt(varianceSum / count) // Use N (population) for sample size
+
+    return map[string]float64{
+        "count": count,
+        "min": min,
+        "max": max,
+        "sum": sum,
+        "avg": avg,
+        "std_dev": stdDev,
+    }
+}
+
+
 // ----------------------------------------------------
 // Result Control Helpers
 // ----------------------------------------------------
@@ -2279,36 +2349,44 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
 // goclassifieds/lib/search/aggregation.go
 
 // ExecuteAggregation recursively groups and calculates metrics on a list of documents.
-func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucket {
-    // Check for valid request and determine if any grouping mechanism is active.
-    // NOTE: agg.Path is a new grouping mechanism.
+func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) AggregationResult {
+    
+    // Default empty result for error/no-op paths
+    emptyResult := AggregationResult{Buckets: []Bucket{}, PipelineMetrics: make(map[string]interface{})}
+
     hasGrouping := len(agg.GroupBy) > 0 || len(agg.RangeBuckets) > 0 || agg.DateHistogram != nil || agg.Path != "" 
     hasMetrics := agg != nil && len(agg.Metrics) > 0
 
+    // --- Placeholder for the generated buckets list ---
+    var buckets []Bucket
+    
+    // ----------------------------------------------------------------------
+    // --- SPECIAL CASE: Only Metrics Requested (No Grouping) ---
+    // ----------------------------------------------------------------------
     if !hasGrouping {
         if hasMetrics {
-            // SPECIAL CASE: Only metrics requested (top-level aggregation).
             log.Print("ExecuteAggregation: No grouping defined. Calculating top-level metrics.")
-            
             // Create a single, anonymous bucket for the entire document set.
             topBucket := processGroup(agg, "", docs) 
-            return []Bucket{topBucket}
+            buckets = []Bucket{topBucket} // Store in the buckets slice
+        } else {
+            // Final exit if neither grouping nor metrics are defined.
+            log.Print("ExecuteAggregation: No grouping or metrics defined. Returning empty results.")
+            return emptyResult
         }
-        
-        // Final exit if neither grouping nor metrics are defined.
-        log.Print("ExecuteAggregation: No grouping or metrics defined. Returning empty buckets.")
-        return []Bucket{}
     }
-
-    // --- NEW: 0. Nested Aggregation (Highest Priority) ---
+    
+    // ----------------------------------------------------------------------
+    // --- STEP 1: Execute Primary Grouping (Populates 'buckets' slice) ---
+    // ----------------------------------------------------------------------
+    
     if agg.Path != "" {
         log.Printf("ExecuteAggregation: Detected Nested Aggregation on path '%s'.", agg.Path)
-        return executeNestedAggregation(docs, agg)
-    }
+        // NOTE: executeNestedAggregation must be updated to return []Bucket
+        buckets = executeNestedAggregation(docs, agg)
 
-    // --- 1. Standard GroupBy (Field Value Grouping) ---
-    if len(agg.GroupBy) > 0 {
-        groupByField := agg.GroupBy[0] // Only use the first field for this level
+    } else if len(agg.GroupBy) > 0 {
+        groupByField := agg.GroupBy[0] 
         log.Printf("ExecuteAggregation: Grouping by field '%s'", groupByField)
 
         groups := make(map[string][]map[string]interface{})
@@ -2319,16 +2397,14 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
             }
         }
         
-        buckets := make([]Bucket, 0, len(groups))
+        buckets = make([]Bucket, 0, len(groups))
         for key, groupDocs := range groups {
             newBucket := processGroup(agg, key, groupDocs)
             buckets = append(buckets, newBucket)
         }
-        return buckets
-
-    // --- 2. Grouping by numeric ranges (Histogram) ---
+        
     } else if len(agg.RangeBuckets) > 0 {
-        // RangeBuckets is a map, we process the first (and typically only) entry
+        // RangeBuckets logic (Field, ranges)
         var field string
         var ranges []RangeBucket
         for f, r := range agg.RangeBuckets {
@@ -2340,18 +2416,13 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
 
         rangeGroups := make(map[string][]map[string]interface{})
         for _, doc := range docs {
+            // ... (Range Bucketing Logic using resolveDotNotation and strconv.ParseFloat) ...
             valStr, exists := resolveDotNotation(doc, field)
-            if !exists {
-                continue
-            }
+            if !exists { continue }
             val, err := strconv.ParseFloat(valStr, 64)
-            if err != nil {
-                continue // Skip non-numeric/unparseable values for range bucketing
-            }
+            if err != nil { continue }
             
-            // Find which range bucket this value belongs to
             for _, r := range ranges {
-                // To=0.0 implies no upper bound
                 if val >= r.From && (r.To == 0.0 || val < r.To) { 
                     rangeGroups[r.Key] = append(rangeGroups[r.Key], doc)
                     break 
@@ -2359,71 +2430,72 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) []Bucke
             }
         }
         
-        buckets := make([]Bucket, 0, len(ranges))
-        for _, r := range ranges { // Iterate over the defined ranges to ensure all keys are present
+        buckets = make([]Bucket, 0, len(ranges))
+        for _, r := range ranges { 
             groupDocs := rangeGroups[r.Key]
             newBucket := processGroup(agg, r.Key, groupDocs)
             buckets = append(buckets, newBucket)
         }
-        return buckets
-    
-    // --- 3. Grouping by Date Histogram (Time-based Grouping) ---
+
     } else if agg.DateHistogram != nil {
         dh := agg.DateHistogram
         log.Printf("ExecuteAggregation: Grouping by Date Histogram on field '%s' with interval '%s'", dh.Field, dh.Interval)
 
         groups := make(map[string][]map[string]interface{})
-        
-        // Define the Go time format based on the requested interval
+        // ... (Date Histogram logic to fill 'groups' map) ...
         var format string
+        // (Date format logic based on dh.Interval, as shown in previous request)
         switch strings.ToLower(dh.Interval) {
-        case "minute":
-            format = "2006-01-02T15:04" // Year-Month-DayTHour:Minute
-        case "hour":
-            format = "2006-01-02T15"    // Year-Month-DayTHour
-        case "day":
-            format = "2006-01-02"       // Year-Month-Day
-        case "month":
-            format = "2006-01"          // Year-Month
-        case "year":
-            format = "2006"             // Year
-        default:
-            log.Printf("ExecuteAggregation: Invalid date histogram interval '%s'.", dh.Interval)
-            return []Bucket{}
+            case "minute": format = "2006-01-02T15:04" 
+            case "hour": format = "2006-01-02T15"    
+            case "day": format = "2006-01-02"       
+            case "month": format = "2006-01"          
+            case "year": format = "2006"             
+            default:
+                log.Printf("ExecuteAggregation: Invalid date histogram interval '%s'.", dh.Interval)
+                return emptyResult
         }
 
         for _, doc := range docs {
             valStr, exists := resolveDotNotation(doc, dh.Field)
-            if !exists {
-                continue
-            }
-            
-            t, err := tryParseDate(valStr) 
-            if err != nil {
-                continue 
-            }
-            
-            // Format the time to the chosen precision to create the bucket key
+            if !exists { continue }
+            t, err := tryParseDate(valStr) // Assume tryParseDate exists
+            if err != nil { continue }
             key := t.Format(format)
             groups[key] = append(groups[key], doc)
         }
         
         // Convert map to buckets
-        buckets := make([]Bucket, 0, len(groups))
+        buckets = make([]Bucket, 0, len(groups))
         for key, groupDocs := range groups {
             newBucket := processGroup(agg, key, groupDocs)
             buckets = append(buckets, newBucket)
         }
         
-        // Sort buckets chronologically by key (the formatted date string)
+        // Sort buckets chronologically by key
         sort.Slice(buckets, func(i, j int) bool {
             return buckets[i].Key < buckets[j].Key
         })
-        
-        return buckets
     }
 
-    return []Bucket{} 
+
+    // ----------------------------------------------------------------------
+    // --- STEP 2: Execute Pipeline Aggregations (StatsBucket) ---
+    // This runs AFTER all primary buckets and their intra-bucket metrics (Pass 1 & 2) are complete.
+    // ----------------------------------------------------------------------
+    pipelineMetrics := make(map[string]interface{})
+    
+    if len(agg.PipelineAggs) > 0 {
+        pipelineMetrics = executePipelineAggregations(buckets, agg.PipelineAggs)
+    }
+
+    // ----------------------------------------------------------------------
+    // --- STEP 3: Return Final Result ---
+    // ----------------------------------------------------------------------
+    return AggregationResult{
+        Buckets: buckets,
+        PipelineMetrics: pipelineMetrics,
+    }
 }
 
 // goclassifieds/lib/search/aggregation.go (Modified for Nested Logic)
@@ -2497,15 +2569,17 @@ func executeNestedAggregation(documents []map[string]interface{}, agg *Aggregati
     for subAggName, innerAgg := range agg.SubAggs {
         log.Printf("DEBUG: Executing inner aggregation '%s' (Type: %v) on the unnested set.", subAggName)
         
-        // RECURSIVE CALL: The innerAgg is processed by the main router function.
-        innerBuckets := ExecuteAggregation(unnestedDocuments, innerAgg)
+        // --- FIX APPLIED HERE ---
+        // ExecuteAggregation now returns AggregationResult, so we must access the .Buckets field.
+        innerAggResult := ExecuteAggregation(unnestedDocuments, innerAgg)
 
         // The result of a nested aggregation is represented as a single bucket 
         // per inner aggregation, containing the results of that inner agg.
         finalBuckets = append(finalBuckets, Bucket{
             Key:      subAggName,
             Count: len(unnestedDocuments), // Total number of unnseted items
-            Buckets:  innerBuckets, // The actual aggregation results
+            // CORRECT FIX: Assign ONLY the buckets slice from the result.
+            Buckets:  innerAggResult.Buckets, // The actual aggregation results
         })
     }
     
@@ -2551,8 +2625,152 @@ func executeScoreTemplate(data map[string]interface{}, code string) (float64, er
     return result, nil
 }
 
+// executePipelineAggregations runs pipeline aggregations on a slice of completed buckets.
+// It is called AFTER all primary buckets are grouped and have their simple metrics calculated.
+func executePipelineAggregations(buckets []Bucket, pipelineAggs map[string]PipelineRequest) map[string]interface{} {
+    pipelineResults := make(map[string]interface{})
+
+    for aggName, req := range pipelineAggs {
+        if strings.ToLower(req.Type) == "stats_bucket" {
+            // StatsBucket logic
+            if result := calculateStatsBucket(buckets, req.Path); result != nil {
+                pipelineResults[aggName] = result
+            }
+        }
+        // Future: Add other pipeline types here (e.g., "avg_bucket", "sum_bucket")
+    }
+
+    return pipelineResults
+}
+
+// Inside lib/search/search.go
+
+// ExecuteTopLevelPipeline runs pipeline aggregations (like stats_bucket) against a set of
+// sibling buckets generated by a primary aggregation.
+// targetBuckets: The list of Buckets from the primary aggregation (e.g., all "group_by_category" buckets).
+// pipelineAgg:   The PipelineAggregation request (e.g., the stats_bucket definition).
+// pathFromTarget: The remaining parts of the path, e.g., ["views_per_dollar_ratio"] or ["sub_agg_name", "metric_name"].
+func ExecuteTopLevelPipeline(
+    targetBuckets []Bucket,
+    pipelineAgg Aggregation,
+    pathFromTarget []string,
+) interface{} {
+    
+    pipelineType := strings.ToLower(pipelineAgg.Type)
+
+    // Ensure the path is valid for a StatsBucket, which requires a target metric name.
+    if len(pathFromTarget) < 1 {
+        log.Printf("ERROR: Pipeline aggregation '%s' requires a metric path.", pipelineAgg.Name)
+        return nil
+    }
+
+    switch pipelineType {
+    case "stats_bucket":
+        // 1. Collect all numerical values for the target metric across all sibling buckets.
+        values := make([]float64, 0)
+        
+        // The last element in the path is the target metric name.
+        metricName := pathFromTarget[len(pathFromTarget)-1]
+        
+        // The preceding elements define the path through nested sub-aggregations.
+        subAggPath := pathFromTarget[:len(pathFromTarget)-1] 
+
+        for _, bucket := range targetBuckets {
+            // Find the numerical value by traversing the path within the bucket
+            val, found := findMetricValueInBucket(bucket, subAggPath, metricName)
+
+            if found {
+                if fVal, ok := val.(float64); ok {
+                    values = append(values, fVal)
+                } else if iVal, ok := val.(int); ok {
+                    values = append(values, float64(iVal))
+                }
+            }
+        }
+        
+        if len(values) == 0 {
+            return map[string]interface{}{
+                "count": 0,
+                "avg":   0.0,
+                "min":   nil,
+                "max":   nil,
+                "sum":   0.0,
+            }
+        }
+
+        // 2. Calculate statistics on the collected values.
+        count := len(values)
+        min := values[0]
+        max := values[0]
+        sum := 0.0
+
+        for _, v := range values {
+            sum += v
+            if v < min {
+                min = v
+            }
+            if v > max {
+                max = v
+            }
+        }
+        avg := sum / float64(count)
+
+        // NOTE: Standard deviation calculation is complex and often skipped for simpler engines.
+        // For now, we omit std_dev but include the standard stats.
+        
+        return map[string]interface{}{
+            "count": count,
+            "min":   min,
+            "max":   max,
+            "avg":   avg,
+            "sum":   sum,
+        }
+    
+    // Add other pipeline aggregations here (e.g., "avg_bucket", "max_bucket")
+    
+    default:
+        log.Printf("ERROR: Unsupported top-level pipeline aggregation type: %s", pipelineType)
+        return nil
+    }
+}
+
+// Helper function to recursively traverse a bucket to find a specific metric value.
+func findMetricValueInBucket(b Bucket, aggPath []string, metricName string) (interface{}, bool) {
+    
+    currentBucket := b
+    
+    // 1. Traverse through sub-aggregations (if path is deep)
+    for _, pathName := range aggPath {
+        found := false
+        // Search through the sub-buckets for a key matching the pathName
+        for _, subBucket := range currentBucket.Buckets {
+            if subBucket.Key == pathName { 
+                currentBucket = subBucket
+                found = true
+                break
+            }
+            // If the sub-aggregation isn't a terms agg, the key might be the sub-agg name itself
+            // NOTE: This assumes subAggPath is only used for traversing terms aggregations.
+        }
+        if !found {
+            // If we can't find the required nested sub-aggregation bucket, we can't continue.
+            return nil, false
+        }
+    }
+    
+    // 2. Look for the metric name in the final bucket's Metrics map
+    if currentBucket.Metrics != nil {
+        if val, found := currentBucket.Metrics[metricName]; found {
+            return val, true
+        }
+    }
+    
+    return nil, false
+}
+
 // processGroup handles metric calculation and recursion for a single group of documents.
 // This is where the FUSED LOGIC is implemented.
+// processGroup handles metric calculation and recursion for a single group of documents.
 func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface{}) Bucket {
     newBucket := Bucket{
         Key:   key,
@@ -2574,20 +2792,49 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
 
     // --------------------------------------------------------
     // --- PASS 1: Calculate Simple and Nested Metrics ---
-    // Calculates all document-level metrics (sum, avg, percentile, cardinality, and nested rollups).
     // --------------------------------------------------------
-    if len(simpleMetrics) > 0 {
-        standardResults := CalculateMetrics(groupDocs, simpleMetrics) 
+    
+    // Separate simpleMetrics into NESTED and STANDARD requests
+    standardMetricsToQueue := make([]MetricRequest, 0)
+
+    for _, req := range simpleMetrics {
+        if req.Path != "" { // <-- 1. PROCESS NESTED METRICS ROLLUP (RESTORED LOGIC)
+            calcType := strings.ToLower(req.Type)
+            
+            // req.Fields is a map of {sourceField: resultName}
+            for sourceField, resultName := range req.Fields {
+                if resultName == "" {
+                    continue
+                }
+                
+                // CALLING CUSTOM NESTED ROLLUP FUNCTION
+                calculatedValue := calculateNestedMetric(groupDocs, calcType, req.Path, sourceField)
+                if calculatedValue != nil {
+                    // Place the nested metric result directly into the parent bucket's Metrics map
+                    newBucket.Metrics[resultName] = calculatedValue
+                }
+            }
+        } else {
+            // 2. Queue non-nested metrics for the generic CalculateMetrics function
+            standardMetricsToQueue = append(standardMetricsToQueue, req)
+        }
+    }
+    
+    // 3. Calculate STANDARD Metrics
+    if len(standardMetricsToQueue) > 0 {
+        // CALLING GENERIC STANDARD METRICS FUNCTION
+        standardResults := CalculateMetrics(groupDocs, standardMetricsToQueue) 
         
-        // Merge results into the bucket's Metrics map
+        // Merge results into the bucket's Metrics map (already contains nested rollups)
         for k, v := range standardResults {
             newBucket.Metrics[k] = v 
         }
     }
     
+    // At this point, newBucket.Metrics contains all document-level metrics (nested rollups + standard).
+    
     // --------------------------------------------------------
     // --- PASS 2: Calculate Pipeline Metrics (Bucket Script) ---
-    // Runs scripts against the results of PASS 1.
     // --------------------------------------------------------
     if len(pipelineMetrics) > 0 {
         for _, req := range pipelineMetrics {
@@ -2596,6 +2843,7 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
                 continue 
             }
             
+            // Bucket Script can now access both Nested and Standard metrics in newBucket.Metrics
             calculatedValue, err := evaluateBucketScript(req.Script, req.BucketsPath, newBucket.Metrics)
             
             if err == nil {
@@ -2609,25 +2857,18 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
 
     // --------------------------------------------------------
     // --- Top Hits (Restored Functionality) ---
-    // Executes sorting, paging, and field projection on the documents belonging to this bucket.
     // --------------------------------------------------------
     if agg.TopHits != nil && agg.TopHits.Size > 0 {
-        hitsDocs := groupDocs // Start with the full document set for this bucket
+        hitsDocs := groupDocs 
         
-        // 1. Apply Sorting (if requested)
         if len(agg.TopHits.Sort) > 0 {
-            // NOTE: ApplySort must be a function that modifies hitsDocs in place or returns a sorted slice.
             hitsDocs = ApplySort(hitsDocs, agg.TopHits.Sort) 
         }
         
-        // 2. Apply Paging (Size and From/Offset)
-        // NOTE: Assumes ApplyPaging takes a Size and From parameter (defaulting 'from' to 0 if not specified in TopHits struct)
-        from := 0 // Use agg.TopHits.From if you support it
+        from := 0
         hitsDocs = ApplyPaging(hitsDocs, agg.TopHits.Size, from) 
         
-        // 3. Apply Field Projection (Source filtering)
         if len(agg.TopHits.Source) > 0 {
-            // NOTE: ProjectFields must reduce the documents to only include requested fields.
             hitsDocs = ProjectFields(hitsDocs, agg.TopHits.Source)
         }
         
@@ -2639,7 +2880,9 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
     // --------------------------------------------------------
     if agg.Aggs != nil {
         // Recursively call ExecuteAggregation on the documents in this group/bucket.
-        newBucket.Buckets = ExecuteAggregation(groupDocs, agg.Aggs)
+        // NOTE: Assuming ExecuteAggregation returns AggregationResult (needs unpacking)
+        subAggResult := ExecuteAggregation(groupDocs, agg.Aggs)
+        newBucket.Buckets = subAggResult.Buckets
     } 
     
     return newBucket

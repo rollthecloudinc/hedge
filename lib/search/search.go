@@ -251,7 +251,7 @@ type Aggregation struct {
 	Metrics []MetricRequest `json:"metrics,omitempty"`
 
 	// Recursive definition for the next level of aggregation
-	Aggs *Aggregation `json:"aggs,omitempty"`
+	Aggs map[string]*Aggregation `json:"aggs,omitempty"`
 
 	// Path for the nested aggregation type
 	Path string `json:"path,omitempty"`
@@ -364,6 +364,8 @@ type Bucket struct {
 
 	// Nested buckets for the next level of grouping
 	Buckets []Bucket `json:"buckets,omitempty"`
+
+    Aggs            map[string]AggregationResult `json:"aggs,omitempty"` // Nested aggs results 
 }
 
 // AggregationResult wraps the top-level buckets.
@@ -2349,138 +2351,142 @@ func ExecuteSubQuery(ctx context.Context, client *github.Client, baseInput *GetI
 // goclassifieds/lib/search/aggregation.go
 
 // ExecuteAggregation recursively groups and calculates metrics on a list of documents.
+// ExecuteAggregation recursively groups and calculates metrics on a list of documents.
+// It is the entry point for all aggregation requests.
 func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) AggregationResult {
     
     // Default empty result for error/no-op paths
     emptyResult := AggregationResult{Buckets: []Bucket{}, PipelineMetrics: make(map[string]interface{})}
 
+    // Determine if we need to group the documents (primary grouping/bucketization)
     hasGrouping := len(agg.GroupBy) > 0 || len(agg.RangeBuckets) > 0 || agg.DateHistogram != nil || agg.Path != "" 
-    hasMetrics := agg != nil && len(agg.Metrics) > 0
+    hasMetrics := agg != nil && (len(agg.Metrics) > 0 || len(agg.Aggs) > 0 || len(agg.PipelineAggs) > 0)
 
     // --- Placeholder for the generated buckets list ---
     var buckets []Bucket
     
     // ----------------------------------------------------------------------
-    // --- SPECIAL CASE: Only Metrics Requested (No Grouping) ---
+    // --- SPECIAL CASE: Only Metrics/Aggs Requested (No Primary Grouping) ---
     // ----------------------------------------------------------------------
     if !hasGrouping {
         if hasMetrics {
-            log.Print("ExecuteAggregation: No grouping defined. Calculating top-level metrics.")
-            // Create a single, anonymous bucket for the entire document set.
+            log.Print("ExecuteAggregation: No primary grouping defined. Calculating top-level metrics/aggregations.")
+            // Create a single, anonymous bucket for the entire document set and process it.
             topBucket := processGroup(agg, "", docs) 
             buckets = []Bucket{topBucket} // Store in the buckets slice
         } else {
-            // Final exit if neither grouping nor metrics are defined.
-            log.Print("ExecuteAggregation: No grouping or metrics defined. Returning empty results.")
+            // Final exit if neither grouping nor metrics/aggs are defined.
+            log.Print("ExecuteAggregation: No grouping or metrics/aggs defined. Returning empty results.")
             return emptyResult
         }
-    }
+    } else {
     
-    // ----------------------------------------------------------------------
-    // --- STEP 1: Execute Primary Grouping (Populates 'buckets' slice) ---
-    // ----------------------------------------------------------------------
-    
-    if agg.Path != "" {
-        log.Printf("ExecuteAggregation: Detected Nested Aggregation on path '%s'.", agg.Path)
-        // NOTE: executeNestedAggregation must be updated to return []Bucket
-        buckets = executeNestedAggregation(docs, agg)
-
-    } else if len(agg.GroupBy) > 0 {
-        groupByField := agg.GroupBy[0] 
-        log.Printf("ExecuteAggregation: Grouping by field '%s'", groupByField)
-
-        groups := make(map[string][]map[string]interface{})
-        for _, doc := range docs {
-            key, exists := resolveDotNotation(doc, groupByField)
-            if exists {
-                groups[key] = append(groups[key], doc)
-            }
-        }
+        // ----------------------------------------------------------------------
+        // --- STEP 1: Execute Primary Grouping (Populates 'buckets' slice) ---
+        // ----------------------------------------------------------------------
         
-        buckets = make([]Bucket, 0, len(groups))
-        for key, groupDocs := range groups {
-            newBucket := processGroup(agg, key, groupDocs)
-            buckets = append(buckets, newBucket)
-        }
-        
-    } else if len(agg.RangeBuckets) > 0 {
-        // RangeBuckets logic (Field, ranges)
-        var field string
-        var ranges []RangeBucket
-        for f, r := range agg.RangeBuckets {
-            field = f
-            ranges = r
-            break
-        }
-        log.Printf("ExecuteAggregation: Grouping by range on field '%s'", field)
+        if agg.Path != "" {
+            log.Printf("ExecuteAggregation: Detected Nested Aggregation on path '%s'.", agg.Path)
+            // Nested aggregation handles both unnesting and recursive processing via its inner Aggs map.
+            buckets = executeNestedAggregation(docs, agg)
 
-        rangeGroups := make(map[string][]map[string]interface{})
-        for _, doc := range docs {
-            // ... (Range Bucketing Logic using resolveDotNotation and strconv.ParseFloat) ...
-            valStr, exists := resolveDotNotation(doc, field)
-            if !exists { continue }
-            val, err := strconv.ParseFloat(valStr, 64)
-            if err != nil { continue }
-            
-            for _, r := range ranges {
-                if val >= r.From && (r.To == 0.0 || val < r.To) { 
-                    rangeGroups[r.Key] = append(rangeGroups[r.Key], doc)
-                    break 
+        } else if len(agg.GroupBy) > 0 {
+            groupByField := agg.GroupBy[0] 
+            log.Printf("ExecuteAggregation: Grouping by field '%s'", groupByField)
+
+            groups := make(map[string][]map[string]interface{})
+            for _, doc := range docs {
+                key, exists := resolveDotNotation(doc, groupByField)
+                if exists {
+                    groups[key] = append(groups[key], doc)
                 }
             }
-        }
-        
-        buckets = make([]Bucket, 0, len(ranges))
-        for _, r := range ranges { 
-            groupDocs := rangeGroups[r.Key]
-            newBucket := processGroup(agg, r.Key, groupDocs)
-            buckets = append(buckets, newBucket)
-        }
+            
+            buckets = make([]Bucket, 0, len(groups))
+            for key, groupDocs := range groups {
+                // Process the group to calculate metrics and run sub-aggs
+                newBucket := processGroup(agg, key, groupDocs)
+                buckets = append(buckets, newBucket)
+            }
+            
+        } else if len(agg.RangeBuckets) > 0 {
+            // RangeBuckets logic (Field, ranges)
+            var field string
+            var ranges []RangeBucket
+            for f, r := range agg.RangeBuckets {
+                field = f
+                ranges = r
+                break
+            }
+            log.Printf("ExecuteAggregation: Grouping by range on field '%s'", field)
 
-    } else if agg.DateHistogram != nil {
-        dh := agg.DateHistogram
-        log.Printf("ExecuteAggregation: Grouping by Date Histogram on field '%s' with interval '%s'", dh.Field, dh.Interval)
+            rangeGroups := make(map[string][]map[string]interface{})
+            for _, doc := range docs {
+                // Find the correct range for the document
+                valStr, exists := resolveDotNotation(doc, field)
+                if !exists { continue }
+                val, err := strconv.ParseFloat(valStr, 64)
+                if err != nil { continue }
+                
+                for _, r := range ranges {
+                    // Range is inclusive of From, exclusive of To (if To is set)
+                    if val >= r.From && (r.To == 0.0 || val < r.To) { 
+                        rangeGroups[r.Key] = append(rangeGroups[r.Key], doc)
+                        break 
+                    }
+                }
+            }
+            
+            // Generate and process a bucket for every *defined* range
+            buckets = make([]Bucket, 0, len(ranges))
+            for _, r := range ranges { 
+                groupDocs := rangeGroups[r.Key]
+                newBucket := processGroup(agg, r.Key, groupDocs)
+                buckets = append(buckets, newBucket)
+            }
 
-        groups := make(map[string][]map[string]interface{})
-        // ... (Date Histogram logic to fill 'groups' map) ...
-        var format string
-        // (Date format logic based on dh.Interval, as shown in previous request)
-        switch strings.ToLower(dh.Interval) {
-            case "minute": format = "2006-01-02T15:04" 
-            case "hour": format = "2006-01-02T15"    
-            case "day": format = "2006-01-02"       
-            case "month": format = "2006-01"          
-            case "year": format = "2006"             
-            default:
-                log.Printf("ExecuteAggregation: Invalid date histogram interval '%s'.", dh.Interval)
-                return emptyResult
-        }
+        } else if agg.DateHistogram != nil {
+            dh := agg.DateHistogram
+            log.Printf("ExecuteAggregation: Grouping by Date Histogram on field '%s' with interval '%s'", dh.Field, dh.Interval)
 
-        for _, doc := range docs {
-            valStr, exists := resolveDotNotation(doc, dh.Field)
-            if !exists { continue }
-            t, err := tryParseDate(valStr) // Assume tryParseDate exists
-            if err != nil { continue }
-            key := t.Format(format)
-            groups[key] = append(groups[key], doc)
+            groups := make(map[string][]map[string]interface{})
+            var format string
+            switch strings.ToLower(dh.Interval) {
+                case "minute": format = "2006-01-02T15:04" 
+                case "hour": format = "2006-01-02T15"    
+                case "day": format = "2006-01-02"       
+                case "month": format = "2006-01"          
+                case "year": format = "2006"             
+                default:
+                    log.Printf("ExecuteAggregation: Invalid date histogram interval '%s'.", dh.Interval)
+                    return emptyResult
+            }
+
+            for _, doc := range docs {
+                valStr, exists := resolveDotNotation(doc, dh.Field)
+                if !exists { continue }
+                t, err := tryParseDate(valStr) // Assume tryParseDate exists
+                if err != nil { continue }
+                key := t.Format(format)
+                groups[key] = append(groups[key], doc)
+            }
+            
+            // Convert map to buckets and process each group
+            buckets = make([]Bucket, 0, len(groups))
+            for key, groupDocs := range groups {
+                newBucket := processGroup(agg, key, groupDocs)
+                buckets = append(buckets, newBucket)
+            }
+            
+            // Sort buckets chronologically by key
+            sort.Slice(buckets, func(i, j int) bool {
+                return buckets[i].Key < buckets[j].Key
+            })
         }
-        
-        // Convert map to buckets
-        buckets = make([]Bucket, 0, len(groups))
-        for key, groupDocs := range groups {
-            newBucket := processGroup(agg, key, groupDocs)
-            buckets = append(buckets, newBucket)
-        }
-        
-        // Sort buckets chronologically by key
-        sort.Slice(buckets, func(i, j int) bool {
-            return buckets[i].Key < buckets[j].Key
-        })
     }
 
-
     // ----------------------------------------------------------------------
-    // --- STEP 2: Execute Pipeline Aggregations (StatsBucket) ---
+    // --- STEP 2: Execute Pipeline Aggregations (e.g., StatsBucket) ---
     // This runs AFTER all primary buckets and their intra-bucket metrics (Pass 1 & 2) are complete.
     // ----------------------------------------------------------------------
     pipelineMetrics := make(map[string]interface{})
@@ -2504,9 +2510,12 @@ func ExecuteAggregation(docs []map[string]interface{}, agg *Aggregation) Aggrega
 
 // executeNestedAggregation processes documents by flattening a nested array field 
 // and recursively running the sub-aggregations on the new set of documents.
+// executeNestedAggregation processes documents by flattening a nested array field 
+// and recursively running the sub-aggregations on the new set of documents.
 func executeNestedAggregation(documents []map[string]interface{}, agg *Aggregation) []Bucket {
-    if agg.Path == "" || agg.SubAggs == nil || len(agg.SubAggs) == 0 {
-        log.Printf("ERROR: Nested aggregation '%s' failed. Missing 'path' or inner 'subAggs' definition.", agg.Name)
+    // Corrected check: look for 'Aggs' instead of 'SubAggs'
+    if agg.Path == "" || agg.Aggs == nil || len(agg.Aggs) == 0 { 
+        log.Printf("ERROR: Nested aggregation '%s' failed. Missing 'path' or inner 'Aggs' definition.", agg.Name)
         return []Bucket{}
     }
 
@@ -2563,13 +2572,12 @@ func executeNestedAggregation(documents []map[string]interface{}, agg *Aggregati
     log.Printf("DEBUG: Unnesting complete. Total unnested documents: %d", len(unnestedDocuments))
 
     // 2. Recursive Call: Execute the inner aggregation(s) on the flat list
-    finalBuckets := make([]Bucket, 0, len(agg.SubAggs))
+    finalBuckets := make([]Bucket, 0, len(agg.Aggs)) // Use length of Aggs map
 
     // Run all sub-aggregations defined under the nested path.
-    for subAggName, innerAgg := range agg.SubAggs {
+    for subAggName, innerAgg := range agg.Aggs { // Iterate over the Aggs map
         log.Printf("DEBUG: Executing inner aggregation '%s' (Type: %v) on the unnested set.", subAggName)
         
-        // --- FIX APPLIED HERE ---
         // ExecuteAggregation now returns AggregationResult, so we must access the .Buckets field.
         innerAggResult := ExecuteAggregation(unnestedDocuments, innerAgg)
 
@@ -2578,7 +2586,7 @@ func executeNestedAggregation(documents []map[string]interface{}, agg *Aggregati
         finalBuckets = append(finalBuckets, Bucket{
             Key:      subAggName,
             Count: len(unnestedDocuments), // Total number of unnseted items
-            // CORRECT FIX: Assign ONLY the buckets slice from the result.
+            // CORRECTED: Assign ONLY the buckets slice from the result.
             Buckets:  innerAggResult.Buckets, // The actual aggregation results
         })
     }
@@ -2771,13 +2779,26 @@ func findMetricValueInBucket(b Bucket, aggPath []string, metricName string) (int
 // processGroup handles metric calculation and recursion for a single group of documents.
 // This is where the FUSED LOGIC is implemented.
 // processGroup handles metric calculation and recursion for a single group of documents.
+// processGroup is the worker function that takes a subset of documents (a group) 
+// and calculates all requested metrics and sub-aggregations on them.
+// processGroup is the worker function that takes a subset of documents (a group) 
+// and calculates all requested metrics and sub-aggregations on them.
 func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface{}) Bucket {
-    newBucket := Bucket{
-        Key:   key,
+    
+    bucket := Bucket{
+        // FIX 1: The correct variable name is 'bucket'
+        Key:   normalizeBucketKey(key),
         Count: len(groupDocs),
-        Metrics: make(map[string]interface{}), // Will hold all metric results
+        Metrics: make(map[string]interface{}),
+        Aggs: make(map[string]AggregationResult), 
+    }
+
+    if bucket.Count == 0 {
+        return bucket
     }
     
+    log.Printf("processGroup: Processing bucket '%v' with %d documents.", bucket.Key, bucket.Count)
+
     // --- Metric Filtering (Separation of Concerns for Two-Pass System) ---
     simpleMetrics := make([]MetricRequest, 0)
     pipelineMetrics := make([]MetricRequest, 0)
@@ -2798,7 +2819,7 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
     standardMetricsToQueue := make([]MetricRequest, 0)
 
     for _, req := range simpleMetrics {
-        if req.Path != "" { // <-- 1. PROCESS NESTED METRICS ROLLUP (RESTORED LOGIC)
+        if req.Path != "" { // <-- 1. PROCESS NESTED METRICS ROLLUP
             calcType := strings.ToLower(req.Type)
             
             // req.Fields is a map of {sourceField: resultName}
@@ -2811,7 +2832,7 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
                 calculatedValue := calculateNestedMetric(groupDocs, calcType, req.Path, sourceField)
                 if calculatedValue != nil {
                     // Place the nested metric result directly into the parent bucket's Metrics map
-                    newBucket.Metrics[resultName] = calculatedValue
+                    bucket.Metrics[resultName] = calculatedValue // FIX 2: Corrected to 'bucket.Metrics'
                 }
             }
         } else {
@@ -2827,11 +2848,11 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
         
         // Merge results into the bucket's Metrics map (already contains nested rollups)
         for k, v := range standardResults {
-            newBucket.Metrics[k] = v 
+            bucket.Metrics[k] = v 
         }
     }
     
-    // At this point, newBucket.Metrics contains all document-level metrics (nested rollups + standard).
+    // At this point, bucket.Metrics contains all document-level metrics (nested rollups + standard).
     
     // --------------------------------------------------------
     // --- PASS 2: Calculate Pipeline Metrics (Bucket Script) ---
@@ -2843,14 +2864,14 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
                 continue 
             }
             
-            // Bucket Script can now access both Nested and Standard metrics in newBucket.Metrics
-            calculatedValue, err := evaluateBucketScript(req.Script, req.BucketsPath, newBucket.Metrics)
+            // Bucket Script can now access both Nested and Standard metrics in bucket.Metrics
+            calculatedValue, err := evaluateBucketScript(req.Script, req.BucketsPath, bucket.Metrics)
             
             if err == nil {
-                newBucket.Metrics[req.ResultName] = calculatedValue 
+                bucket.Metrics[req.ResultName] = calculatedValue 
             } else {
                 log.Printf("ERROR: Bucket script failed for '%s': %v", req.ResultName, err)
-                newBucket.Metrics[req.ResultName] = 0.0
+                bucket.Metrics[req.ResultName] = 0.0
             }
         }
     }
@@ -2872,20 +2893,26 @@ func processGroup(agg *Aggregation, key string, groupDocs []map[string]interface
             hitsDocs = ProjectFields(hitsDocs, agg.TopHits.Source)
         }
         
-        newBucket.TopHits = hitsDocs
+        bucket.TopHits = hitsDocs
     }
 
     // --------------------------------------------------------
-    // --- Sub-Aggregations (Restored Recursive Grouping) ---
+    // --- Sub-Aggregations (Recursive Grouping using Aggs map) ---
     // --------------------------------------------------------
-    if agg.Aggs != nil {
-        // Recursively call ExecuteAggregation on the documents in this group/bucket.
-        // NOTE: Assuming ExecuteAggregation returns AggregationResult (needs unpacking)
-        subAggResult := ExecuteAggregation(groupDocs, agg.Aggs)
-        newBucket.Buckets = subAggResult.Buckets
+    if len(agg.Aggs) > 0 {
+        log.Printf("processGroup: Executing %d recursive sub-aggregations.", len(agg.Aggs))
+
+        // Loop through all named sub-aggregations
+        for subAggName, subAgg := range agg.Aggs {
+            // Recursively call ExecuteAggregation on the documents in this group/bucket.
+            subResult := ExecuteAggregation(groupDocs, subAgg)
+            
+            // Store the result in the bucket's Aggs map using the aggregation name as the key
+            bucket.Aggs[subAggName] = subResult
+        }
     } 
     
-    return newBucket
+    return bucket
 }
 
 // In goclassifieds/lib/search/geo.go (New File or within search/search.go helpers)
@@ -3077,6 +3104,14 @@ func toTime(i interface{}) time.Time {
 
     // 3. Return zero time if parsing failed
     return time.Time{}
+}
+
+// normalizeBucketKey is a helper function to ensure bucket keys are consistent.
+// It is called by processGroup to sanitize or standardize the group key.
+func normalizeBucketKey(key string) string {
+    // Basic implementation: trim whitespace.
+    // Can be extended to handle character escaping or specific format rules if needed.
+    return strings.TrimSpace(key)
 }
 
 // ----------------------------------------------------

@@ -18,8 +18,30 @@ RUN apt-get update && \
     apt-transport-https \
     python3 \
     python3-pip \
-    libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
+    libssl-dev 
+
+# --- NEW BLOCK START: INSTALL DOCKER CLI ---
+# This installs only the 'docker' command line client, allowing it to talk 
+# to the host's daemon via the socket defined in docker-compose.yml.
+RUN apt-get update && \
+    # 1. Add Docker's official GPG key
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    \
+    # 2. Add the Docker repository to Apt sources
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" | \
+      tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    \
+    # 3. Install only the CLI package
+    apt-get update && \
+    apt-get install -y docker-ce-cli 
+# --- NEW BLOCK END ---
+
+# Clean up package lists after all installations
+RUN rm -rf /var/lib/apt/lists/*
 
 # Install Bazel 5.4.0
 RUN wget https://github.com/bazelbuild/bazel/releases/download/5.4.0/bazel-5.4.0-linux-x86_64 -O /usr/local/bin/bazel && \

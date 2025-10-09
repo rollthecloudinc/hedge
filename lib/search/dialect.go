@@ -294,6 +294,12 @@ type Query struct {
 
     // NEW FIELD
     ScoreModifiers *FunctionScore      `json:"scoreModifiers,omitempty"` 
+    
+    // Post filtering
+    PostFilter *Bool `json:"postFilter,omitempty"`
+    
+    // Faceting
+    FacetingAggs map[string]*Aggregation `json:"facetingAggs,omitempty"`
 }
 
 // UnionQuery combines the results of multiple standard Queries.
@@ -367,7 +373,7 @@ type Bucket struct {
 type AggregationResult struct {
 	Name    string   `json:"name"`
 	Buckets []Bucket `json:"buckets"`
-    PipelineMetrics map[string]interface{} // Top-level metrics (e.g., StatsBucket results)
+    PipelineMetrics map[string]interface{} `json:"pipelineMetrics"` // Top-level metrics (e.g., StatsBucket results)
 }
 
 // ----------------------------------------------------
@@ -2263,6 +2269,48 @@ func ApplyScoreModifiers(docs []map[string]interface{}, fs *FunctionScore) {
     }
 }
 
+// ApplyPostFilterQuery filters a set of documents in-memory using a single BoolQuery.
+// It accepts the context to allow for cancellation signals to propagate down to 
+// any potentially costly steps within the BoolQuery.Evaluate logic.
+func ApplyPostFilter(
+    documents []map[string]interface{}, 
+    filterQuery *Bool,
+    ctx context.Context, // Explicitly passed Context
+    loader DocumentLoader, 
+    getIndexInput *GetIndexConfigurationInput, 
+) []map[string]interface{} {
+    
+    // 1. Check if a filter exists; if not, return the original set.
+    if filterQuery == nil {
+        return documents
+    }
+
+    filteredDocs := make([]map[string]interface{}, 0, len(documents))
+    
+    // 2. Iterate and evaluate each document against the filter query.
+    for _, doc := range documents {
+        // Pass the explicit context, loader, and config input to Evaluate.
+        match, _ := filterQuery.Evaluate(doc, ctx, loader, getIndexInput)
+        
+        if match {
+            filteredDocs = append(filteredDocs, doc)
+        }
+        
+        // OPTIONAL: Check for context cancellation during filtering (good practice)
+        select {
+        case <-ctx.Done():
+            // Context cancelled (e.g., client hung up or deadline passed)
+            // Stop filtering immediately and return the partial result set collected so far.
+            return filteredDocs 
+        default:
+            // Continue iteration
+        }
+    }
+    
+    // 3. Return the subset of documents that matched the post-filter.
+    return filteredDocs
+}
+
 // ----------------------------------------------------
 // Recursive Subquery Execution Logic
 // ----------------------------------------------------
@@ -2735,6 +2783,61 @@ func ExecuteTopLevelPipeline(
     }
 }
 
+// ExecuteFaceting calculates the dynamic counts (facets) for the fields defined
+// in the facetingAggs map, using the final filtered set of documents.
+func ExecuteFaceting(
+	documents []map[string]interface{},
+	facetingAggs map[string]*Aggregation,
+) map[string][]Bucket { // Returns a map where the key is the facet name and the value is a list of Buckets.
+    
+	if len(documents) == 0 || len(facetingAggs) == 0 {
+		return nil
+	}
+
+	allFacetResults := make(map[string][]Bucket)
+
+    // Iterate through each requested facet aggregation
+	for aggName, aggConfig := range facetingAggs {
+        
+        // 1. Validation: Ensure it's a "terms" aggregation and has a field to group by
+		if aggConfig.Type != "terms" || len(aggConfig.GroupBy) == 0 {
+			log.Printf("ExecuteFaceting: Skipping aggregation '%s'. Only 'terms' type with a 'groupBy' field is supported for faceting.", aggName)
+			continue
+		}
+
+		facetField := aggConfig.GroupBy[0] // Use the first GroupBy field
+        
+        // 2. Group Documents by the Facet Field
+        // This is the common, reusable logic for grouping.
+		groupedDocs := GroupDocumentsByField(documents, facetField)
+		
+		facetBuckets := make([]Bucket, 0, len(groupedDocs))
+
+        // 3. Transform Groups into Bucket Results (Count Calculation)
+		for key, docs := range groupedDocs {
+            
+            // The Count is simply the number of documents in the group (the definition of a facet)
+			count := len(docs)
+            
+            // NOTE: Key is converted to string for the Bucket struct, assuming it's a simple type.
+			bucket := Bucket{
+				Key:   fmt.Sprintf("%v", key), 
+				Count: count,
+                // Metrics, TopHits, and nested Aggs are left as nil/empty, 
+                // but the Bucket struct supports them for future expansion.
+			}
+			facetBuckets = append(facetBuckets, bucket)
+		}
+        
+        // NOTE: Optional: Add sorting/limiting logic here (e.g., sort facetBuckets by Count).
+
+		allFacetResults[aggName] = facetBuckets
+	}
+
+	log.Printf("ExecuteFaceting: Successfully calculated %d total facet fields.", len(allFacetResults))
+	return allFacetResults
+}
+
 // Helper function to recursively traverse a bucket to find a specific metric value.
 func findMetricValueInBucket(b Bucket, aggPath []string, metricName string) (interface{}, bool) {
     
@@ -3105,4 +3208,33 @@ func normalizeBucketKey(key string) string {
     // Basic implementation: trim whitespace.
     // Can be extended to handle character escaping or specific format rules if needed.
     return strings.TrimSpace(key)
+}
+
+// GroupDocumentsByField iterates through a slice of documents and groups them
+// into a map where the key is the field's value (e.g., "Electronics") and 
+// the value is a slice of all documents containing that key.
+// This forms the basis for all bucket (terms/facet) aggregations.
+func GroupDocumentsByField(
+	documents []map[string]interface{},
+	field string,
+) map[interface{}][]map[string]interface{} {
+
+	// Initialize the map to hold the grouped documents. 
+	// The key is interface{} to handle different data types (string, int, bool, etc.)
+	groupedDocs := make(map[interface{}][]map[string]interface{})
+
+	for _, doc := range documents {
+		// Use the existing resolveDotNotation helper to safely extract the field value.
+		value, exists := resolveDotNotation(doc, field)
+
+		if !exists {
+			// If the field is missing or nil, skip this document for grouping.
+			continue
+		}
+
+		// Append the entire document to the slice associated with its field value key.
+		groupedDocs[value] = append(groupedDocs[value], doc)
+	}
+    
+	return groupedDocs
 }

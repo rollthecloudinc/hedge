@@ -109,6 +109,8 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 		Offset:                firstQuery.Offset,
 		SourceFields:          firstQuery.Source,
 		ScoreModifiersRequest: firstQuery.ScoreModifiers,
+		PostFilter:            firstQuery.PostFilter,
+		FacetingAggs:          firstQuery.FacetingAggs,
 	}
 
 	// 5. Delegate to the core engine method
@@ -129,7 +131,7 @@ func executeSearchRequest(ctx context.Context, owner, repoName string, requestBo
 		}, nil
 	}
     
-    responseBody, marshalErr := json.Marshal(payload.BodyData)
+    responseBody, marshalErr := json.Marshal(payload)
     if marshalErr != nil {
         log.Printf("Error marshaling final payload: %v", marshalErr)
         return events.APIGatewayProxyResponse{

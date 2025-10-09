@@ -5,8 +5,10 @@ services:
     build: .
     image: bazel6-go17-nodejs
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - ~/projects/hedge:/workspace
       - ~/.aws:/root/.aws:ro
     working_dir: /workspace
     stdin_open: true
     tty: true
+    privileged: true

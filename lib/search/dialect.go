@@ -41,6 +41,13 @@ const (
 	SortDesc SortOrder = "desc"
 )
 
+// PathMatch structure (assumed definition)
+type PathMatch struct {
+    Value interface{}
+    Depth int
+    SourceSegment []string // Added for debugging the UNION source
+}
+
 // Modifiers holds the operation for a simple condition.
 type Modifiers struct {
 	Operation Operation `json:"operation"`
@@ -451,6 +458,153 @@ func resolveRawDotNotation(data map[string]interface{}, path string) (interface{
     return val, true
 }
 
+// getSegmentPaths handles the conversion from custom star notation 
+// to one or more segment arrays for processing.
+// Returns [][]string to handle implicit UNIONs (like "type.*" or "type.*.*").
+func getSegmentPaths(field string) [][]string {
+	
+	standardPath := field // Start by assuming it's standard
+    allPaths := make([][]string, 0)
+
+	// --- 1. Handle Trailing Asterisks (field.*, field.*.*, etc.) ---
+	if strings.HasSuffix(field, "*") && !strings.HasPrefix(field, "*") {
+		trimmedField := strings.TrimRight(field, "*.") // Trim both * and . just in case
+        // Re-calculate stars based on original field after removing the trimmed part
+		numStars := strings.Count(field[len(trimmedField):], "*")
+
+		if numStars > 0 && trimmedField != "" { 
+            
+            // --- GENERALIZED UNION LOGIC FOR fieldName.*...* ---
+            // Requirement: Match fieldName at Depth 1, 2, ... (N+1)
+            
+            // Path 1 (Depth 1 Match): ["field"]
+            allPaths = append(allPaths, strings.Split(trimmedField, "."))
+            
+            // Paths 2 to (numStars + 1) (Depth 2 up to Max Depth Match)
+            for i := 1; i <= numStars; i++ {
+                // Creates paths like ["*", "field"], ["*", "*", "field"], etc.
+                wildcardPrefix := strings.Repeat("*.", i)
+                pathStr := wildcardPrefix + trimmedField
+                allPaths = append(allPaths, strings.Split(pathStr, "."))
+            }
+            
+            return allPaths // Return the comprehensive UNION list
+		}
+	} 
+	
+	// --- 2. Handle Leading Asterisks (*field, **field, ***field) ---
+    // These remain single, precise depth matches (e.g., *.field -> Depth 2 ONLY)
+	if strings.HasPrefix(field, "*") {
+		numStars := 0
+		for _, char := range field {
+			if char == '*' {
+				numStars++
+			} else {
+				break
+			}
+		}
+		
+		if numStars > 0 {
+			// Maps '***type' to '*.*.*.type'
+			starSegments := strings.Repeat("*.", numStars)
+			standardPath = starSegments + field[numStars:]
+		}
+	}
+	
+	// --- 3. Default (Standard Path or Non-Union Recursive Path) ---
+    // If allPaths is empty (meaning no special Union was triggered), process the standard path.
+    if len(allPaths) == 0 {
+	    allPaths = append(allPaths, strings.Split(standardPath, "."))
+    }
+    
+	return allPaths
+}
+
+
+// recursiveHierarchicalResolve performs the depth-first traversal of the document structure.
+func recursiveHierarchicalResolve(currentData interface{}, pathSegments []string, currentDepth int, sourceSegment []string) []PathMatch {
+	
+	// --------------------------------------------------------------------
+    // Base Case: Path resolved.
+    // --------------------------------------------------------------------
+    if len(pathSegments) == 0 {
+        return []PathMatch{
+            {
+                Value: currentData, 
+                Depth: currentDepth,
+                SourceSegment: sourceSegment, // Pass the original source segment array
+            },
+        }
+    }
+
+    currentSegment := pathSegments[0]
+    remainingSegments := pathSegments[1:]
+    matches := make([]PathMatch, 0)
+    
+    // ====================================================================
+    // --- Case 1: Handle Maps (Objects) ---
+    // ====================================================================
+    if currentMap, ok := currentData.(map[string]interface{}); ok {
+        
+        isWildcard := currentSegment == "*"
+        
+        if isWildcard {
+            // Case 1a: Standard Wildcard ("*") - Traverse ALL children
+            for _, val := range currentMap {
+                // Consume the "*" segment and recurse with the remaining path
+                nestedMatches := recursiveHierarchicalResolve(val, remainingSegments, currentDepth + 1, sourceSegment)
+                matches = append(matches, nestedMatches...)
+            }
+        } else {
+            // Case 1b: Exact Key Match (e.g., "type", "attributes"). 
+            if val, exists := currentMap[currentSegment]; exists {
+                
+                // Recurse to find children/next path segment.
+                // Consume the current segment and recurse.
+                nestedMatches := recursiveHierarchicalResolve(val, remainingSegments, currentDepth + 1, sourceSegment)
+                matches = append(matches, nestedMatches...)
+            }
+        }
+    }
+    
+    // ====================================================================
+    // --- Case 2: Handle Slices (Arrays) ---
+    // --------------------------------------------------------------------
+    if currentSlice, ok := currentData.([]interface{}); ok {
+         for _, item := range currentSlice {
+             // Pass the full, UNCONSUMED pathSegments to the item. Depth does NOT increment here, 
+             // but it will increment when the array item (an object) is processed in Case 1.
+             nestedMatches := recursiveHierarchicalResolve(item, pathSegments, currentDepth, sourceSegment)
+             matches = append(matches, nestedMatches...)
+        }
+    }
+    
+    // Return all results found
+    return matches
+}
+
+// resolveHierarchicalPath is the main entry point for resolution.
+// It supports implicit UNIONs by resolving multiple segment paths.
+func resolveHierarchicalPath(doc map[string]interface{}, field string) ([]PathMatch, bool) {
+	if doc == nil || field == "" {
+		return nil, false
+	}
+	
+	// Get all necessary paths to resolve (single path for most, two for fieldName.*)
+	allSegments := getSegmentPaths(field)
+	
+	matches := make([]PathMatch, 0)
+    
+    // Execute the implicit UNION by running the resolver for each segment path and merging results
+    for _, segments := range allSegments {
+        // Pass the original segments array as the source for debugging
+        currentMatches := recursiveHierarchicalResolve(doc, segments, 1, segments) 
+        matches = append(matches, currentMatches...)
+    }
+	
+	return matches, len(matches) > 0
+}
+
 var dateFormats = []string{
 	time.RFC3339,
 	"2006-01-02",
@@ -503,171 +657,287 @@ func Haversine(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // EvaluateGeoDistance checks if a document's geographic field is within the specified radius.
-// It supports two formats for document coordinates:
-// 1. Nested Object (e.g., {"coordinates": {"lat": 42.0, "lon": -83.0}})
-// 2. Comma-separated String (e.g., {"location": "42.0,-83.0"})
+// It supports dynamic path resolution and checks all resulting paths (UNION logic).
 func EvaluateGeoDistance(itemData map[string]interface{}, geo *GeoDistance) (bool, float64) {
-    var docLat, docLon float64
-    var err error
-
-    // 1. Try to resolve the field path to a specific value
-    fieldValue, exists := resolveRawDotNotation(itemData, geo.Field)
-    if !exists {
-        log.Printf("GeoDistance: Field '%s' not found in document.", geo.Field)
+    if geo == nil || geo.Field == "" {
         return false, 0.0
     }
 
-    // --- CASE 1: Nested Object (e.g., {"coordinates": {"lat": N, "lon": N}}) ---
-    if geoFieldMap, ok := fieldValue.(map[string]interface{}); ok {
-        latVal, latExists := geoFieldMap["lat"]
-        lonVal, lonExists := geoFieldMap["lon"]
-
-        if !latExists || !lonExists {
-            log.Printf("GeoDistance: Required 'lat' or 'lon' not found in nested object for field '%s'.", geo.Field)
-            return false, 0.0
-        }
-
-        // Parse Latitude
-        docLat, err = parseCoordinate(latVal)
-        if err != nil {
-            log.Printf("GeoDistance: Failed to parse latitude from object (%v): %v", latVal, err)
-            return false, 0.0
-        }
-        // Parse Longitude
-        docLon, err = parseCoordinate(lonVal)
-        if err != nil {
-            log.Printf("GeoDistance: Failed to parse longitude from object (%v): %v", lonVal, err)
-            return false, 0.0
-        }
-
-    // --- CASE 2: Comma-separated String (e.g., {"location": "N,N"}) ---
-    } else if geoValueStr, ok := fieldValue.(string); ok {
-        coords := strings.Split(geoValueStr, ",")
-        if len(coords) != 2 {
-            log.Printf("GeoDistance: Invalid string coordinate format for field '%s': %s (Expected 'N,N')", geo.Field, geoValueStr)
-            return false, 0.0
-        }
-
-        docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
-        if err != nil {
-            log.Printf("GeoDistance: Failed to parse string latitude: %s", coords[0])
-            return false, 0.0
-        }
-        docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
-        if err != nil {
-            log.Printf("GeoDistance: Failed to parse string longitude: %s", coords[1])
-            return false, 0.0
-        }
-    } else {
-        log.Printf("GeoDistance: Field '%s' value is neither a nested object nor a string.", geo.Field)
+    // 1. Resolve the target values from the document (using dynamic path)
+    allMatches, exists := resolveHierarchicalPath(itemData, geo.Field)
+    if !exists || len(allMatches) == 0 {
+        log.Printf("GeoDistance: Field '%s' not found or resolved to no values.", geo.Field)
         return false, 0.0
     }
 
-    // Log inputs
-    log.Printf("Haversine Input: Center (%.4f, %.4f), Doc (%.4f, %.4f)", geo.Latitude, geo.Longitude, docLat, docLon)
+    // Default score for a successful match (can be customized)
+    const baseScore = 1.0
 
-    // Calculate distance
-    distanceKM := Haversine(geo.Latitude, geo.Longitude, docLat, docLon)
+    // 2. Iterate over all resolved values (UNION logic)
+    for _, pathMatch := range allMatches {
+        var docLat, docLon float64
+        var err error
+        fieldValue := pathMatch.Value
 
-    // Log output
-    log.Printf("Haversine Output: distanceKM = %f", distanceKM)
-    
-    // 3. Convert calculated distance to the search unit and compare
-    var targetDistance float64
-    searchUnit := strings.ToLower(geo.Unit)
-    
-    if searchUnit == "mi" || searchUnit == "miles" {
-        targetDistance = distanceKM / (EARTH_RADIUS_KM / EARTH_RADIUS_MI)
-    } else { 
-        targetDistance = distanceKM
-    }
+        // --- Try to parse coordinates from the resolved value ---
 
-    log.Printf("GeoDistance: Doc coords (%.4f, %.4f). Calculated distance: %.2f %s. Required: %.2f %s", 
-        docLat, docLon, targetDistance, searchUnit, geo.Distance, searchUnit)
+        // CASE 1: Nested Object (e.g., {"lat": N, "lon": N})
+        parsed := false
+        if geoFieldMap, ok := fieldValue.(map[string]interface{}); ok {
+            latVal, latExists := geoFieldMap["lat"]
+            lonVal, lonExists := geoFieldMap["lon"]
 
-    return targetDistance <= geo.Distance, 0.0
+            if latExists && lonExists {
+                docLat, err = parseCoordinate(latVal)
+                if err == nil {
+                    docLon, err = parseCoordinate(lonVal)
+                    if err == nil {
+                        parsed = true
+                    }
+                }
+            }
+        }
+
+        // CASE 2: Comma-separated String (e.g., "N,N")
+        if !parsed {
+            if geoValueStr, ok := fieldValue.(string); ok {
+                coords := strings.Split(geoValueStr, ",")
+                if len(coords) == 2 {
+                    docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
+                    if err == nil {
+                        docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
+                        if err == nil {
+                            parsed = true
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If parsing failed for this specific value, continue to the next resolved path.
+        if !parsed {
+            // log.Printf("GeoDistance: Failed to parse coordinates from value %v.", fieldValue)
+            continue
+        }
+        
+        // If we reach here, docLat and docLon are valid floats.
+
+        // 3. Calculate distance
+        distanceKM := Haversine(geo.Latitude, geo.Longitude, docLat, docLon)
+
+        // 4. Convert calculated distance to the search unit and compare
+        var targetDistance float64
+        searchUnit := strings.ToLower(geo.Unit)
+        
+        if searchUnit == "mi" || searchUnit == "miles" {
+            // Convert distance from KM to Miles
+            targetDistance = distanceKM / (EARTH_RADIUS_KM / EARTH_RADIUS_MI)
+        } else { // Default to km (or treating any other unit as km)
+            targetDistance = distanceKM
+        }
+
+        log.Printf("GeoDistance: Doc coords (%.4f, %.4f). Calculated distance: %.2f %s. Required: %.2f %s", 
+            docLat, docLon, targetDistance, searchUnit, geo.Distance, searchUnit)
+
+        if targetDistance <= geo.Distance {
+            // Found a match in one path, return immediately (UNION)
+            return true, baseScore
+        }
+    } // End of loop over allMatches
+
+    // 5. No match found across all paths
+    log.Printf("GeoDistance: No match found for field '%s' within range.", geo.Field)
+    return false, 0.0
 }
 
 // EvaluateGeoLine determines if a document's geo field is within a specified distance from a polyline.
-// It takes the item's data, the GeoLine condition, and computes the proximity.
-func EvaluateGeoLine(data map[string]interface{}, geoLine *GeoLine) (bool, float64) {
+// It supports dynamic path resolution and checks all resulting paths (UNION logic).
+func EvaluateGeoLine(itemData map[string]interface{}, geoLine *GeoLine) (bool, float64) {
     if geoLine == nil || len(geoLine.Line) < 2 {
         log.Printf("EvaluateGeoLine: Invalid GeoLine definition. Line requires at least 2 points.")
         return false, 0.0
     }
 
-    // 1. Resolve the document's geographic field value
-    docLat, docLon, exists := resolvePointFromDoc(data, geoLine.Field)
-    if !exists {
-        log.Printf("EvaluateGeoLine: Field '%s' not found in document.", geoLine.Field)
+    const baseScore = 1.0
+
+    // 1. Resolve all field paths to find potential coordinate values in the document.
+    allMatches, exists := resolveHierarchicalPath(itemData, geoLine.Field)
+    if !exists || len(allMatches) == 0 {
+        log.Printf("EvaluateGeoLine: Field '%s' not found or resolved to no values.", geoLine.Field)
         return false, 0.0
     }
 
-    // 2. Calculate the shortest distance from the document location to the polyline segments
-    minDistance := math.MaxFloat64
-    for i := 0; i < len(geoLine.Line)-1; i++ {
-        // Extract start and end points of the current line segment
-        start := geoLine.Line[i]
-        end := geoLine.Line[i+1]
+    // 2. Iterate over all resolved coordinate values (document points)
+    for _, pathMatch := range allMatches {
+        var docLat, docLon float64
+        var err error
+        fieldValue := pathMatch.Value
+        parsed := false
 
-        // Compute the distance from the document's location to the line segment
-        segmentDistance := distanceToLineSegment(docLat, docLon, start.Lat, start.Lon, end.Lat, end.Lon)
-        if segmentDistance < minDistance {
-            minDistance = segmentDistance
+        // --- Try to parse coordinates from the resolved value (point) ---
+
+        // CASE 1: Nested Object (e.g., {"lat": N, "lon": N})
+        if geoFieldMap, ok := fieldValue.(map[string]interface{}); ok {
+            latVal, latExists := geoFieldMap["lat"]
+            lonVal, lonExists := geoFieldMap["lon"]
+
+            if latExists && lonExists {
+                docLat, err = parseCoordinate(latVal)
+                if err == nil {
+                    docLon, err = parseCoordinate(lonVal)
+                    if err == nil {
+                        parsed = true
+                    }
+                }
+            }
+        }
+
+        // CASE 2: Comma-separated String (e.g., "N,N")
+        if !parsed {
+            if geoValueStr, ok := fieldValue.(string); ok {
+                coords := strings.Split(geoValueStr, ",")
+                if len(coords) == 2 {
+                    docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
+                    if err == nil {
+                        docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
+                        if err == nil {
+                            parsed = true
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If parsing failed for this specific value, continue to the next resolved path.
+        if !parsed {
+            continue
+        }
+
+        // 3. Calculate the shortest distance from the current document location to the polyline segments
+        minDistanceKM := math.MaxFloat64
+        
+        // Iterate through all line segments
+        for i := 0; i < len(geoLine.Line)-1; i++ {
+            start := geoLine.Line[i]
+            end := geoLine.Line[i+1]
+
+            // Compute the distance from the document's location to the line segment (in KM)
+            segmentDistanceKM := distanceToLineSegment(docLat, docLon, start.Lat, start.Lon, end.Lat, end.Lon)
+            if segmentDistanceKM < minDistanceKM {
+                minDistanceKM = segmentDistanceKM
+            }
+        }
+
+        // 4. Convert minDistanceKM to the specified unit and compare
+        var convertedDistance float64
+        searchUnit := strings.ToLower(geoLine.Unit)
+        
+        if searchUnit == "mi" || searchUnit == "miles" {
+            // Convert distance from KM to Miles
+            convertedDistance = minDistanceKM / (EARTH_RADIUS_KM / EARTH_RADIUS_MI)
+        } else { // Default to km 
+            convertedDistance = minDistanceKM
+        }
+
+        log.Printf("EvaluateGeoLine: Doc coords (%.4f, %.4f). Closest distance to line: %.2f %s. Required: %.2f %s",
+            docLat, docLon, convertedDistance, searchUnit, geoLine.Distance, searchUnit)
+
+        // 5. Check if the closest distance for this point is within the threshold
+        if convertedDistance <= geoLine.Distance {
+            // Found a match in one resolved path, return immediately (UNION)
+            return true, baseScore 
         }
     }
 
-    // Log distance calculation for understanding
-    log.Printf("EvaluateGeoLine: Document location (%.4f, %.4f). Closest distance to line: %.2f %s.",
-        docLat, docLon, minDistance, geoLine.Unit)
-
-    // 3. Convert distance to the specified unit
-    var convertedDistance float64
-    searchUnit := strings.ToLower(geoLine.Unit)
-    if searchUnit == "mi" || searchUnit == "miles" {
-        convertedDistance = minDistance / (EARTH_RADIUS_KM / EARTH_RADIUS_MI)
-    } else { // Default to kilometers
-        convertedDistance = minDistance
-    }
-
-    // 4. Return whether the distance is within the specified threshold and the computed score
-    isWithinThreshold := convertedDistance <= geoLine.Distance
-    log.Printf("EvaluateGeoLine: Required distance: %.2f %s. Result: %t", geoLine.Distance, geoLine.Unit, isWithinThreshold)
-    return isWithinThreshold, 0.0 // Score remains neutral (0.0) for filter-based conditions
+    // 6. Return false if no document point was found to be close enough to the line.
+    log.Printf("EvaluateGeoLine: No match found across all resolved paths for field '%s'.", geoLine.Field)
+    return false, 0.0
 }
 
 // EvaluateGeoMultiPolygon determines if a document's geo field value falls within any of the defined polygons.
-func EvaluateGeoMultiPolygon(data map[string]interface{}, geoMultiPolygon *GeoMultiPolygon) (bool, float64) {
+// It supports dynamic path resolution and checks all resulting paths (UNION logic).
+func EvaluateGeoMultiPolygon(itemData map[string]interface{}, geoMultiPolygon *GeoMultiPolygon) (bool, float64) {
     // Ensure that the GeoMultiPolygon has valid polygons defined
     if geoMultiPolygon == nil || len(geoMultiPolygon.Polygons) == 0 {
         log.Printf("EvaluateGeoMultiPolygon: Invalid GeoMultiPolygon definition or no polygons provided.")
         return false, 0.0
     }
+    
+    const baseScore = 1.0
 
-    // 1. Resolve the document's geographic field value
-    docLat, docLon, exists := resolvePointFromDoc(data, geoMultiPolygon.Field)
-    if !exists {
-        log.Printf("EvaluateGeoMultiPolygon: Field '%s' not found in document.", geoMultiPolygon.Field)
+    // 1. Resolve all field paths to find potential coordinate values in the document.
+    allMatches, exists := resolveHierarchicalPath(itemData, geoMultiPolygon.Field)
+    if !exists || len(allMatches) == 0 {
+        log.Printf("EvaluateGeoMultiPolygon: Field '%s' not found or resolved to no values.", geoMultiPolygon.Field)
         return false, 0.0
     }
 
-    // 2. Iterate through the polygons and check if the point lies within any of them
-    for i, polygon := range geoMultiPolygon.Polygons {
-        if len(polygon) < 3 {
-            log.Printf("EvaluateGeoMultiPolygon: Skipping invalid polygon at index %d (less than 3 points).", i)
+    // 2. Iterate over all resolved coordinate values (document points)
+    for _, pathMatch := range allMatches {
+        var docLat, docLon float64
+        var err error
+        fieldValue := pathMatch.Value
+        parsed := false
+
+        // --- Try to parse coordinates from the resolved value (point) ---
+
+        // CASE 1: Nested Object (e.g., {"lat": N, "lon": N})
+        if geoFieldMap, ok := fieldValue.(map[string]interface{}); ok {
+            latVal, latExists := geoFieldMap["lat"]
+            lonVal, lonExists := geoFieldMap["lon"]
+
+            if latExists && lonExists {
+                docLat, err = parseCoordinate(latVal)
+                if err == nil {
+                    docLon, err = parseCoordinate(lonVal)
+                    if err == nil {
+                        parsed = true
+                    }
+                }
+            }
+        }
+
+        // CASE 2: Comma-separated String (e.g., "N,N")
+        if !parsed {
+            if geoValueStr, ok := fieldValue.(string); ok {
+                coords := strings.Split(geoValueStr, ",")
+                if len(coords) == 2 {
+                    docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
+                    if err == nil {
+                        docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
+                        if err == nil {
+                            parsed = true
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If parsing failed for this specific value, continue to the next resolved path.
+        if !parsed {
+            // In a real application, you might log a failure to parse this specific point
             continue
         }
 
-        if isPointInPolygon(docLat, docLon, polygon) {
-            log.Printf("EvaluateGeoMultiPolygon: Match found. Document point (%.4f, %.4f) is inside polygon %d.", docLat, docLon, i)
-            return true, 0.0 // Return true if the point is inside any polygon
+        // 3. Check this valid point against all query polygons (UNION over Polygons)
+        for i, polygon := range geoMultiPolygon.Polygons {
+            if len(polygon) < 3 {
+                log.Printf("EvaluateGeoMultiPolygon: Skipping invalid polygon at index %d (less than 3 points).", i)
+                continue
+            }
+
+            if isPointInPolygon(docLat, docLon, polygon) {
+                log.Printf("EvaluateGeoMultiPolygon: Match found. Document point (%.4f, %.4f) is inside polygon %d.", docLat, docLon, i)
+                return true, baseScore // Return true if the point is inside any polygon of the query
+            }
         }
     }
 
-    // 3. Return false if the point is not in any of the polygons
-    log.Printf("EvaluateGeoMultiPolygon: No match found. Document point (%.4f, %.4f) does not fall inside any polygons.", docLat, docLon)
+    // 4. Return false if the point is not in any of the polygons across all resolved paths
+    log.Printf("EvaluateGeoMultiPolygon: No match found across all resolved paths for field '%s'.", geoMultiPolygon.Field)
     return false, 0.0
 }
+
 
 // parseCoordinate is a helper to convert various types to float64.
 func parseCoordinate(v interface{}) (float64, error) {
@@ -722,412 +992,500 @@ func radiansToDegrees(radians float64) float64 {
 }
 
 
-// ----------------------------------------------------
-// Evaluation Logic
-// ----------------------------------------------------
+// PathMatch structure (assumed definition)
+// type PathMatch struct {
+//     Value interface{}
+//     Depth int
+// }
 
-// EvaluateBool performs the actual comparison logic (date, string, numeric, set).
-func EvaluateBool(c Condition, targetValue string, op Operation) bool {
-	// ... (Existing logic for date, string, numeric, and set operations) ...
-	conditionValue := c.GetValue()
+// EvaluateBool now takes the full slice of resolved matches and determines if the 
+// document satisfies the condition based on the provided operation.
+func EvaluateBool(matches []PathMatch, targetValue string, op Operation) bool {
+    
+    if len(matches) == 0 {
+        return false // Cannot match if no values were resolved
+    }
 
-	// 1. Date/Time Comparison Attempt
-	targetTime, errTT := tryParseDate(targetValue)
-	conditionTime, errCT := tryParseDate(conditionValue)
+    // A match occurs if ANY of the resolved PathMatch values satisfies the condition.
+    for _, match := range matches {
+        
+        // Convert the document's matched value to a string for comparison.
+        // We use fmt.Sprintf("%v", ...) to handle any underlying type (int, float, bool, nil)
+        // that was resolved by resolveHierarchicalPath.
+        conditionValue := fmt.Sprintf("%v", match.Value)
+        
+        // Handle empty/missing value (document structure contained a nil/empty string)
+        if conditionValue == "" {
+            // NOTE: In the original logic, this returned true. We'll mirror that logic 
+            // per your provided code, although in many engines an empty string fails comparison.
+            // If the query is checking for an empty value, it should match the empty value.
+            if op == Equal && targetValue == "" {
+                return true
+            }
+            continue // Skip this specific empty match if it's not what we're looking for
+        }
 
-	isDateOperation := errTT == nil && errCT == nil
+        // ====================================================================
+        // 1. Date/Time Comparison Attempt
+        // ====================================================================
+        targetTime, errTT := tryParseDate(targetValue)
+        conditionTime, errCT := tryParseDate(conditionValue)
 
-	if isDateOperation {
-		switch op {
-		case Equal:
-			return targetTime.Equal(conditionTime)
-		case NotEqual:
-			return !targetTime.Equal(conditionTime)
-		case GreaterThan:
-			return targetTime.After(conditionTime)
-		case LessThan:
-			return targetTime.Before(conditionTime)
-		case GreaterThanOrEqual:
-			return targetTime.After(conditionTime) || targetTime.Equal(conditionTime)
-		case LessThanOrEqual:
-			return targetTime.Before(conditionTime) || targetTime.Equal(conditionTime)
-		}
-	}
+        isDateOperation := errTT == nil && errCT == nil
 
-	// 2. String and Text Operations
-	switch op {
-	case Equal:
-		return targetValue == conditionValue
-	case NotEqual:
-		return targetValue != conditionValue
-	case Contains:
-		return strings.Contains(targetValue, conditionValue)
-	case StartsWith:
-		return strings.HasPrefix(targetValue, conditionValue)
-	case EndsWith:
-		return strings.HasSuffix(targetValue, conditionValue)
-	}
+        if isDateOperation {
+            // If the values are successfully parsed as dates, apply date logic
+            switch op {
+            case Equal:
+                if targetTime.Equal(conditionTime) { return true }
+            case NotEqual:
+                if !targetTime.Equal(conditionTime) { return true }
+            case GreaterThan:
+                if targetTime.After(conditionTime) { return true }
+            case LessThan:
+                if targetTime.Before(conditionTime) { return true }
+            case GreaterThanOrEqual:
+                if targetTime.After(conditionTime) || targetTime.Equal(conditionTime) { return true }
+            case LessThanOrEqual:
+                if targetTime.Before(conditionTime) || targetTime.Equal(conditionTime) { return true }
+            }
+        }
 
-	// 3. Numeric Comparison Operations
-	if op >= GreaterThan && op <= LessThanOrEqual {
-		targetFloat, errT := strconv.ParseFloat(targetValue, 64)
-		conditionFloat, errC := strconv.ParseFloat(conditionValue, 64)
+        // ====================================================================
+        // 2. String and Text Operations
+        // ====================================================================
+        switch op {
+        case Equal:
+            if strings.ToLower(targetValue) == strings.ToLower(conditionValue) { return true }
+        case NotEqual:
+            // Since we return true if ANY match satisfies the condition, 
+            // for NotEqual, we only return true if the current match is NOT equal.
+            if strings.ToLower(targetValue) != strings.ToLower(conditionValue) { return true }
+        case Contains:
+            if strings.Contains(conditionValue, targetValue) { return true }
+        case StartsWith:
+            if strings.HasPrefix(conditionValue, targetValue) { return true }
+        case EndsWith:
+            if strings.HasSuffix(conditionValue, targetValue) { return true }
+        }
 
-		if errT == nil && errC == nil {
-			switch op {
-			case GreaterThan:
-				return targetFloat > conditionFloat
-			case LessThan:
-				return targetFloat < conditionFloat
-			case GreaterThanOrEqual:
-				return targetFloat >= conditionFloat
-			case LessThanOrEqual:
-				return targetFloat <= conditionFloat
-			}
-		} else {
-			// If numerical parsing failed, comparison operations cannot proceed
-			return false 
-		}
-	}
+        // ====================================================================
+        // 3. Numeric Comparison Operations
+        // ====================================================================
+        if op >= GreaterThan && op <= LessThanOrEqual {
+            // Attempt to parse both sides as floats
+            targetFloat, errT := strconv.ParseFloat(targetValue, 64)
+            conditionFloat, errC := strconv.ParseFloat(conditionValue, 64)
 
-	// 4. Set Operations (In/NotIn)
-	if op == In || op == NotIn {
-		validValues := strings.Split(conditionValue, ",")
-		valueSet := make(map[string]struct{})
-		for _, v := range validValues {
-			valueSet[strings.TrimSpace(v)] = struct{}{}
-		}
+            if errT == nil && errC == nil {
+                // If parsing succeeded, perform numeric comparison
+                switch op {
+                case GreaterThan:
+                    if targetFloat > conditionFloat { return true }
+                case LessThan:
+                    if targetFloat < conditionFloat { return true }
+                case GreaterThanOrEqual:
+                    if targetFloat >= conditionFloat { return true }
+                case LessThanOrEqual:
+                    if targetFloat <= conditionFloat { return true }
+                }
+            }
+            // Note: If parsing failed for this specific match, we continue to the next match
+        }
 
-		_, isInSet := valueSet[targetValue]
+        // ====================================================================
+        // 4. Set Operations (In/NotIn)
+        // ====================================================================
+        if op == In || op == NotIn {
+            // NOTE: In the original, the conditionValue contained the set of valid values.
+            validValues := strings.Split(conditionValue, ",")
+            valueSet := make(map[string]struct{})
+            for _, v := range validValues {
+                valueSet[strings.TrimSpace(v)] = struct{}{}
+            }
 
-		if op == In {
-			return isInSet
-		}
-		if op == NotIn {
-			return !isInSet
-		}
-	}
+            _, isInSet := valueSet[targetValue]
 
-	return false
+            if op == In && isInSet {
+                return true
+            }
+            if op == NotIn && !isInSet {
+                return true
+            }
+        }
+    }
+
+    // If the entire loop finishes without any single match satisfying the operation.
+    return false
 }
 
 
+// --- EVALUATE MATCH FUNCTION (Modified for Dynamic Paths) ---
+
 // EvaluateMatch determines if a document matches the provided Match condition.
-// It prioritizes Fuzziness over analyzed matching, and falls back to analyzed 
-// token matching for general relevance scoring. The old Modifiers (Contains/StartsWith)
-// are removed as the Analyzed Match is a far superior relevance indicator.
+// It iterates over all resolved values from the dynamic field path and returns the maximum score.
 func EvaluateMatch(data map[string]interface{}, m *Match) (bool, float64) {
-    if m == nil || m.Field == "" || m.Value == "" {
-        return false, 0.0
-    }
+	if m == nil || m.Field == "" || m.Value == "" {
+		return false, 0.0
+	}
 
-    // 1. Handle Boost
-    boost := 1.0
-    if m.Boost != nil {
-        boost = *m.Boost
-    }
+	// 1. Resolve the target value from the document (using dynamic path)
+	allMatches, exists := resolveHierarchicalPath(data, m.Field)
+	if !exists || len(allMatches) == 0 {
+		return false, 0.0
+	}
 
-    // 2. Resolve the target value from the document
-    targetValueRaw, exists := resolveRawDotNotation(data, m.Field)
-    if !exists || targetValueRaw == nil {
-        return false, 0.0
-    }
-    documentText := fmt.Sprintf("%v", targetValueRaw)
-    conditionValue := m.Value
+	// 2. Setup scoring variables
+	boost := 1.0
+	if m.Boost != nil {
+		boost = *m.Boost
+	}
+	
+	// We track the maximum score found across all resolved values.
+	maxOverallScore := 0.0
 
-    // --- A. Fuzzy Match Check (Prioritized, operates on raw tokens) ---
-    if m.Fuzziness != nil {
-        maxDistance := *m.Fuzziness
-        
-        // Tokenize the document text based on non-letter/non-number delimiters (basic tokenizer)
-        tokens := strings.FieldsFunc(documentText, func(r rune) bool {
-            return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-        })
+	// 3. Iterate over all resolved values
+	for _, pathMatch := range allMatches {
+		documentText := fmt.Sprintf("%v", pathMatch.Value)
+		conditionValue := m.Value
+		currentScore := 0.0
 
-        maxScore := 0.0
-        matchFound := false
-        conditionValueLower := strings.ToLower(conditionValue)
+        // Hoist declarations for Analyzed Token Check to prevent 'goto jumps over declaration' error.
+        var docTokens []string
+        var queryTokens []string
+        var docTokenSet map[string]struct{}
+        var matchCount int
+        var tf float64
+        var docLengthFactor float64
 
-        // Check distance against the lowercased document tokens
-        for _, token := range tokens {
-            if token == "" {
-                continue
-            }
-            
-            distance := LevenshteinDistance(strings.ToLower(token), conditionValueLower)
 
-            if distance <= maxDistance {
-                matchFound = true
-                
-                // Calculate score: 1.0 + (score bonus based on proximity)
-                baseScore := 1.0 + ((float64(maxDistance) - float64(distance)) / float64(maxDistance))
-                score := baseScore * boost
-                if score > maxScore {
-                    maxScore = score // Keep the best matching token's score
-                }
-            }
-        }
-        
-        if matchFound {
-            log.Printf("EvaluateMatch: Fuzzy MATCH. Max Score: %.4f", maxScore)
-            return true, maxScore
-        }
-    }
-    
-    // --- B. Analyzed Token Overlap Check (Relevance Fallback) ---
+		// --- A. Fuzzy Match Check (Prioritized, operates on raw tokens) ---
+		if m.Fuzziness != nil {
+			maxDistance := *m.Fuzziness
+			
+			tokens := strings.FieldsFunc(documentText, func(r rune) bool {
+				return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+			})
 
-    // Get the document value as a string for analysis
-    rawDocValueStr, _ := resolveDotNotation(data, m.Field) 
-    
-    // docTokens: Contains the processed, stemmed, and lowercased words from the document field.
-    docTokens := Analyze(rawDocValueStr) 
+			matchFoundInFuzzy := false
+			conditionValueLower := strings.ToLower(conditionValue)
 
-    // queryTokens: Contains the processed, stemmed, and lowercased words from the user's query.
-    queryTokens := Analyze(m.Value) 
+			for _, token := range tokens {
+				if token == "" {
+					continue
+				}
+				
+				distance := LevenshteinDistance(strings.ToLower(token), conditionValueLower)
 
-    if len(queryTokens) == 0 {
-        // If query analyzes to nothing, return false (unless a fuzzy match already occurred).
-        return false, 0.0
-    }
-    
-    // 3. Compare analyzed tokens to find overlap.
-    matchCount := 0
-    docTokenSet := make(map[string]struct{}, len(docTokens))
-    for _, dToken := range docTokens {
-        docTokenSet[dToken] = struct{}{}
-    }
+				if distance <= maxDistance {
+					matchFoundInFuzzy = true
+					
+					// Calculate score: 1.0 + (score bonus based on proximity)
+					baseScore := 1.0 + ((float64(maxDistance) - float64(distance)) / float64(maxDistance))
+					currentScore = baseScore * boost
+					break // Found a fuzzy match for this value, move to next value
+				}
+			}
+			
+			if matchFoundInFuzzy {
+				// Use the current score from the fuzzy match
+                goto updateMaxScore // Jump to the score update section
+			}
+		}
+		
+		// --- B. Analyzed Token Overlap Check (Relevance Fallback) ---
+		
+		docTokens = Analyze(documentText) 
+		queryTokens = Analyze(m.Value) 
 
-    for _, qToken := range queryTokens {
-        if _, found := docTokenSet[qToken]; found {
-            matchCount++
-        }
-    }
-    
-    // 4. Determine Match and Calculate Score.
-    
-    if matchCount == 0 {
-        return false, 0.0
-    }
+		if len(queryTokens) == 0 {
+			continue 
+		}
+		
+		matchCount = 0
+		docTokenSet = make(map[string]struct{}, len(docTokens))
+		for _, dToken := range docTokens {
+			docTokenSet[dToken] = struct{}{}
+		}
 
-    // Simple Relevance Score Calculation (Term Frequency x Document Length Normalization)
-    tf := float64(matchCount) 
+		for _, qToken := range queryTokens {
+			if _, found := docTokenSet[qToken]; found {
+				matchCount++
+			}
+		}
+		
+		if matchCount == 0 {
+			continue // No match on this value
+		}
 
-    // Document Length Normalization: Penalize matches in very long documents.
-    docLengthFactor := 1.0
-    if len(docTokens) > 10 {
-        docLengthFactor = 1.0 / math.Log(float64(len(docTokens) + 1))
-    }
-    
-    // Final Score: Apply relevance calculation and boost.
-    score := (tf * docLengthFactor) * boost
+		// Simple Relevance Score Calculation
+		tf = float64(matchCount) 
 
-    log.Printf("EvaluateMatch: Analyzed MATCH. Score=%.4f (Matches: %d)", score, matchCount)
-    
-    return true, score
-    
-    // NOTE: The legacy Modifiers (Contains, StartsWith, EndsWith, Equal) are omitted here 
-    // because they are superseded by the tokenized, stemmed match logic which 
-    // provides a scored relevance result, not just a boolean filter.
+		docLengthFactor = 1.0
+		if len(docTokens) > 10 {
+			docLengthFactor = 1.0 / math.Log(float64(len(docTokens) + 1))
+		}
+		
+		currentScore = (tf * docLengthFactor) * boost
+
+        // --- Update Max Score Section ---
+        updateMaxScore:
+		if currentScore > maxOverallScore {
+			maxOverallScore = currentScore
+		}
+	} // End of loop over allMatches
+	
+	// 4. Final result based on maxOverallScore
+    fmt.Printf("EvaluateMatch: Field '%s' matched %d values. Max Score: %.4f\n", m.Field, len(allMatches), maxOverallScore)
+	return maxOverallScore > 0.0, maxOverallScore
 }
 
 // EvaluateMatchPhrase determines if the query tokens appear in the document
 // in the same sequential order, allowing for a defined number of intervening tokens (slop).
-// It returns the score based on the tightest (minimum slop) match found.
+// It iterates over all resolved values from the dynamic field path and returns the maximum score.
 func EvaluateMatchPhrase(data map[string]interface{}, mp *MatchPhrase) (bool, float64) {
-    if mp == nil || mp.Field == "" || mp.Value == "" {
-        return false, 0.0
-    }
-
-    // 1. Setup Slop, Boost, and Fuzziness
-    boost := 1.0
-    if mp.Boost != nil {
-        boost = *mp.Boost
-    }
-    slop := 0
-    if mp.Slop != nil && *mp.Slop > 0 {
-        slop = *mp.Slop
-    }
-    
-    fuzzinessLimit := 0
-    if mp.Fuzziness != nil && *mp.Fuzziness > 0 {
-        fuzzinessLimit = *mp.Fuzziness
-    }
-    
-    // 2. Resolve Tokens
-    rawDocValueStr, _ := resolveDotNotation(data, mp.Field) 
-    docTokens := AnalyzeForPhrase(rawDocValueStr)
-    queryTokens := AnalyzeForPhrase(mp.Value)
-
-    queryLen := len(queryTokens)
-    docLen := len(docTokens)
-
-    if queryLen == 0 || docLen == 0 || queryLen > docLen {
-        return false, 0.0
-    }
-
-    // --- 3. Sequence Matching to Find Minimum Slop and Fuzziness ---
-    matchFound := false
-    minSlopUsed := slop + 1 
-    // NEW: Track the total fuzziness for the sequence that achieved minSlopUsed
-    bestFuzziness := 0 
-    
-    // Outer loop: Iterate through the document to find all possible start positions
-    for docStartPos := 0; docStartPos <= docLen - queryLen; docStartPos++ {
-        
-        // CHECK 1: Fuzzy match for the FIRST query token
-        initialDistance := LevenshteinDistance(docTokens[docStartPos], queryTokens[0])
-        if initialDistance > fuzzinessLimit {
-            continue 
-        }
-        
-        // Initialize sequence-specific tracking variables
-        currentSlop := 0
-        currentFuzziness := initialDistance // Initialize with the fuzziness of the first token
-        currentDocPos := docStartPos
-        
-        // Inner loop: Check the remaining query tokens
-        for queryTokenIndex := 1; queryTokenIndex < queryLen; queryTokenIndex++ {
-            
-            targetToken := queryTokens[queryTokenIndex]
-            foundNextToken := false
-            
-            // Look ahead for the next matching token
-            for nextDocPos := currentDocPos + 1; nextDocPos < docLen; nextDocPos++ {
-                
-                newSlopNeeded := (nextDocPos - currentDocPos - 1)
-                
-                // CHECK 2: Fuzzy match for subsequent query tokens
-                distance := LevenshteinDistance(docTokens[nextDocPos], targetToken)
-                
-                if distance <= fuzzinessLimit {
-                    // Check if the total slop is still acceptable
-                    if currentSlop + newSlopNeeded <= slop {
-                        currentSlop += newSlopNeeded
-                        currentFuzziness += distance // Accumulate fuzziness
-                        currentDocPos = nextDocPos
-                        foundNextToken = true
-                        break 
-                    } else {
-                        // Slop exceeded for this path, abandon it
-                        break
-                    }
-                }
-            }
-
-            if !foundNextToken {
-                // Sequence broken or exceeded slop, abandon this start position
-                goto nextStartPos 
-            }
-        }
-        
-        // If we reach here, the full phrase was matched successfully.
-        matchFound = true
-        
-        // Update the minimum slop found across all sequences
-        if currentSlop < minSlopUsed {
-            minSlopUsed = currentSlop
-            // Track the total fuzziness associated with this best sequence
-            bestFuzziness = currentFuzziness // <-- FIXED: Capture the fuzziness of the best match
-        }
-
-    nextStartPos:
-        continue
-    }
-    
-    // --- 4. Final Score Calculation based on Minimum Slop and Fuzziness ---
-    if matchFound {
-        
-        // Proximity Factor: Rewards tighter matches (less slop).
-        proximityFactor := 1.0
-        if slop > 0 {
-            proximityFactor = 1.0 - (float64(minSlopUsed) / float64(slop + 1)) 
-        }
-        
-        // Fuzziness Penalty: Penalize the score based on how much slop and fuzziness was used.
-        // NOTE: bestFuzziness is now defined and holds the correct accumulated value.
-        effectiveTF := float64(queryLen) - float64(minSlopUsed) - float64(bestFuzziness) 
-        if effectiveTF < 1.0 { 
-            effectiveTF = 1.0 
-        }
-
-        // Standard Document Length Normalization
-        docLengthFactor := 1.0
-        if docLen > 10 {
-            docLengthFactor = 1.0 / math.Log(float64(docLen + 1))
-        }
-        
-        // Final Score calculation
-        bestScore := (effectiveTF * docLengthFactor) * 2.5 * proximityFactor * boost
-        
-        log.Printf("EvaluateMatchPhrase: Phrase MATCH (Min Slop: %d, Fuzziness: %d). Best Score=%.4f (Phrase: %s)", minSlopUsed, bestFuzziness, bestScore, mp.Value)
-        return true, bestScore
-    }
-    
-    return false, 0.0
-}
-
-// EvaluateRange performs range checks (numeric or date).
-func EvaluateRange(data map[string]interface{}, field string, r *Range) (bool, float64) {
-	targetValue, exists := resolveDotNotation(data, field)
-	if !exists {
+	if mp == nil || mp.Field == "" {
 		return false, 0.0
 	}
 
-	// 1. Try Date Comparison
-	targetTime, errTT := tryParseDate(targetValue)
-	isDateOperation := errTT == nil
-
-	if isDateOperation {
-		if r.From != nil {
-			fromTime, errF := tryParseDate(*r.From)
-			if errF != nil || targetTime.Before(fromTime) {
-				return false, 0.0
-			}
-		}
-		if r.To != nil {
-			toTime, errT := tryParseDate(*r.To)
-			// Range is typically exclusive, so targetTime must be strictly Before
-			if errT != nil || !targetTime.Before(toTime) {
-				return false, 0.0
-			}
-		}
-		log.Printf("EvaluateRange: Date match for field '%s'.", field)
+	// Ignore empties
+	if mp.Value == "" {
 		return true, 0.0
 	}
 
-	// 2. Try Numeric Comparison
-	targetFloat, errT := strconv.ParseFloat(targetValue, 64)
-	if errT != nil {
-		log.Printf("EvaluateRange: Field '%s' is neither numeric nor a date.", field)
+    // 1. Resolve the target values from the document (using dynamic path)
+	allMatches, exists := resolveHierarchicalPath(data, mp.Field)
+	if !exists || len(allMatches) == 0 {
 		return false, 0.0
 	}
 
-	if r.From != nil {
-		fromFloat, errF := strconv.ParseFloat(*r.From, 64)
-		if errF != nil {
-			log.Printf("EvaluateRange: Invalid numeric 'from' value: %s", *r.From)
-			return false, 0.0
-		}
-		if targetFloat < fromFloat {
-			return false, 0.0
-		}
+	// 2. Setup constants and variables
+	boost := 1.0
+	if mp.Boost != nil {
+		boost = *mp.Boost
+	}
+	slop := 0
+	if mp.Slop != nil && *mp.Slop > 0 {
+		slop = *mp.Slop
+	}
+	fuzzinessLimit := 0
+	if mp.Fuzziness != nil && *mp.Fuzziness > 0 {
+		fuzzinessLimit = *mp.Fuzziness
 	}
 
-	if r.To != nil {
-		toFloat, errT := strconv.ParseFloat(*r.To, 64)
-		if errT != nil {
-			log.Printf("EvaluateRange: Invalid numeric 'to' value: %s", *r.To)
-			return false, 0.0
-		}
-		// Range is typically exclusive: [From, To)
-		if targetFloat >= toFloat {
-			return false, 0.0
-		}
-	}
+	maxOverallScore := 0.0
+    queryTokens := AnalyzeForPhrase(mp.Value)
+    queryLen := len(queryTokens)
+    
+    if queryLen == 0 {
+        return false, 0.0
+    }
 
-	log.Printf("EvaluateRange: Numeric match for field '%s'.", field)
-	return true, 0.0
+    // --- 3. Iterate over all resolved document values (the dynamic path fix) ---
+    for _, pathMatch := range allMatches {
+        documentText := fmt.Sprintf("%v", pathMatch.Value)
+		docTokens := AnalyzeForPhrase(documentText)
+		docLen := len(docTokens)
+
+		if docLen == 0 || queryLen > docLen {
+			continue // Cannot match a phrase in an empty or too-short field
+		}
+
+		// Sequence Matching to Find Minimum Slop and Fuzziness for this specific document value
+		matchFound := false
+		minSlopUsed := slop + 1 
+		bestFuzziness := 0 
+		
+		// Outer loop: Iterate through the document to find all possible start positions
+		for docStartPos := 0; docStartPos <= docLen - queryLen; docStartPos++ {
+			
+			// CHECK 1: Fuzzy match for the FIRST query token
+			initialDistance := LevenshteinDistance(docTokens[docStartPos], queryTokens[0])
+			if initialDistance > fuzzinessLimit {
+				continue 
+			}
+			
+			// Initialize sequence-specific tracking variables
+			currentSlop := 0
+			currentFuzziness := initialDistance // Initialize with the fuzziness of the first token
+			currentDocPos := docStartPos
+			
+			// Inner loop: Check the remaining query tokens
+			for queryTokenIndex := 1; queryTokenIndex < queryLen; queryTokenIndex++ {
+				
+				targetToken := queryTokens[queryTokenIndex]
+				foundNextToken := false
+				
+				// Look ahead for the next matching token
+				for nextDocPos := currentDocPos + 1; nextDocPos < docLen; nextDocPos++ {
+					
+					newSlopNeeded := (nextDocPos - currentDocPos - 1)
+					
+					// CHECK 2: Fuzzy match for subsequent query tokens
+					distance := LevenshteinDistance(docTokens[nextDocPos], targetToken)
+					
+					if distance <= fuzzinessLimit {
+						// Check if the total slop is still acceptable
+						if currentSlop + newSlopNeeded <= slop {
+							currentSlop += newSlopNeeded
+							currentFuzziness += distance // Accumulate fuzziness
+							currentDocPos = nextDocPos
+							foundNextToken = true
+							break 
+						} else {
+							// Slop exceeded for this path, abandon it
+							break
+						}
+					}
+				}
+
+				if !foundNextToken {
+					// Sequence broken or exceeded slop, abandon this start position
+					goto nextStartPos 
+				}
+			}
+			
+			// If we reach here, the full phrase was matched successfully for this path.
+			matchFound = true
+			
+			// Update the minimum slop found across all sequences for this document value
+			if currentSlop < minSlopUsed {
+				minSlopUsed = currentSlop
+				bestFuzziness = currentFuzziness // Capture the fuzziness of the best match
+			}
+
+		nextStartPos:
+			continue
+		}
+		
+		// --- 4. Score Calculation for this document value (if matched) ---
+		if matchFound {
+			
+			// Proximity Factor: Rewards tighter matches (less slop).
+			proximityFactor := 1.0
+			if slop > 0 {
+				proximityFactor = 1.0 - (float64(minSlopUsed) / float64(slop + 1)) 
+			}
+			
+			// Fuzziness Penalty: Penalize the score based on slop and fuzziness used.
+			effectiveTF := float64(queryLen) - float64(minSlopUsed) - float64(bestFuzziness) 
+			if effectiveTF < 1.0 { 
+				effectiveTF = 1.0 
+			}
+
+			// Standard Document Length Normalization
+			docLengthFactor := 1.0
+			if docLen > 10 {
+				docLengthFactor = 1.0 / math.Log(float64(docLen + 1))
+			}
+			
+			// Final Score calculation
+			bestScore := (effectiveTF * docLengthFactor) * 2.5 * proximityFactor * boost
+            
+            // Update Max Overall Score
+            if bestScore > maxOverallScore {
+                maxOverallScore = bestScore
+            }
+            
+            log.Printf("EvaluateMatchPhrase: Found match for field %s (Value: %s). Score: %.4f", mp.Field, documentText, bestScore)
+		}
+	} // End of loop over allMatches
+    
+    // --- 5. Final result based on maxOverallScore ---
+    if maxOverallScore > 0.0 {
+        log.Printf("EvaluateMatchPhrase: Phrase MATCH (Max Score: %.4f).", maxOverallScore)
+        return true, maxOverallScore
+    }
+    
+	return false, 0.0
 }
+
+// EvaluateRange performs range checks (numeric or date) across all resolved dynamic paths.
+func EvaluateRange(data map[string]interface{}, field string, r *Range) (bool, float64) {
+	if r == nil || field == "" {
+		return false, 0.0
+	}
+
+	// 1. Resolve the target values from the document (using dynamic path)
+	allMatches, exists := resolveHierarchicalPath(data, field)
+	if !exists || len(allMatches) == 0 {
+		return false, 0.0
+	}
+    
+    // Default score for a successful match (can be customized)
+    const baseScore = 1.0 
+
+	// 2. Iterate over all resolved values (UNION logic)
+	for _, pathMatch := range allMatches {
+		targetValue := fmt.Sprintf("%v", pathMatch.Value)
+        
+        // --- A. Try Date Comparison ---
+		targetTime, errTT := tryParseDate(targetValue)
+		isDateOperation := errTT == nil
+
+		if isDateOperation {
+			dateMatch := true
+			if r.From != nil {
+				fromTime, errF := tryParseDate(*r.From)
+				if errF != nil || targetTime.Before(fromTime) {
+					dateMatch = false
+				}
+			}
+			if dateMatch && r.To != nil {
+				toTime, errT := tryParseDate(*r.To)
+				// Range is typically exclusive, so targetTime must be strictly Before
+				if errT != nil || !targetTime.Before(toTime) {
+					dateMatch = false
+				}
+			}
+            
+            if dateMatch {
+                log.Printf("EvaluateRange: Date match found for field '%s' (Value: %s).", field, targetValue)
+                return true, baseScore // Found a match in one path, return immediately (UNION)
+            }
+		}
+
+		// --- B. Try Numeric Comparison ---
+		targetFloat, errT := strconv.ParseFloat(targetValue, 64)
+		if errT == nil { // Only proceed if target value is numeric
+            
+            numericMatch := true
+			
+            if r.From != nil {
+                fromFloat, errF := strconv.ParseFloat(*r.From, 64)
+                if errF != nil {
+                    // If 'From' is invalid but target is numeric, skip this path, but don't fail overall
+                    log.Printf("EvaluateRange: Invalid numeric 'from' value '%s' for numeric target.", *r.From)
+                    numericMatch = false 
+                } else if targetFloat < fromFloat {
+                    numericMatch = false
+                }
+            }
+            
+            if numericMatch && r.To != nil {
+                toFloat, errT := strconv.ParseFloat(*r.To, 64)
+                if errT != nil {
+                    // If 'To' is invalid but target is numeric, skip this path
+                    log.Printf("EvaluateRange: Invalid numeric 'to' value '%s' for numeric target.", *r.To)
+                    numericMatch = false
+                } else if targetFloat >= toFloat {
+                    // Range is typically exclusive: [From, To)
+                    numericMatch = false
+                }
+            }
+
+            if numericMatch {
+                log.Printf("EvaluateRange: Numeric match found for field '%s' (Value: %s).", field, targetValue)
+                return true, baseScore // Found a match in one path, return immediately (UNION)
+            }
+		} 
+	} // End of loop over allMatches
+
+	// 3. No match found across all paths
+	log.Printf("EvaluateRange: No match found for field '%s'.", field)
+	return false, 0.0
+}
+
 
 // EvaluateTemplate executes a Go template against the document data.
 // It matches if the executed template output is a "truthy" string (e.g., "true", "1", non-empty).
@@ -1322,177 +1680,187 @@ func (b *Bool) Evaluate(data map[string]interface{}, ctx context.Context, loader
 // Evaluate evaluates the condition represented by the Case, returning whether it matches (bool)
 // and the associated score (float64). Filter conditions return 0.0 score.
 func (c *Case) Evaluate(data map[string]interface{}, ctx context.Context, loader DocumentLoader, indexInput *GetIndexConfigurationInput) (bool, float64) {
-	var match bool
-	var score float64
+    var match bool
+    var score float64
 
-	// A) Handle nested Boolean logic
-	if c.Bool != nil {
-		// Delegates score accumulation/maxing to Bool.Evaluate
-		return c.Bool.Evaluate(data, ctx, loader, indexInput)
-	}
+    // A) Handle nested Boolean logic
+    if c.Bool != nil {
+        // Delegates score accumulation/maxing to Bool.Evaluate
+        return c.Bool.Evaluate(data, ctx, loader, indexInput)
+    }
 
-	// B) Handle Range logic (Filter, Score 0.0)
-	if c.Range != nil {
-		// Changed: EvaluateRange now returns bool and float64 (0.0)
-		match, score = EvaluateRange(data, c.Range.Field, c.Range)
-		return match, score
-	}
+    // B) Handle Range logic (Filter, Score 0.0)
+    if c.Range != nil {
+        // Assuming EvaluateRange is updated internally to use hierarchical path resolution 
+        // if needed, but its signature remains the same for simplicity here.
+        match, score = EvaluateRange(data, c.Range.Field, c.Range)
+        return match, score
+    }
 
-	// C) Handle Geospatial logic (Filter, Score 0.0)
-	if c.GeoDistance != nil {
-		// Changed: EvaluateGeoDistance now returns bool and float64 (0.0)
-		match, score = EvaluateGeoDistance(data, c.GeoDistance)
-		return match, score
-	}
+    // C) Handle Geospatial logic (Filter, Score 0.0)
+    if c.GeoDistance != nil {
+        match, score = EvaluateGeoDistance(data, c.GeoDistance)
+        return match, score
+    }
 
-    // --- NEW: GeoPolygon Check ---
+    // --- UPDATED: GeoPolygon Check for Dynamic Paths (Replaces resolvePointFromDoc) ---
     if c.GeoPolygon != nil {
         poly := c.GeoPolygon
         
-        // 1. Resolve the target location from the document
-        targetLat, targetLon, found := resolvePointFromDoc(data, poly.Field)
+        // 1. Resolve ALL target locations from the document using dynamic paths
+        docPoints, found := resolveAndParsePoints(data, poly.Field)
         if !found {
-            return false, 0.0 // Document missing location field
+            return false, 0.0 // Document missing location field or no valid points found
         }
 
-        // 2. Perform the geometric check
-        isInside := isPointInPolygon(targetLat, targetLon, poly.Points)
-
-        // Geo filters are typically non-scoring (like Term or Range filters)
-        if isInside {
-            // Returns a match with a non-zero score for inclusion in the result set
-            // The score is usually 1.0 or the base scoreMultiplier for a filter.
-            return true, 0.0
-        } else {
-            return false, 0.0
+        // 2. Perform the geometric check (UNION logic: check if ANY point is inside)
+        for _, docPoint := range docPoints {
+            if isPointInPolygon(docPoint.Lat, docPoint.Lon, poly.Points) {
+                return true, 0.0 // Match found
+            }
         }
+        
+        return false, 0.0 // No resolved point was inside the polygon
     }
 
-	// Case.Evaluate updates:
-	if c.GeoLine != nil {
-    	return EvaluateGeoLine(data, c.GeoLine)
-	}
+    // Case.Evaluate updates:
+    if c.GeoLine != nil {
+        return EvaluateGeoLine(data, c.GeoLine)
+    }
 
-	if c.GeoMultiPolygon != nil {
-    	return EvaluateGeoMultiPolygon(data, c.GeoMultiPolygon)
-	}
+    if c.GeoMultiPolygon != nil {
+        return EvaluateGeoMultiPolygon(data, c.GeoMultiPolygon)
+    }
 
-	// D) Handle Nested Document logic
-	if c.NestedDoc != nil {
-		// Delegates score maxing to EvaluateNestedDoc
-		// Changed: EvaluateNestedDoc now returns bool and float64 (max score)
-		return EvaluateNestedDoc(data, c.NestedDoc, ctx, loader, indexInput) 
-	}
+    // D) Handle Nested Document logic
+    if c.NestedDoc != nil {
+        return EvaluateNestedDoc(data, c.NestedDoc, ctx, loader, indexInput) 
+    }
 
-	// E) Handle Exists logic (Filter, Score 0.0)
-	if c.Exists != nil {
-		val, exists := resolveRawDotNotation(data, c.Exists.Field)
-		log.Printf("Evaluate: Checking EXISTS for field '%s'. Exists: %t, Value is nil: %t", c.Exists.Field, exists, val == nil)
-		
-		// Changed: Return score 0.0
-		return exists && val != nil, 0.0
-	}
+    // E) Handle Exists logic (Filter, Score 0.0)
+    if c.Exists != nil {
+        // Resolve path hierarchically. Existence is confirmed if any matches are found.
+        matches, _ := resolveHierarchicalPath(data, c.Exists.Field)
+        
+        // Exists is true if the path resolved to at least one non-nil value.
+        // We iterate to ensure the *resolved value* is not nil, just like the original logic.
+        existsAndNotNil := false
+        for _, m := range matches {
+            if m.Value != nil {
+                existsAndNotNil = true
+                break
+            }
+        }
+        return existsAndNotNil, 0.0
+    }
 
-	// F) Handle Missing logic (Filter, Score 0.0)
-	if c.Missing != nil {
-		val, exists := resolveRawDotNotation(data, c.Missing.Field)
-		log.Printf("Evaluate: Checking MISSING for field '%s'. Exists: %t, Value is nil: %t", c.Missing.Field, exists, val == nil)
-		
-		// Changed: Return score 0.0
-		return !exists || val == nil, 0.0
-	}
+    // F) Handle Missing logic (Filter, Score 0.0)
+    if c.Missing != nil {
+        // The complement of Exists logic.
+        matches, _ := resolveHierarchicalPath(data, c.Missing.Field)
+        
+        // Missing is true if *no* non-nil matches were found.
+        missingOrNil := true
+        for _, m := range matches {
+            if m.Value != nil {
+                missingOrNil = false
+                break
+            }
+        }
+        return missingOrNil, 0.0
+    }
 
-	// G) Handle Template logic (Filter, Score 0.0)
-	if c.Template != nil {
-		// Changed: EvaluateTemplate now returns bool and float64 (0.0)
-		match, score = EvaluateTemplate(data, c.Template)
-		return match, score
-	}
+    // G) Handle Template logic (Filter, Score 0.0)
+    if c.Template != nil {
+        match, score = EvaluateTemplate(data, c.Template)
+        return match, score
+    }
 
-	// H) Handle Match logic (Relevancy, Score > 0.0 possible)
-	if c.Match != nil {
-		// Delegates score calculation to EvaluateMatch
-		// Changed: EvaluateMatch now returns bool and float64 (calculated score)
-		return EvaluateMatch(data, c.Match) 
-	}
+    // H) Handle Match logic (Relevancy, Score > 0.0 possible)
+    if c.Match != nil {
+        // Assuming EvaluateMatch is updated internally to use resolveHierarchicalPath
+        return EvaluateMatch(data, c.Match) 
+    }
 
     // --- NEW: I) Handle MatchPhrase logic (Highest Relevancy, Score > 0.0) ---
     if c.MatchPhrase != nil {
-        // Delegates score calculation to EvaluateMatchPhrase
+        // Assuming EvaluateMatchPhrase is updated internally to use resolveHierarchicalPath
         return EvaluateMatchPhrase(data, c.MatchPhrase) 
     }
 
-	// I) Extract Condition and default Operation (for Term/Filter)
-	var condition Condition
-	var defaultOp Operation = Equal
+    // J) Extract Condition and default Operation (for Term/Filter)
+    var condition Condition
+    var defaultOp Operation = Equal
 
-	if c.Term != nil {
-		// Term condition: Treated as a filter (Score 0.0)
-		condition = *c.Term
-	} else if c.Filter != nil {
-		// Filter condition: Treated as a filter (Score 0.0)
-		condition = *c.Filter
-	} else {
-		return true, 0.0 // Changed: Empty case matches, score 0.0
-	}
+    if c.Term != nil {
+        condition = *c.Term
+    } else if c.Filter != nil {
+        condition = *c.Filter
+    } else {
+        return true, 0.0 // Empty case matches, score 0.0
+    }
 
-	if condition.GetModifiers() != nil {
-		defaultOp = condition.GetModifiers().Operation
-	}
+    if condition.GetModifiers() != nil {
+        defaultOp = condition.GetModifiers().Operation
+    }
 
-	// --- 1. Handle SubQuery for IN/NOT IN (Filter, Score 0.0) ---
-	if condition.GetSubQuery() != nil && (defaultOp == In || defaultOp == NotIn) {
-		subQuery := condition.GetSubQuery()
+    // --- 1. Handle SubQuery for IN/NOT IN (Filter, Score 0.0) ---
+    if condition.GetSubQuery() != nil && (defaultOp == In || defaultOp == NotIn) {
+        subQuery := condition.GetSubQuery()
+        localCheckField := condition.GetField()
+        resultField := subQuery.ResultField
 
-		localCheckField := condition.GetField()
-		resultField := subQuery.ResultField
+        if resultField == "" {
+            return false, 0.0
+        }
 
-		if resultField == "" {
-			log.Printf("Case.Evaluate: Subquery must specify 'resultField' for IN/NOT IN operation.")
-			return false, 0.0 // Changed: Return 0.0 score
-		}
+        subResultData, err := ExecuteSubQuery(ctx, loader, indexInput, subQuery, resultField)
+        if err != nil {
+            return false, 0.0
+        }
 
-		log.Printf("Case.Evaluate: Executing recursive subquery. Target index: %s, Result field: %s", subQuery.Index, resultField)
+        subResultSet := make(map[string]struct{})
+        for _, val := range subResultData {
+            subResultSet[val] = struct{}{}
+        }
 
-		subResultData, err := ExecuteSubQuery(ctx, loader, indexInput, subQuery, resultField)
-		if err != nil {
-			log.Printf("Case.Evaluate: Error executing subquery: %v", err)
-			return false, 0.0 // Changed: Return 0.0 score
-		}
+        // We only check the *first* resolved value against the subquery result set
+        // to mimic the behavior of the single-value resolver.
+        matches, exists := resolveHierarchicalPath(data, localCheckField)
+        
+        if !exists || len(matches) == 0 {
+            return false, 0.0
+        }
+        
+        // Get the string representation of the first resolved value
+        localValue := fmt.Sprintf("%v", matches[0].Value) 
+        _, localValueIsInSet := subResultSet[localValue]
 
-		subResultSet := make(map[string]struct{})
-		for _, val := range subResultData {
-			subResultSet[val] = struct{}{}
-		}
+        if defaultOp == In {
+            return localValueIsInSet, 0.0
+        }
+        if defaultOp == NotIn {
+            return !localValueIsInSet, 0.0
+        }
+    }
 
-		localValue, exists := resolveDotNotation(data, localCheckField)
-		if !exists {
-			log.Printf("Case.Evaluate: Local check field '%s' not found in document.", localCheckField)
-			return false, 0.0 // Changed: Return 0.0 score
-		}
+    // ----------------------------------------------------------------------
+    // --- 2. Standard Value Evaluation (Term/Filter) (Score 0.0) ---
+    // ----------------------------------------------------------------------
 
-		_, localValueIsInSet := subResultSet[localValue]
-
-		if defaultOp == In {
-			return localValueIsInSet, 0.0 // Changed: Return 0.0 score
-		}
-		if defaultOp == NotIn {
-			return !localValueIsInSet, 0.0 // Changed: Return 0.0 score
-		}
-	}
-
-	// --- 2. Standard Value Evaluation (Dot notation) (Filter, Score 0.0) ---
-
-	targetValue, exists := resolveDotNotation(data, condition.GetField())
-	if !exists {
-		return false, 0.0 // Changed: Return 0.0 score
-	}
-
-	// EvaluateBool is assumed to return a simple bool for Term/Filter/Match conditions
-    // when called outside of EvaluateMatch. Since we are here, it's a Term/Filter.
-	match = EvaluateBool(condition, targetValue, defaultOp)
+    // Use the new hierarchical resolver to find ALL matching field values and their depths.
+    matches, exists := resolveHierarchicalPath(data, condition.GetField())
     
-    // Changed: Term and Filter conditions contribute 0.0 to the score.
+    // If the field doesn't exist, the condition fails.
+    if !exists {
+        return false, 0.0
+    }
+
+    // EvaluateBool now takes the slice of matches and the target value.
+    // It will iterate through the matches and perform the operation check.
+    match = EvaluateBool(matches, condition.GetValue(), defaultOp)
+    
+    // Term and Filter conditions contribute 0.0 to the score.
     return match, 0.0
 }
 
@@ -3078,6 +3446,65 @@ func resolvePointFromDoc(doc map[string]interface{}, field string) (float64, flo
     // The field was found but was not a recognizable map or array format for geo points.
     return 0, 0, false
 }
+
+// resolveAndParsePoints resolves the field path dynamically and attempts to extract
+// all valid geographic points (Lat, Lon) found in the document.
+// @todo: This isn't working use GeoMultiPolygon instead which does the same thing but works with dynamic path mapping.
+func resolveAndParsePoints(doc map[string]interface{}, field string) ([]Point, bool) {
+    allMatches, exists := resolveHierarchicalPath(doc, field)
+    if !exists || len(allMatches) == 0 {
+        return nil, false
+    }
+
+    foundPoints := make([]Point, 0)
+
+    for _, pathMatch := range allMatches {
+        var docLat, docLon float64
+        var err error
+        fieldValue := pathMatch.Value
+        parsed := false
+
+        // CASE 1: Nested Object (e.g., {"lat": N, "lon": N})
+        if geoFieldMap, ok := fieldValue.(map[string]interface{}); ok {
+            latVal, latExists := geoFieldMap["lat"]
+            lonVal, lonExists := geoFieldMap["lon"]
+
+            if latExists && lonExists {
+                docLat, err = parseCoordinate(latVal)
+                if err == nil {
+                    docLon, err = parseCoordinate(lonVal)
+                    if err == nil {
+                        parsed = true
+                    }
+                }
+            }
+        }
+
+        // CASE 2: Comma-separated String (e.g., "N,N")
+        if !parsed {
+            if geoValueStr, ok := fieldValue.(string); ok {
+                coords := strings.Split(geoValueStr, ",")
+                if len(coords) == 2 {
+                    docLat, err = strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
+                    if err == nil {
+                        docLon, err = strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
+                        if err == nil {
+                            parsed = true
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If successfully parsed, append the point
+        if parsed {
+            foundPoints = append(foundPoints, Point{Lat: docLat, Lon: docLon})
+        }
+    }
+
+    return foundPoints, len(foundPoints) > 0
+}
+
 
 // search/package.go (Helper Functions)
 
